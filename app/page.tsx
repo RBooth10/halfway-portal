@@ -1,4 +1,5 @@
 import type React from "react";
+import Link from "next/link";
 import {
   ArrowRight,
   BedDouble,
@@ -90,10 +91,13 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
-            <button className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+            <Link
+              href="/onboarding"
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            >
               Start Provider Onboarding
               <ArrowRight className="h-4 w-4" />
-            </button>
+            </Link>
           </div>
         </section>
 
