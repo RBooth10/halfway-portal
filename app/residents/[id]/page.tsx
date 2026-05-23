@@ -94,7 +94,6 @@ type MedicationRecordRow = {
   end_date: string | null;
   status: string;
   mat_mar_related: boolean;
-  self_administered: boolean;
   storage_notes: string | null;
   notes: string | null;
   created_at: string;
@@ -201,6 +200,7 @@ export default function ResidentProfilePage() {
   const [selectedMedicationRecordId, setSelectedMedicationRecordId] = useState("");
   const [checkedMedicationIds, setCheckedMedicationIds] = useState<string[]>([]);
   const [medLogNote, setMedLogNote] = useState("");
+  const [medLogSelfAdministered, setMedLogSelfAdministered] = useState(true);
   const [medFollowUpNeeded, setMedFollowUpNeeded] = useState(false);
   const [medFollowUpNotes, setMedFollowUpNotes] = useState("");
   const [savingMedicationLog, setSavingMedicationLog] = useState(false);
@@ -213,7 +213,6 @@ export default function ResidentProfilePage() {
   const [medicationEndDate, setMedicationEndDate] = useState("");
   const [medicationStatus, setMedicationStatus] = useState("active");
   const [matMarRelated, setMatMarRelated] = useState(false);
-  const [selfAdministered, setSelfAdministered] = useState(true);
   const [storageNotes, setStorageNotes] = useState("");
   const [medicationNotes, setMedicationNotes] = useState("");
   const [savingMedication, setSavingMedication] = useState(false);
@@ -535,6 +534,7 @@ export default function ResidentProfilePage() {
             checkedMedicationSnapshot.length === medicationRecords.filter((medication) => medication.status === "active").length,
           checked_medications: checkedMedicationSnapshot,
           note_text: medLogNote.trim() || "Medication log completed.",
+          self_administered: medLogSelfAdministered,
           follow_up_needed: medFollowUpNeeded,
           follow_up_notes: medFollowUpNotes.trim() || null,
         })
@@ -566,6 +566,7 @@ export default function ResidentProfilePage() {
       setSelectedMedicationRecordId("");
       setCheckedMedicationIds([]);
       setMedLogNote("");
+      setMedLogSelfAdministered(true);
       setMedFollowUpNeeded(false);
       setMedFollowUpNotes("");
       setMessage("Medication log saved successfully.");
@@ -624,7 +625,6 @@ export default function ResidentProfilePage() {
           end_date: medicationEndDate || null,
           status: medicationStatus,
           mat_mar_related: matMarRelated,
-          self_administered: selfAdministered,
           storage_notes: storageNotes.trim() || null,
           notes: medicationNotes.trim() || null,
         })
@@ -645,7 +645,6 @@ export default function ResidentProfilePage() {
       setMedicationEndDate("");
       setMedicationStatus("active");
       setMatMarRelated(false);
-      setSelfAdministered(true);
       setStorageNotes("");
       setMedicationNotes("");
       setMessage("Medication record saved successfully.");
@@ -1059,16 +1058,6 @@ export default function ResidentProfilePage() {
                     MAT/MAR-related medication
                   </label>
 
-                  <label className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4 text-sm font-medium text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={selfAdministered}
-                      onChange={(event) => setSelfAdministered(event.target.checked)}
-                      className="h-4 w-4"
-                    />
-                    Self-administered by resident
-                  </label>
-
                   <label className="block md:col-span-2">
                     <span className="text-sm font-medium text-slate-700">Storage notes</span>
                     <input
@@ -1255,6 +1244,16 @@ export default function ResidentProfilePage() {
                   <label className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4 text-sm font-medium text-slate-700">
                     <input
                       type="checkbox"
+                      checked={medLogSelfAdministered}
+                      onChange={(event) => setMedLogSelfAdministered(event.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    Medication was self-administered by resident during this log event
+                  </label>
+
+                  <label className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4 text-sm font-medium text-slate-700">
+                    <input
+                      type="checkbox"
                       checked={medFollowUpNeeded}
                       onChange={(event) => setMedFollowUpNeeded(event.target.checked)}
                       className="h-4 w-4"
@@ -1299,6 +1298,7 @@ export default function ResidentProfilePage() {
                             </p>
                             <p className="mt-1 text-sm text-slate-600">
                               {log.all_current_meds_checked ? "All active meds checked" : `${log.checked_medications.length} medication(s) checked`}
+                              {" • Self-administered: "}{log.self_administered ? "Yes" : "No"}
                               {log.follow_up_needed ? " • Follow-up needed" : ""}
                             </p>
                           </div>

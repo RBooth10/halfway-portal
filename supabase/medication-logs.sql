@@ -13,6 +13,7 @@ create table if not exists public.medication_logs (
   all_current_meds_checked boolean not null default false,
   checked_medications jsonb not null default '[]'::jsonb,
   note_text text not null,
+  self_administered boolean not null default true,
   follow_up_needed boolean not null default false,
   follow_up_notes text,
   created_at timestamptz not null default now(),
