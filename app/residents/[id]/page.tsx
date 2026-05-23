@@ -80,6 +80,26 @@ type UaBaLogRow = {
   created_at: string;
 };
 
+type MedicationRecordRow = {
+  id: string;
+  provider_id: string;
+  resident_id: string;
+  created_by_auth_user_id: string | null;
+  medication_name: string;
+  medication_type: string;
+  dosage: string | null;
+  prescribing_provider: string | null;
+  pharmacy: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  status: string;
+  mat_mar_related: boolean;
+  self_administered: boolean;
+  storage_notes: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
 function MetricCard({
   title,
   value,
@@ -151,7 +171,21 @@ export default function ResidentProfilePage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [progressNotes, setProgressNotes] = useState<ProgressNoteRow[]>([]);
   const [uaBaLogs, setUaBaLogs] = useState<UaBaLogRow[]>([]);
+  const [medicationRecords, setMedicationRecords] = useState<MedicationRecordRow[]>([]);
   const [providerName, setProviderName] = useState("Current Provider");
+  const [medicationName, setMedicationName] = useState("");
+  const [medicationType, setMedicationType] = useState("prescription");
+  const [dosage, setDosage] = useState("");
+  const [prescribingProvider, setPrescribingProvider] = useState("");
+  const [pharmacy, setPharmacy] = useState("");
+  const [medicationStartDate, setMedicationStartDate] = useState("");
+  const [medicationEndDate, setMedicationEndDate] = useState("");
+  const [medicationStatus, setMedicationStatus] = useState("active");
+  const [matMarRelated, setMatMarRelated] = useState(false);
+  const [selfAdministered, setSelfAdministered] = useState(true);
+  const [storageNotes, setStorageNotes] = useState("");
+  const [medicationNotes, setMedicationNotes] = useState("");
+  const [savingMedication, setSavingMedication] = useState(false);
   const [collectionDate, setCollectionDate] = useState("");
   const [testType, setTestType] = useState("UA");
   const [testResult, setTestResult] = useState("pending");
@@ -240,6 +274,18 @@ export default function ResidentProfilePage() {
       }
 
       setUaBaLogs((uaBaResult.data ?? []) as UaBaLogRow[]);
+
+      const medicationResult = await supabase
+        .from("medication_records")
+        .select("*")
+        .eq("resident_id", residentId)
+        .order("created_at", { ascending: false });
+
+      if (medicationResult.error) {
+        throw medicationResult.error;
+      }
+
+      setMedicationRecords((medicationResult.data ?? []) as MedicationRecordRow[]);
     } catch (err) {
       const profileError = err as { message?: unknown };
       setError(profileError?.message ? String(profileError.message) : "Could not load resident profile.");
@@ -372,6 +418,86 @@ export default function ResidentProfilePage() {
       setError(testError?.message ? String(testError.message) : "Could not save UA/BA log.");
     } finally {
       setSavingUaBaLog(false);
+    }
+  }
+
+  async function saveMedicationRecord() {
+    setSavingMedication(true);
+    setMessage("");
+    setError("");
+
+    if (!resident) {
+      setSavingMedication(false);
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    if (!medicationName.trim()) {
+      setSavingMedication(false);
+      setError("Medication name is required.");
+      return;
+    }
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data: userData } = await supabase.auth.getUser();
+
+      const { data, error } = await supabase
+        .from("medication_records")
+        .insert({
+          provider_id: resident.provider_id,
+          resident_id: resident.id,
+          created_by_auth_user_id: userData.user?.id ?? null,
+          medication_name: medicationName.trim(),
+          medication_type: medicationType,
+          dosage: dosage.trim() || null,
+          prescribing_provider: prescribingProvider.trim() || null,
+          pharmacy: pharmacy.trim() || null,
+          start_date: medicationStartDate || null,
+          end_date: medicationEndDate || null,
+          status: medicationStatus,
+          mat_mar_related: matMarRelated,
+          self_administered: selfAdministered,
+          storage_notes: storageNotes.trim() || null,
+          notes: medicationNotes.trim() || null,
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setMedicationRecords((current) => [data as MedicationRecordRow, ...current]);
+      setMedicationName("");
+      setMedicationType("prescription");
+      setDosage("");
+      setPrescribingProvider("");
+      setPharmacy("");
+      setMedicationStartDate("");
+      setMedicationEndDate("");
+      setMedicationStatus("active");
+      setMatMarRelated(false);
+      setSelfAdministered(true);
+      setStorageNotes("");
+      setMedicationNotes("");
+      setMessage("Medication record saved successfully.");
+
+      await createAuditLog({
+        providerId: resident.provider_id,
+        action: "medication_record_created",
+        tableName: "medication_records",
+        recordId: data.id,
+        oldValues: null,
+        newValues: data as Record<string, unknown>,
+        reason: "Medication / MAT-MAR record created from resident profile.",
+      });
+    } catch (err) {
+      const medicationError = err as { message?: unknown };
+      setError(medicationError?.message ? String(medicationError.message) : "Could not save medication record.");
+    } finally {
+      setSavingMedication(false);
     }
   }
 
@@ -658,6 +784,191 @@ export default function ResidentProfilePage() {
               </div>
 
               <div className="rounded-2xl border bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold">Medication / MAT-MAR Tracking</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Track medications disclosed by the resident, including MAT/MAR-related medications.
+                </p>
+
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Medication name</span>
+                    <input
+                      type="text"
+                      value={medicationName}
+                      onChange={(event) => setMedicationName(event.target.value)}
+                      placeholder="Example: Buprenorphine, Suboxone, Sertraline"
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Medication type</span>
+                    <select
+                      value={medicationType}
+                      onChange={(event) => setMedicationType(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option value="prescription">Prescription</option>
+                      <option value="otc">OTC</option>
+                      <option value="mat_mar">MAT/MAR</option>
+                      <option value="supplement">Supplement</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Dosage / instructions</span>
+                    <input
+                      type="text"
+                      value={dosage}
+                      onChange={(event) => setDosage(event.target.value)}
+                      placeholder="Example: 8mg daily"
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Status</span>
+                    <select
+                      value={medicationStatus}
+                      onChange={(event) => setMedicationStatus(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option value="active">Active</option>
+                      <option value="discontinued">Discontinued</option>
+                      <option value="pending_verification">Pending Verification</option>
+                      <option value="historical">Historical</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Prescribing provider</span>
+                    <input
+                      type="text"
+                      value={prescribingProvider}
+                      onChange={(event) => setPrescribingProvider(event.target.value)}
+                      placeholder="Provider or clinic name"
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Pharmacy</span>
+                    <input
+                      type="text"
+                      value={pharmacy}
+                      onChange={(event) => setPharmacy(event.target.value)}
+                      placeholder="Pharmacy name"
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Start date</span>
+                    <input
+                      type="date"
+                      value={medicationStartDate}
+                      onChange={(event) => setMedicationStartDate(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">End date</span>
+                    <input
+                      type="date"
+                      value={medicationEndDate}
+                      onChange={(event) => setMedicationEndDate(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4 text-sm font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={matMarRelated}
+                      onChange={(event) => setMatMarRelated(event.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    MAT/MAR-related medication
+                  </label>
+
+                  <label className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4 text-sm font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={selfAdministered}
+                      onChange={(event) => setSelfAdministered(event.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    Self-administered by resident
+                  </label>
+
+                  <label className="block md:col-span-2">
+                    <span className="text-sm font-medium text-slate-700">Storage notes</span>
+                    <input
+                      type="text"
+                      value={storageNotes}
+                      onChange={(event) => setStorageNotes(event.target.value)}
+                      placeholder="Example: Stored in resident lockbox, resident-managed, office safe, etc."
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block md:col-span-2">
+                    <span className="text-sm font-medium text-slate-700">Medication notes</span>
+                    <textarea
+                      value={medicationNotes}
+                      onChange={(event) => setMedicationNotes(event.target.value)}
+                      placeholder="Add medication verification notes, refill concerns, MAT/MAR access notes, or follow-up needs."
+                      className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={saveMedicationRecord}
+                  disabled={savingMedication}
+                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingMedication ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  {savingMedication ? "Saving..." : "Save Medication Record"}
+                </button>
+
+                <div className="mt-6 space-y-3">
+                  {medicationRecords.length === 0 ? (
+                    <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                      No medication records saved yet.
+                    </p>
+                  ) : (
+                    medicationRecords.map((medication) => (
+                      <div key={medication.id} className="rounded-2xl bg-slate-50 p-4">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-950">
+                              {medication.medication_name}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              {medication.medication_type} • {medication.status} • {medication.dosage || "No dosage entered"}
+                            </p>
+                          </div>
+                          <p className="text-xs font-medium text-slate-500">
+                            {medication.mat_mar_related ? "MAT/MAR" : "Non-MAT/MAR"}
+                          </p>
+                        </div>
+                        <p className="mt-2 text-sm text-slate-600">
+                          Prescriber: {medication.prescribing_provider || "Not entered"} • Pharmacy: {medication.pharmacy || "Not entered"}
+                        </p>
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                          {medication.notes || "No medication notes entered."}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border bg-white p-6 shadow-sm">
                 <h2 className="text-lg font-semibold">Resident Documents</h2>
                 {documents.length === 0 ? (
                   <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
@@ -703,7 +1014,7 @@ export default function ResidentProfilePage() {
                       <Pill className="h-4 w-4" />
                       Medication / MAT-MAR
                     </div>
-                    <p className="mt-1">Future workflow for medication status and policy compliance.</p>
+                    <p className="mt-1">Active now.</p>
                   </div>
 
                   <div className="rounded-2xl bg-slate-50 p-4">
