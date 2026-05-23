@@ -2,6 +2,7 @@ import {
   Building2,
   Home,
   LockKeyhole,
+  LogIn,
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
@@ -35,6 +36,14 @@ export default function AppHeader() {
             <Building2 className="h-4 w-4" />
             Setup Mode
           </div>
+
+          <Link
+            href="/auth"
+            className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium hover:bg-slate-50"
+          >
+            <LogIn className="h-4 w-4" />
+            Sign In
+          </Link>
 
           <Link
             href="/"
