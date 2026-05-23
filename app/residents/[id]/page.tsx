@@ -39,6 +39,13 @@ type ResidentDetail = {
   file_status: string;
   medication_status: string;
   rci_status: string;
+  current_phase: string | null;
+  has_sponsor: boolean;
+  has_home_group: boolean;
+  attending_required_meetings: boolean;
+  recovery_plan_started: boolean;
+  program_fees_current: boolean;
+  medication_status_reviewed: boolean;
   notes: string | null;
   created_at: string;
 };
@@ -233,6 +240,20 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function daysSince(value: string | null) {
+  if (!value) return "Not completed";
+
+  const start = new Date(value);
+  const today = new Date();
+
+  if (Number.isNaN(start.getTime())) return "Not completed";
+
+  const diffMs = today.getTime() - start.getTime();
+  const days = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
 function TabButton({
   active,
   label,
@@ -300,6 +321,7 @@ export default function ResidentProfilePage() {
   const [recoveryGoals, setRecoveryGoals] = useState<RecoveryGoalRow[]>([]);
   const [clientRciLink, setClientRciLink] = useState("");
   const [generatingRciLink, setGeneratingRciLink] = useState(false);
+  const [savingSnapshotStatus, setSavingSnapshotStatus] = useState(false);
   const [providerName, setProviderName] = useState("Current Provider");
   const [activeTab, setActiveTab] = useState("snapshot");
   const [medLogDate, setMedLogDate] = useState("");
@@ -869,6 +891,55 @@ export default function ResidentProfilePage() {
     }
   }
 
+  const latestCompletedRci = rciAssessments.find((assessment) => assessment.status === "completed");
+  const rciCompletedLabel = latestCompletedRci
+    ? daysSince(latestCompletedRci.client_completed_at || latestCompletedRci.assessment_date)
+    : "Not completed";
+
+  async function updateResidentSnapshotField(
+    fieldName:
+      | "current_phase"
+      | "has_sponsor"
+      | "has_home_group"
+      | "attending_required_meetings"
+      | "recovery_plan_started"
+      | "program_fees_current"
+      | "medication_status_reviewed",
+    value: string | boolean | null
+  ) {
+    if (!resident) {
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    setSavingSnapshotStatus(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase
+        .from("residents")
+        .update({ [fieldName]: value })
+        .eq("id", resident.id)
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setResident(data as ResidentDetail);
+      setMessage("Resident snapshot updated.");
+    } catch (err) {
+      const updateError = err as { message?: unknown };
+      setError(updateError?.message ? String(updateError.message) : "Could not update resident snapshot.");
+    } finally {
+      setSavingSnapshotStatus(false);
+    }
+  }
+
   const residentName = resident ? `${resident.first_name} ${resident.last_name}` : "Resident Profile";
 
   return (
@@ -952,7 +1023,7 @@ export default function ResidentProfilePage() {
                   <TabButton active={activeTab === "notes"} label="Notes" status={`${progressNotes.length} saved`} onClick={() => setActiveTab("notes")} />
                   <TabButton active={activeTab === "ua"} label="UA/BA" status={uaBaLogs.length > 0 ? `${uaBaLogs.length} logged` : "Needs log"} onClick={() => setActiveTab("ua")} />
                   <TabButton active={activeTab === "medication"} label="Medication" status={medicationRecords.length > 0 ? "Complete" : "Needs meds"} onClick={() => setActiveTab("medication")} />
-                  <TabButton active={activeTab === "rci"} label="RCI & Plan" status={rciAssessments.some((assessment) => assessment.status === "completed") ? "Complete" : "Needs RCI"} onClick={() => setActiveTab("rci")} />
+                  <TabButton active={activeTab === "rci"} label="RCI & Plan" status={latestCompletedRci ? `Complete • ${rciCompletedLabel}` : "Needs RCI"} onClick={() => setActiveTab("rci")} />
                   <TabButton active={activeTab === "documents"} label="Documents" status={`${documents.length} uploaded`} onClick={() => setActiveTab("documents")} />
                 </div>
               </div>
@@ -978,8 +1049,12 @@ export default function ResidentProfilePage() {
                           <span className="text-sm font-semibold text-slate-950">{house?.name || "Not assigned"}</span>
                         </div>
                         <div className="flex items-center justify-between gap-4 p-3">
+                          <span className="text-sm font-medium text-slate-600">Phase</span>
+                          <span className="text-sm font-semibold text-slate-950">{resident.current_phase || "Not selected"}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 p-3">
                           <span className="text-sm font-medium text-slate-600">RCI</span>
-                          <span className="text-sm font-semibold text-slate-950">{resident.rci_status}</span>
+                          <span className="text-sm font-semibold text-slate-950">{latestCompletedRci ? rciCompletedLabel : resident.rci_status}</span>
                         </div>
                       </div>
                     </div>
@@ -995,6 +1070,71 @@ export default function ResidentProfilePage() {
                       </div>
 
                       <div className="mt-5 grid gap-4 md:grid-cols-2">
+                        <div className="rounded-2xl border bg-slate-50 p-4 md:col-span-2">
+                          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-950">Phase Level</p>
+                              <p className="mt-1 text-sm text-slate-500">
+                                Select the resident current program phase. Provider-specific phases can be added later.
+                              </p>
+                            </div>
+
+                            <select
+                              value={resident.current_phase || ""}
+                              onChange={(event) => updateResidentSnapshotField("current_phase", event.target.value || null)}
+                              disabled={savingSnapshotStatus}
+                              className="h-11 min-w-48 rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                            >
+                              <option value="">Select phase</option>
+                              <option value="Phase 1">Phase 1</option>
+                              <option value="Phase 2">Phase 2</option>
+                              <option value="Phase 3">Phase 3</option>
+                              <option value="Phase 4">Phase 4</option>
+                              <option value="Custom / Provider Phase">Custom / Provider Phase</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border bg-slate-50 p-4 md:col-span-2">
+                          <p className="text-sm font-semibold text-slate-950">Program Requirements</p>
+                          <p className="mt-1 text-sm text-slate-500">
+                            Check items as they are confirmed for the resident.
+                          </p>
+
+                          <div className="mt-4 grid gap-3 md:grid-cols-2">
+                            {[
+                              ["has_sponsor", "Has sponsor", resident.has_sponsor],
+                              ["has_home_group", "Has home group", resident.has_home_group],
+                              ["attending_required_meetings", "Attending required meetings", resident.attending_required_meetings],
+                              ["recovery_plan_started", "Recovery plan started", resident.recovery_plan_started],
+                              ["program_fees_current", "Program fees current", resident.program_fees_current],
+                              ["medication_status_reviewed", "Medication status reviewed", resident.medication_status_reviewed],
+                            ].map(([field, label, checked]) => (
+                              <label key={String(field)} className="flex items-center gap-3 rounded-xl bg-white p-3 text-sm font-medium text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(checked)}
+                                  disabled={savingSnapshotStatus}
+                                  onChange={(event) =>
+                                    updateResidentSnapshotField(
+                                      field as
+                                        | "has_sponsor"
+                                        | "has_home_group"
+                                        | "attending_required_meetings"
+                                        | "recovery_plan_started"
+                                        | "program_fees_current"
+                                        | "medication_status_reviewed",
+                                      event.target.checked
+                                    )
+                                  }
+                                  className="h-4 w-4"
+                                />
+                                {String(label)}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
                         <SnapshotAction
                           title="Complete UA/BA"
                           description={uaBaLogs.length > 0 ? `${uaBaLogs.length} UA/BA log(s) saved.` : "No UA/BA logs yet. Add a screen or breathalyzer result."}
