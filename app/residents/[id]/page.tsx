@@ -5,16 +5,12 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import {
   ArrowLeft,
-  CalendarDays,
   CheckCircle2,
-  ClipboardCheck,
   FileSignature,
   FolderOpen,
-  HeartHandshake,
   Home,
   Loader2,
   MessageSquarePlus,
-  Pill,
   Plus,
   ShieldCheck,
   User,
@@ -1014,7 +1010,7 @@ export default function ResidentProfilePage() {
             <MetricCard title="Progress Notes" value={String(progressNotes.length)} subtitle="Saved internal notes" icon={MessageSquarePlus} />
           </section>
 
-          <section className="grid gap-6 xl:grid-cols-[1fr_380px]">
+          <section className="space-y-6">
             <div className="space-y-6">
               {/* Resident Profile Tabs */}
               <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
@@ -1030,7 +1026,7 @@ export default function ResidentProfilePage() {
 
               {activeTab === "snapshot" ? (
                 <div className="space-y-6">
-                  <div className="grid gap-6 xl:grid-cols-[minmax(260px,360px)_1fr]">
+                  <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
                     <div className="rounded-2xl border bg-white p-6 text-center shadow-sm">
                       <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-slate-100">
                         <User className="h-10 w-10 text-slate-500" />
@@ -1069,7 +1065,7 @@ export default function ResidentProfilePage() {
                         </div>
                       </div>
 
-                      <div className="mt-5 grid gap-4 md:grid-cols-2">
+                      <div className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
                         <div className="rounded-2xl border bg-slate-50 p-4 md:col-span-2">
                           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                             <div>
@@ -1960,53 +1956,6 @@ export default function ResidentProfilePage() {
                 )}
               </div>
             </div>
-
-            <aside className="hidden">
-              <div className="rounded-2xl border bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold">Profile Workflows</h2>
-                <div className="mt-4 space-y-3 text-sm text-slate-600">
-                  <div className="rounded-2xl bg-slate-50 p-4">
-                    <div className="flex items-center gap-2 font-medium text-slate-950">
-                      <ClipboardCheck className="h-4 w-4" />
-                      Progress Notes
-                    </div>
-                    <p className="mt-1">Active now.</p>
-                  </div>
-
-                  <div className="rounded-2xl bg-slate-50 p-4">
-                    <div className="flex items-center gap-2 font-medium text-slate-950">
-                      <ShieldCheck className="h-4 w-4" />
-                      UA/BA Logs
-                    </div>
-                    <p className="mt-1">Active now.</p>
-                  </div>
-
-                  <div className="rounded-2xl bg-slate-50 p-4">
-                    <div className="flex items-center gap-2 font-medium text-slate-950">
-                      <Pill className="h-4 w-4" />
-                      Medication / MAT-MAR
-                    </div>
-                    <p className="mt-1">Active now.</p>
-                  </div>
-
-                  <div className="rounded-2xl bg-slate-50 p-4">
-                    <div className="flex items-center gap-2 font-medium text-slate-950">
-                      <HeartHandshake className="h-4 w-4" />
-                      RCI / Recovery Plan
-                    </div>
-                    <p className="mt-1">RCI tracking active now. Recovery plan goals come next.</p>
-                  </div>
-
-                  <div className="rounded-2xl bg-slate-50 p-4">
-                    <div className="flex items-center gap-2 font-medium text-slate-950">
-                      <CalendarDays className="h-4 w-4" />
-                      Discharge
-                    </div>
-                    <p className="mt-1">Future workflow for discharge summary and satisfaction survey.</p>
-                  </div>
-                </div>
-              </div>
-            </aside>
           </section>
         </>
       ) : null}
