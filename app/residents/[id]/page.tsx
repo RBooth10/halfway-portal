@@ -17,6 +17,7 @@ import {
   Pill,
   Plus,
   ShieldCheck,
+  User,
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
@@ -232,6 +233,58 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function TabButton({
+  active,
+  label,
+  status,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  status?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        active
+          ? "border-b-2 border-slate-950 bg-white px-5 py-3 text-left text-sm font-semibold text-slate-950"
+          : "border-b-2 border-transparent bg-white px-5 py-3 text-left text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+      }
+    >
+      <span className="block">{label}</span>
+      {status ? (
+        <span className="mt-0.5 block text-xs font-normal text-slate-500">
+          {status}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
+function SnapshotAction({
+  title,
+  description,
+  onClick,
+}: {
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-2xl border bg-white p-4 text-left shadow-sm hover:bg-slate-50"
+    >
+      <p className="text-sm font-semibold text-slate-950">{title}</p>
+      <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+    </button>
+  );
+}
+
 export default function ResidentProfilePage() {
   const params = useParams<{ id: string }>();
   const residentId = params.id;
@@ -248,6 +301,7 @@ export default function ResidentProfilePage() {
   const [clientRciLink, setClientRciLink] = useState("");
   const [generatingRciLink, setGeneratingRciLink] = useState(false);
   const [providerName, setProviderName] = useState("Current Provider");
+  const [activeTab, setActiveTab] = useState("snapshot");
   const [medLogDate, setMedLogDate] = useState("");
   const [medLogType, setMedLogType] = useState("med_box_check");
   const [selectedMedicationRecordId, setSelectedMedicationRecordId] = useState("");
@@ -882,7 +936,7 @@ export default function ResidentProfilePage() {
 
       {resident ? (
         <>
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <section className="grid gap-4 md:grid-cols-2">
             <MetricCard title="Resident Status" value={resident.resident_status} subtitle="Current profile status" icon={ShieldCheck} />
             <MetricCard title="Assigned House" value={house?.name ?? "Not assigned"} subtitle="Current house placement" icon={Home} />
             <MetricCard title="File Status" value={resident.file_status} subtitle="Onboarding packet status" icon={FileSignature} />
@@ -891,7 +945,88 @@ export default function ResidentProfilePage() {
 
           <section className="grid gap-6 xl:grid-cols-[1fr_380px]">
             <div className="space-y-6">
-              <div className="rounded-2xl border bg-white p-6 shadow-sm">
+              {/* Resident Profile Tabs */}
+              <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+                <div className="flex flex-wrap border-b bg-white">
+                  <TabButton active={activeTab === "snapshot"} label="Snapshot" status="Add or review" onClick={() => setActiveTab("snapshot")} />
+                  <TabButton active={activeTab === "notes"} label="Notes" status={`${progressNotes.length} saved`} onClick={() => setActiveTab("notes")} />
+                  <TabButton active={activeTab === "ua"} label="UA/BA" status={uaBaLogs.length > 0 ? `${uaBaLogs.length} logged` : "Needs log"} onClick={() => setActiveTab("ua")} />
+                  <TabButton active={activeTab === "medication"} label="Medication" status={medicationRecords.length > 0 ? "Complete" : "Needs meds"} onClick={() => setActiveTab("medication")} />
+                  <TabButton active={activeTab === "rci"} label="RCI & Plan" status={rciAssessments.some((assessment) => assessment.status === "completed") ? "Complete" : "Needs RCI"} onClick={() => setActiveTab("rci")} />
+                  <TabButton active={activeTab === "documents"} label="Documents" status={`${documents.length} uploaded`} onClick={() => setActiveTab("documents")} />
+                </div>
+              </div>
+
+              {activeTab === "snapshot" ? (
+                <div className="space-y-6">
+                  <div className="grid gap-6 xl:grid-cols-[minmax(260px,360px)_1fr]">
+                    <div className="rounded-2xl border bg-white p-6 text-center shadow-sm">
+                      <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-slate-100">
+                        <User className="h-10 w-10 text-slate-500" />
+                      </div>
+
+                      <h2 className="mt-4 text-2xl font-semibold text-slate-950">{residentName}</h2>
+                      <p className="mt-1 text-sm text-slate-500">Resident Profile</p>
+
+                      <div className="mt-5 divide-y rounded-2xl border text-left">
+                        <div className="flex items-center justify-between gap-4 p-3">
+                          <span className="text-sm font-medium text-slate-600">Status</span>
+                          <span className="text-sm font-semibold text-slate-950">{resident.status}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 p-3">
+                          <span className="text-sm font-medium text-slate-600">House</span>
+                          <span className="text-sm font-semibold text-slate-950">{house?.name || "Not assigned"}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 p-3">
+                          <span className="text-sm font-medium text-slate-600">RCI</span>
+                          <span className="text-sm font-semibold text-slate-950">{resident.rci_status}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border bg-white p-6 shadow-sm">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <h2 className="text-lg font-semibold">Resident Snapshot</h2>
+                          <p className="mt-1 text-sm text-slate-500">
+                            Use the actions below to add or review parts of the resident record.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 grid gap-4 md:grid-cols-2">
+                        <SnapshotAction
+                          title="Complete UA/BA"
+                          description={uaBaLogs.length > 0 ? `${uaBaLogs.length} UA/BA log(s) saved.` : "No UA/BA logs yet. Add a screen or breathalyzer result."}
+                          onClick={() => setActiveTab("ua")}
+                        />
+                        <SnapshotAction
+                          title="Create Progress Note"
+                          description={`${progressNotes.length} note(s) saved. Add a new internal progress note.`}
+                          onClick={() => setActiveTab("notes")}
+                        />
+                        <SnapshotAction
+                          title="Add or Review Medication"
+                          description={medicationRecords.length > 0 ? "Medication records are started." : "No medication records yet. Add medication or MAT/MAR information."}
+                          onClick={() => setActiveTab("medication")}
+                        />
+                        <SnapshotAction
+                          title="RCI & Recovery Plan"
+                          description={rciAssessments.some((assessment) => assessment.status === "completed") ? "RCI results and resident-created goals are available." : "Generate a client RCI link or review the recovery plan."}
+                          onClick={() => setActiveTab("rci")}
+                        />
+                        <SnapshotAction
+                          title="Resident Documents"
+                          description={documents.length > 0 ? `${documents.length} document(s) uploaded.` : "No resident documents uploaded yet."}
+                          onClick={() => setActiveTab("documents")}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className={activeTab === "snapshot" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                 <h2 className="text-lg font-semibold">Profile Overview</h2>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <DetailBlock title="Email" value={resident.email} />
@@ -905,14 +1040,14 @@ export default function ResidentProfilePage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border bg-white p-6 shadow-sm">
+              <div className={activeTab === "snapshot" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                 <h2 className="text-lg font-semibold">Admission Notes</h2>
                 <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
                   {resident.notes || "No admission notes entered yet."}
                 </p>
               </div>
 
-              <div className="rounded-2xl border bg-white p-6 shadow-sm">
+              <div className={activeTab === "notes" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                 <h2 className="text-lg font-semibold">Progress Notes</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   Add internal notes related to progress, support needs, accountability, recovery goals, or house placement.
@@ -981,7 +1116,7 @@ export default function ResidentProfilePage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border bg-white p-6 shadow-sm">
+              <div className={activeTab === "ua" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                 <h2 className="text-lg font-semibold">UA/BA Logs</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   Add drug screen and breathalyzer records tied to this resident profile.
@@ -1097,7 +1232,7 @@ export default function ResidentProfilePage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border bg-white p-6 shadow-sm">
+              <div className={activeTab === "medication" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                 <h2 className="text-lg font-semibold">Medication / MAT-MAR Tracking</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   Track medications disclosed by the resident, including MAT/MAR-related medications.
@@ -1272,7 +1407,7 @@ export default function ResidentProfilePage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border bg-white p-6 shadow-sm">
+              <div className={activeTab === "medication" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                 <h2 className="text-lg font-semibold">Medication Log</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   Document medication activity such as med box checks, refills, discontinuations, new medications, and discrepancies.
@@ -1482,7 +1617,7 @@ export default function ResidentProfilePage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border bg-white p-6 shadow-sm">
+              <div className={activeTab === "rci" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                 <h2 className="text-lg font-semibold">Client RCI Assessment Link</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   Generate a private link the resident can use to complete the assessment without logging into the staff portal.
@@ -1517,7 +1652,7 @@ export default function ResidentProfilePage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border bg-white p-6 shadow-sm">
+              <div className={activeTab === "rci" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                 <h2 className="text-lg font-semibold">RCI Results Summary</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   Completed client assessments return a summary to the resident profile. Individual question responses remain stored in Supabase but are not displayed here.
@@ -1615,7 +1750,7 @@ export default function ResidentProfilePage() {
                 )}
               </div>
 
-              <div className="rounded-2xl border bg-white p-6 shadow-sm">
+              <div className={activeTab === "rci" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                 <h2 className="text-lg font-semibold">Resident-Created Recovery Goals</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   Goals created by the resident after reviewing their RCI results.
@@ -1665,7 +1800,7 @@ export default function ResidentProfilePage() {
                 )}
               </div>
 
-              <div className="rounded-2xl border bg-white p-6 shadow-sm">
+              <div className={activeTab === "documents" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                 <h2 className="text-lg font-semibold">Resident Documents</h2>
                 {documents.length === 0 ? (
                   <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
@@ -1686,7 +1821,7 @@ export default function ResidentProfilePage() {
               </div>
             </div>
 
-            <aside className="space-y-4">
+            <aside className="hidden">
               <div className="rounded-2xl border bg-white p-6 shadow-sm">
                 <h2 className="text-lg font-semibold">Profile Workflows</h2>
                 <div className="mt-4 space-y-3 text-sm text-slate-600">
