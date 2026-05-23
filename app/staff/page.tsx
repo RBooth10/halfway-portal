@@ -231,6 +231,13 @@ export default function StaffPage() {
               >
                 Save Draft
               </button>
+
+              <Link
+                href="/residents"
+                className="inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
+              >
+                Continue to Resident Setup
+              </Link>
             </div>
           </form>
 
