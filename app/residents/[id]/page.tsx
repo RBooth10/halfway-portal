@@ -719,12 +719,16 @@ export default function ResidentProfilePage() {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 14);
 
+      if (!userData.user) {
+        throw new Error("You must be signed in before generating a client RCI link.");
+      }
+
       const { data, error } = await supabase
         .from("rci_assessments")
         .insert({
           provider_id: resident.provider_id,
           resident_id: resident.id,
-          created_by_auth_user_id: userData.user?.id ?? null,
+          created_by_auth_user_id: userData.user.id,
           assessment_date: new Date().toISOString().slice(0, 10),
           rci_version: "DEMO-RCI",
           status: "sent",
@@ -736,7 +740,12 @@ export default function ResidentProfilePage() {
         .single();
 
       if (error) {
-        throw error;
+        console.error("Client RCI link insert error:", error);
+        throw new Error(`${error.message}${error.details ? ` Details: ${error.details}` : ""}${error.hint ? ` Hint: ${error.hint}` : ""}`);
+      }
+
+      if (!data?.client_access_token) {
+        throw new Error("The RCI record was created, but no client access token was returned.");
       }
 
       const link = `${window.location.origin}/client/rci/${token}`;
