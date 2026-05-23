@@ -4,6 +4,7 @@ import {
   LockKeyhole,
   LogIn,
   ShieldCheck,
+  UserCog,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -43,6 +44,14 @@ export default function AppHeader() {
           >
             <LogIn className="h-4 w-4" />
             Sign In
+          </Link>
+
+          <Link
+            href="/account"
+            className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium hover:bg-slate-50"
+          >
+            <UserCog className="h-4 w-4" />
+            Account
           </Link>
 
           <Link
