@@ -22,6 +22,7 @@ import {
 import Link from "next/link";
 import PageShell from "@/components/PageShell";
 import { getSupabaseClient } from "@/lib/supabase";
+import { createAuditLog } from "@/lib/audit";
 
 type StaffForm = {
   first_name: string;
@@ -283,11 +284,25 @@ export default function StaffPage() {
         throw error;
       }
 
+      const previousStaff = staff.find((person) => person.id === staffId) ?? null;
+
       setStaff((current) =>
         current.map((person) =>
           person.id === staffId ? (data as StaffRow) : person
         )
       );
+
+      if (providerId) {
+        await createAuditLog({
+          providerId,
+          action: "staff_archived",
+          tableName: "staff_profiles",
+          recordId: staffId,
+          oldValues: previousStaff as unknown as Record<string, unknown> | null,
+          newValues: data as Record<string, unknown>,
+          reason: "Staff profile archived from portal.",
+        });
+      }
 
       setMessage(`${staffEmail} was archived successfully.`);
     } catch (err) {
@@ -346,11 +361,24 @@ export default function StaffPage() {
           throw error;
         }
 
+        const previousStaff = staff.find((person) => person.id === editingStaffId) ?? null;
+
         setStaff((current) =>
           current.map((person) =>
             person.id === editingStaffId ? (data as StaffRow) : person
           )
         );
+
+        await createAuditLog({
+          providerId,
+          action: "staff_updated",
+          tableName: "staff_profiles",
+          recordId: editingStaffId,
+          oldValues: previousStaff as unknown as Record<string, unknown> | null,
+          newValues: data as Record<string, unknown>,
+          reason: "Staff profile updated from portal.",
+        });
+
         setForm(initialForm);
         setEditingStaffId(null);
         setMessage(`${data.email} was updated successfully.`);
