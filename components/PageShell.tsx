@@ -1,5 +1,6 @@
 import type React from "react";
 import SetupNav from "@/components/SetupNav";
+import AppHeader from "@/components/AppHeader";
 
 export default function PageShell({
   children,
@@ -11,6 +12,7 @@ export default function PageShell({
   return (
     <main className="min-h-screen bg-slate-100 p-6 text-slate-950">
       <div className={`mx-auto ${maxWidth} space-y-6`}>
+        <AppHeader />
         <SetupNav />
         {children}
       </div>
