@@ -160,9 +160,24 @@ as $$
 declare
   assessment_record public.rci_assessments%rowtype;
   response_record record;
+  question_record record;
+  adjusted_score numeric := 0;
   total_score numeric := 0;
   max_possible numeric := 0;
+  personal_score numeric := 0;
+  personal_max numeric := 0;
+  social_score numeric := 0;
+  social_max numeric := 0;
+  cultural_score numeric := 0;
+  cultural_max numeric := 0;
+  score_percent numeric := 0;
   calculated_level text := null;
+  personal_level text := null;
+  social_level text := null;
+  cultural_level text := null;
+  summary_text text := null;
+  strengths_text text := null;
+  needs_text text := null;
 begin
   select *
   into assessment_record
@@ -188,6 +203,22 @@ begin
     from jsonb_to_recordset(p_responses)
       as x(question_id uuid, response_score integer, response_text text)
   loop
+    select
+      q.id,
+      q.domain,
+      q.min_score,
+      q.max_score,
+      q.reverse_scored
+    into question_record
+    from public.rci_questions q
+    where q.id = response_record.question_id;
+
+    if question_record.reverse_scored then
+      adjusted_score := question_record.max_score + question_record.min_score - coalesce(response_record.response_score, 0);
+    else
+      adjusted_score := coalesce(response_record.response_score, 0);
+    end if;
+
     insert into public.rci_assessment_responses (
       provider_id,
       resident_id,
@@ -201,26 +232,86 @@ begin
       assessment_record.resident_id,
       assessment_record.id,
       response_record.question_id,
-      response_record.response_score,
+      adjusted_score,
       response_record.response_text
     );
 
-    total_score := total_score + coalesce(response_record.response_score, 0);
+    total_score := total_score + adjusted_score;
+    max_possible := max_possible + coalesce(question_record.max_score, 0);
 
-    select max_possible + coalesce(q.max_score, 0)
-    into max_possible
-    from public.rci_questions q
-    where q.id = response_record.question_id;
+    if question_record.domain = 'Personal Capital' then
+      personal_score := personal_score + adjusted_score;
+      personal_max := personal_max + coalesce(question_record.max_score, 0);
+    elsif question_record.domain = 'Social Capital' then
+      social_score := social_score + adjusted_score;
+      social_max := social_max + coalesce(question_record.max_score, 0);
+    elsif question_record.domain = 'Cultural Capital' then
+      cultural_score := cultural_score + adjusted_score;
+      cultural_max := cultural_max + coalesce(question_record.max_score, 0);
+    end if;
   end loop;
 
   if max_possible = 0 then
     calculated_level := null;
-  elsif total_score / max_possible < 0.4 then
-    calculated_level := 'low';
-  elsif total_score / max_possible < 0.7 then
-    calculated_level := 'moderate';
+    score_percent := 0;
   else
-    calculated_level := 'high';
+    score_percent := round((total_score / max_possible) * 100, 2);
+
+    if total_score / max_possible < 0.4 then
+      calculated_level := 'low';
+    elsif total_score / max_possible < 0.7 then
+      calculated_level := 'moderate';
+    else
+      calculated_level := 'high';
+    end if;
+  end if;
+
+  if personal_max > 0 then
+    if personal_score / personal_max < 0.4 then
+      personal_level := 'low';
+    elsif personal_score / personal_max < 0.7 then
+      personal_level := 'moderate';
+    else
+      personal_level := 'high';
+    end if;
+  end if;
+
+  if social_max > 0 then
+    if social_score / social_max < 0.4 then
+      social_level := 'low';
+    elsif social_score / social_max < 0.7 then
+      social_level := 'moderate';
+    else
+      social_level := 'high';
+    end if;
+  end if;
+
+  if cultural_max > 0 then
+    if cultural_score / cultural_max < 0.4 then
+      cultural_level := 'low';
+    elsif cultural_score / cultural_max < 0.7 then
+      cultural_level := 'moderate';
+    else
+      cultural_level := 'high';
+    end if;
+  end if;
+
+  if calculated_level = 'high' then
+    summary_text := 'Resident completed the RCI assessment and demonstrated high recovery capital based on the completed responses.';
+    strengths_text := 'Overall responses suggest several recovery capital strengths. Continue reinforcing current supports, routines, and recovery-oriented goals.';
+    needs_text := 'Continue monitoring any lower-scored areas and use the results to guide recovery planning and ongoing support.';
+  elsif calculated_level = 'moderate' then
+    summary_text := 'Resident completed the RCI assessment and demonstrated moderate recovery capital based on the completed responses.';
+    strengths_text := 'Resident appears to have some recovery capital strengths that can be built upon during recovery planning.';
+    needs_text := 'Assessment results suggest continued support is needed in one or more recovery capital areas. Review lower-scored areas when building the recovery plan.';
+  elsif calculated_level = 'low' then
+    summary_text := 'Resident completed the RCI assessment and demonstrated low recovery capital based on the completed responses.';
+    strengths_text := 'Identify and reinforce any existing supports, motivation, or protective factors noted during follow-up.';
+    needs_text := 'Assessment results suggest significant recovery capital needs. Prioritize support planning, connection to resources, and close follow-up.';
+  else
+    summary_text := 'Resident completed the RCI assessment, but a recovery capital level could not be calculated.';
+    strengths_text := null;
+    needs_text := 'Review assessment responses and determine whether follow-up is needed.';
   end if;
 
   update public.rci_assessments
@@ -231,7 +322,23 @@ begin
     recovery_capital_level = calculated_level,
     status = 'completed',
     client_completed_at = now(),
-    assessment_date = current_date
+    assessment_date = current_date,
+    personal_capital_score = personal_score,
+    personal_capital_level = personal_level,
+    personal_capital_summary =
+      'Personal Capital score: ' || personal_score || ' out of ' || personal_max || '. Level: ' || coalesce(personal_level, 'not calculated') || '.',
+    social_capital_score = social_score,
+    social_capital_level = social_level,
+    social_capital_summary =
+      'Social Capital score: ' || social_score || ' out of ' || social_max || '. Level: ' || coalesce(social_level, 'not calculated') || '.',
+    cultural_capital_score = cultural_score,
+    cultural_capital_level = cultural_level,
+    cultural_capital_summary =
+      'Cultural Capital score: ' || cultural_score || ' out of ' || cultural_max || '. Level: ' || coalesce(cultural_level, 'not calculated') || '.',
+    strengths_summary = strengths_text,
+    needs_summary = needs_text,
+    overall_summary = summary_text || ' Overall score: ' || total_score || ' out of ' || max_possible || ' (' || score_percent || '%).',
+    notes = summary_text || ' Score: ' || total_score || ' out of ' || max_possible || ' (' || score_percent || '%).'
   where id = assessment_record.id;
 
   update public.residents
@@ -243,7 +350,15 @@ begin
     'assessment_id', assessment_record.id,
     'total_score', total_score,
     'max_possible', max_possible,
+    'score_percent', score_percent,
     'recovery_capital_level', calculated_level,
+    'personal_capital_score', personal_score,
+    'personal_capital_level', personal_level,
+    'social_capital_score', social_score,
+    'social_capital_level', social_level,
+    'cultural_capital_score', cultural_score,
+    'cultural_capital_level', cultural_level,
+    'summary', summary_text,
     'message', 'Assessment submitted successfully.'
   );
 end;
