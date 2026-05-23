@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
   FileSignature,
   FileText,
+  ExternalLink,
   FolderOpen,
   Home,
   Loader2,
@@ -260,6 +261,33 @@ export default function DocumentsPage() {
 
     initialize();
   }, []);
+
+  async function openStoredFile(filePath: string | null) {
+    if (!filePath) return;
+
+    setError("");
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase.storage
+        .from("compliance-documents")
+        .createSignedUrl(filePath, 60);
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.signedUrl) {
+        throw new Error("Could not create a signed file link.");
+      }
+
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      const storageError = err as { message?: unknown };
+      setError(storageError?.message ? String(storageError.message) : "Could not open file.");
+    }
+  }
 
   async function saveDocument() {
     setSaving(true);
@@ -588,7 +616,18 @@ export default function DocumentsPage() {
                         <td className="px-4 py-4 text-slate-600">{doc.category}</td>
                         <td className="px-4 py-4 text-slate-600">{doc.compliance_domain || "Not set"}</td>
                         <td className="px-4 py-4 text-slate-600">
-                          {doc.file_url ? "Stored" : "No file"}
+                          {doc.file_url ? (
+                            <button
+                              type="button"
+                              onClick={() => openStoredFile(doc.file_url)}
+                              className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              View
+                            </button>
+                          ) : (
+                            <span>No file</span>
+                          )}
                         </td>
                         <td className="px-4 py-4">
                           <StatusBadge value={doc.status} />
