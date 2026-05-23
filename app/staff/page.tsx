@@ -3,6 +3,7 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import {
+  Archive,
   ArrowLeft,
   Building2,
   CheckCircle2,
@@ -242,6 +243,41 @@ export default function StaffPage() {
     initialize();
   }, []);
 
+  async function archiveStaff(staffId: string, staffEmail: string) {
+    const confirmed = window.confirm(`Archive ${staffEmail}? This keeps the staff profile but marks it inactive.`);
+
+    if (!confirmed) return;
+
+    setMessage("");
+    setError("");
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase
+        .from("staff_profiles")
+        .update({ status: "inactive" })
+        .eq("id", staffId)
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setStaff((current) =>
+        current.map((person) =>
+          person.id === staffId ? (data as StaffRow) : person
+        )
+      );
+
+      setMessage(`${staffEmail} was archived successfully.`);
+    } catch (err) {
+      const staffError = err as { message?: unknown };
+      setError(staffError?.message ? String(staffError.message) : "Could not archive staff profile.");
+    }
+  }
+
   async function saveStaff() {
     setSaving(true);
     setMessage("");
@@ -459,13 +495,27 @@ export default function StaffPage() {
               <div className="mt-4 space-y-3">
                 {staff.map((person) => (
                   <div key={person.id} className="rounded-2xl bg-slate-50 p-4">
-                    <p className="font-medium text-slate-950">
-                      {[person.first_name, person.last_name].filter(Boolean).join(" ") || person.email}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">{person.email}</p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {person.role} • {person.house_access} • {person.status}
-                    </p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-slate-950">
+                          {[person.first_name, person.last_name].filter(Boolean).join(" ") || person.email}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">{person.email}</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {person.role} • {person.house_access} • {person.status}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => archiveStaff(person.id, person.email)}
+                        disabled={person.status === "inactive"}
+                        className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Archive className="h-3.5 w-3.5" />
+                        {person.status === "inactive" ? "Archived" : "Archive"}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
