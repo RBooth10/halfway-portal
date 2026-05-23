@@ -13,6 +13,7 @@ import {
   Loader2,
   Mail,
   Phone,
+  Pencil,
   Plus,
   UserPlus,
   Users,
@@ -42,12 +43,14 @@ type ResidentRow = {
   last_name: string;
   email: string | null;
   phone: string | null;
-  house_id: string | null;
+  date_of_birth: string | null;
   admission_date: string | null;
+  house_id: string | null;
   resident_status: string;
   file_status: string;
   medication_status: string;
   rci_status: string;
+  notes: string | null;
 };
 
 type HouseOption = {
@@ -153,6 +156,7 @@ export default function ResidentsPage() {
   const [houses, setHouses] = useState<HouseOption[]>([]);
   const [providerId, setProviderId] = useState<string | null>(null);
   const [providerName, setProviderName] = useState("Current Provider");
+  const [editingResidentId, setEditingResidentId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -247,6 +251,31 @@ export default function ResidentsPage() {
     initialize();
   }, []);
 
+  function startEditingResident(resident: ResidentRow) {
+    const residentName = `${resident.first_name} ${resident.last_name}`;
+
+    setEditingResidentId(resident.id);
+    setForm({
+      first_name: resident.first_name ?? "",
+      last_name: resident.last_name ?? "",
+      email: resident.email ?? "",
+      phone: resident.phone ?? "",
+      date_of_birth: resident.date_of_birth ?? "",
+      admission_date: resident.admission_date ?? "",
+      house_id: resident.house_id ?? "",
+      resident_status: resident.resident_status ?? "pending_admission",
+      file_status: resident.file_status ?? "needs_onboarding_packet",
+      medication_status: resident.medication_status ?? "not_completed",
+      rci_status: resident.rci_status ?? "not_started",
+      notes: resident.notes ?? "",
+    });
+
+    setMessage(`Editing ${residentName}. Update the form and click Save Changes.`);
+    setError("");
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   async function archiveResident(residentId: string, residentName: string) {
     const confirmed = window.confirm(`Archive ${residentName}? This keeps the resident record but marks it archived.`);
 
@@ -299,26 +328,52 @@ export default function ResidentsPage() {
       return;
     }
 
+    const residentPayload = {
+      provider_id: providerId,
+      house_id: form.house_id || null,
+      first_name: form.first_name.trim(),
+      last_name: form.last_name.trim(),
+      email: form.email.trim() || null,
+      phone: form.phone.trim() || null,
+      date_of_birth: form.date_of_birth || null,
+      admission_date: form.admission_date || null,
+      resident_status: form.resident_status,
+      file_status: form.file_status,
+      medication_status: form.medication_status,
+      rci_status: form.rci_status,
+      notes: form.notes.trim() || null,
+    };
+
     try {
       const supabase = getSupabaseClient();
 
+      if (editingResidentId) {
+        const { data, error } = await supabase
+          .from("residents")
+          .update(residentPayload)
+          .eq("id", editingResidentId)
+          .select("*")
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        setResidents((current) =>
+          current.map((resident) =>
+            resident.id === editingResidentId ? (data as ResidentRow) : resident
+          )
+        );
+
+        setForm(initialForm);
+        setEditingResidentId(null);
+        setMessage(`${data.first_name} ${data.last_name} was updated successfully.`);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("residents")
-        .insert({
-          provider_id: providerId,
-          house_id: form.house_id || null,
-          first_name: form.first_name.trim(),
-          last_name: form.last_name.trim(),
-          email: form.email.trim() || null,
-          phone: form.phone.trim() || null,
-          date_of_birth: form.date_of_birth || null,
-          admission_date: form.admission_date || null,
-          resident_status: form.resident_status,
-          file_status: form.file_status,
-          medication_status: form.medication_status,
-          rci_status: form.rci_status,
-          notes: form.notes.trim() || null,
-        })
+        .insert(residentPayload)
         .select("*")
         .single();
 
@@ -420,9 +475,11 @@ export default function ResidentsPage() {
 
       <section className="grid gap-6 lg:grid-cols-[1fr_390px]">
         <form className="rounded-2xl border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Add Resident</h2>
+          <h2 className="text-lg font-semibold">{editingResidentId ? "Edit Resident" : "Add Resident"}</h2>
           <p className="mt-1 text-sm text-slate-500">
-            This creates the resident profile and starts the onboarding checklist.
+            {editingResidentId
+              ? "Update the selected resident profile."
+              : "This creates the resident profile and starts the onboarding checklist."}
           </p>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -510,15 +567,20 @@ export default function ResidentsPage() {
               className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {saving ? "Saving..." : "Save Resident"}
+              {saving ? "Saving..." : editingResidentId ? "Save Changes" : "Save Resident"}
             </button>
 
             <button
               type="button"
-              onClick={() => setForm(initialForm)}
+              onClick={() => {
+                setForm(initialForm);
+                setEditingResidentId(null);
+                setMessage("");
+                setError("");
+              }}
               className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
             >
-              Clear Form
+              {editingResidentId ? "Cancel Edit" : "Clear Form"}
             </button>
 
             <Link
@@ -563,15 +625,26 @@ export default function ResidentsPage() {
                           </p>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => archiveResident(resident.id, residentName)}
-                          disabled={resident.resident_status === "archived"}
-                          className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <Archive className="h-3.5 w-3.5" />
-                          {resident.resident_status === "archived" ? "Archived" : "Archive"}
-                        </button>
+                        <div className="flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={() => startEditingResident(resident)}
+                            className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => archiveResident(resident.id, residentName)}
+                            disabled={resident.resident_status === "archived"}
+                            className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Archive className="h-3.5 w-3.5" />
+                            {resident.resident_status === "archived" ? "Archived" : "Archive"}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
