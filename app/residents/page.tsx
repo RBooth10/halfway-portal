@@ -3,6 +3,7 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import {
+  Archive,
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
@@ -245,6 +246,41 @@ export default function ResidentsPage() {
 
     initialize();
   }, []);
+
+  async function archiveResident(residentId: string, residentName: string) {
+    const confirmed = window.confirm(`Archive ${residentName}? This keeps the resident record but marks it archived.`);
+
+    if (!confirmed) return;
+
+    setMessage("");
+    setError("");
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase
+        .from("residents")
+        .update({ resident_status: "archived" })
+        .eq("id", residentId)
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setResidents((current) =>
+        current.map((resident) =>
+          resident.id === residentId ? (data as ResidentRow) : resident
+        )
+      );
+
+      setMessage(`${residentName} was archived successfully.`);
+    } catch (err) {
+      const residentError = err as { message?: unknown };
+      setError(residentError?.message ? String(residentError.message) : "Could not archive resident.");
+    }
+  }
 
   async function saveResident() {
     setSaving(true);
@@ -503,19 +539,43 @@ export default function ResidentsPage() {
               <p className="mt-3 text-sm text-slate-500">No residents saved yet.</p>
             ) : (
               <div className="mt-4 space-y-3">
-                {residents.map((resident) => (
-                  <div key={resident.id} className="rounded-2xl bg-slate-50 p-4">
-                    <p className="font-medium text-slate-950">
-                      {resident.first_name} {resident.last_name}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {resident.resident_status} • {resident.file_status}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Admission: {resident.admission_date || "Not set"}
-                    </p>
-                  </div>
-                ))}
+                {residents.map((resident) => {
+                  const residentName = `${resident.first_name} ${resident.last_name}`;
+
+                  return (
+                    <div key={resident.id} className="rounded-2xl bg-slate-50 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-slate-950">
+                            {residentName}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-500">
+                            {resident.resident_status} • {resident.file_status}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-500">
+                            Medication: {resident.medication_status}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-500">
+                            RCI: {resident.rci_status}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-500">
+                            Admission: {resident.admission_date || "Not set"}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => archiveResident(resident.id, residentName)}
+                          disabled={resident.resident_status === "archived"}
+                          className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Archive className="h-3.5 w-3.5" />
+                          {resident.resident_status === "archived" ? "Archived" : "Archive"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
