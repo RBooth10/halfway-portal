@@ -249,6 +249,13 @@ export default function DocumentsPage() {
                 </button>
 
                 <Link
+                  href="/reports"
+                  className="inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
+                >
+                  Continue to Reports
+                </Link>
+
+                <Link
                   href="/"
                   className="inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
                 >
