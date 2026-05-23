@@ -77,10 +77,19 @@ export default function ProviderOnboardingPage() {
     try {
       const supabase = getSupabaseClient();
 
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+
+      if (userError || !userData.user) {
+        setError("You must be signed in before creating a provider profile. Go to Sign In first.");
+        setSaving(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("providers")
         .insert({
           legal_name: form.legal_name.trim(),
+          created_by_auth_user_id: userData.user.id,
           dba_name: form.dba_name.trim() || null,
           primary_contact_name: form.primary_contact_name.trim() || null,
           primary_contact_email: form.primary_contact_email.trim() || null,

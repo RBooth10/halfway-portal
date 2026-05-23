@@ -12,6 +12,7 @@ create table if not exists providers (
   farr_level text,
   mat_mar_statement text,
   status text not null default 'setup',
+  created_by_auth_user_id uuid,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -98,6 +99,7 @@ create table if not exists audit_logs (
   created_at timestamptz not null default now()
 );
 
+create index if not exists idx_providers_created_by_auth_user_id on providers(created_by_auth_user_id);
 create index if not exists idx_houses_provider_id on houses(provider_id);
 create index if not exists idx_staff_profiles_provider_id on staff_profiles(provider_id);
 create index if not exists idx_residents_provider_id on residents(provider_id);
