@@ -21,6 +21,7 @@ import {
 import Link from "next/link";
 import PageShell from "@/components/PageShell";
 import { getSupabaseClient } from "@/lib/supabase";
+import { createAuditLog } from "@/lib/audit";
 
 type ResidentForm = {
   first_name: string;
@@ -298,11 +299,25 @@ export default function ResidentsPage() {
         throw error;
       }
 
+      const previousResident = residents.find((resident) => resident.id === residentId) ?? null;
+
       setResidents((current) =>
         current.map((resident) =>
           resident.id === residentId ? (data as ResidentRow) : resident
         )
       );
+
+      if (providerId) {
+        await createAuditLog({
+          providerId,
+          action: "resident_archived",
+          tableName: "residents",
+          recordId: residentId,
+          oldValues: previousResident as unknown as Record<string, unknown> | null,
+          newValues: data as Record<string, unknown>,
+          reason: "Resident archived from portal.",
+        });
+      }
 
       setMessage(`${residentName} was archived successfully.`);
     } catch (err) {
@@ -359,11 +374,23 @@ export default function ResidentsPage() {
           throw error;
         }
 
+        const previousResident = residents.find((resident) => resident.id === editingResidentId) ?? null;
+
         setResidents((current) =>
           current.map((resident) =>
             resident.id === editingResidentId ? (data as ResidentRow) : resident
           )
         );
+
+        await createAuditLog({
+          providerId,
+          action: "resident_updated",
+          tableName: "residents",
+          recordId: editingResidentId,
+          oldValues: previousResident as unknown as Record<string, unknown> | null,
+          newValues: data as Record<string, unknown>,
+          reason: "Resident profile updated from portal.",
+        });
 
         setForm(initialForm);
         setEditingResidentId(null);
