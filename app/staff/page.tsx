@@ -12,6 +12,7 @@ import {
   Loader2,
   LockKeyhole,
   Mail,
+  Pencil,
   Plus,
   ShieldCheck,
   UserCog,
@@ -182,6 +183,7 @@ export default function StaffPage() {
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [providerId, setProviderId] = useState<string | null>(null);
   const [providerName, setProviderName] = useState("Current Provider");
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -243,6 +245,22 @@ export default function StaffPage() {
     initialize();
   }, []);
 
+  function startEditingStaff(person: StaffRow) {
+    setEditingStaffId(person.id);
+    setForm({
+      first_name: person.first_name ?? "",
+      last_name: person.last_name ?? "",
+      email: person.email ?? "",
+      phone: person.phone ?? "",
+      role: person.role ?? "house_manager",
+      house_access: person.house_access ?? "assigned_houses_only",
+    });
+    setMessage(`Editing ${person.email}. Update the form and click Save Changes.`);
+    setError("");
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   async function archiveStaff(staffId: string, staffEmail: string) {
     const confirmed = window.confirm(`Archive ${staffEmail}? This keeps the staff profile but marks it inactive.`);
 
@@ -295,19 +313,60 @@ export default function StaffPage() {
       return;
     }
 
+    const staffPayload = {
+      provider_id: providerId,
+      first_name: form.first_name.trim() || null,
+      last_name: form.last_name.trim() || null,
+      email: form.email.trim(),
+      phone: form.phone.trim() || null,
+      role: form.role,
+      house_access: form.house_access,
+      status: editingStaffId ? undefined : "pending_approval",
+    };
+
     try {
       const supabase = getSupabaseClient();
+
+      if (editingStaffId) {
+        const { data, error } = await supabase
+          .from("staff_profiles")
+          .update({
+            first_name: staffPayload.first_name,
+            last_name: staffPayload.last_name,
+            email: staffPayload.email,
+            phone: staffPayload.phone,
+            role: staffPayload.role,
+            house_access: staffPayload.house_access,
+          })
+          .eq("id", editingStaffId)
+          .select("*")
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        setStaff((current) =>
+          current.map((person) =>
+            person.id === editingStaffId ? (data as StaffRow) : person
+          )
+        );
+        setForm(initialForm);
+        setEditingStaffId(null);
+        setMessage(`${data.email} was updated successfully.`);
+        return;
+      }
 
       const { data, error } = await supabase
         .from("staff_profiles")
         .insert({
-          provider_id: providerId,
-          first_name: form.first_name.trim() || null,
-          last_name: form.last_name.trim() || null,
-          email: form.email.trim(),
-          phone: form.phone.trim() || null,
-          role: form.role,
-          house_access: form.house_access,
+          provider_id: staffPayload.provider_id,
+          first_name: staffPayload.first_name,
+          last_name: staffPayload.last_name,
+          email: staffPayload.email,
+          phone: staffPayload.phone,
+          role: staffPayload.role,
+          house_access: staffPayload.house_access,
           status: "pending_approval",
         })
         .select("*")
@@ -410,9 +469,11 @@ export default function StaffPage() {
 
       <section className="grid gap-6 lg:grid-cols-[1fr_420px]">
         <form className="rounded-2xl border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Invite Staff Member</h2>
+          <h2 className="text-lg font-semibold">{editingStaffId ? "Edit Staff Member" : "Invite Staff Member"}</h2>
           <p className="mt-1 text-sm text-slate-500">
-            New users remain pending until approval and house access are finalized.
+            {editingStaffId
+              ? "Update this staff profile, role, and access level."
+              : "New users remain pending until approval and house access are finalized."}
           </p>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -464,15 +525,20 @@ export default function StaffPage() {
               className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {saving ? "Saving..." : "Save Staff Invite"}
+              {saving ? "Saving..." : editingStaffId ? "Save Changes" : "Save Staff Invite"}
             </button>
 
             <button
               type="button"
-              onClick={() => setForm(initialForm)}
+              onClick={() => {
+                setForm(initialForm);
+                setEditingStaffId(null);
+                setMessage("");
+                setError("");
+              }}
               className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
             >
-              Clear Form
+              {editingStaffId ? "Cancel Edit" : "Clear Form"}
             </button>
 
             <Link
@@ -506,15 +572,26 @@ export default function StaffPage() {
                         </p>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => archiveStaff(person.id, person.email)}
-                        disabled={person.status === "inactive"}
-                        className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Archive className="h-3.5 w-3.5" />
-                        {person.status === "inactive" ? "Archived" : "Archive"}
-                      </button>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={() => startEditingStaff(person)}
+                          className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => archiveStaff(person.id, person.email)}
+                          disabled={person.status === "inactive"}
+                          className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Archive className="h-3.5 w-3.5" />
+                          {person.status === "inactive" ? "Archived" : "Archive"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
