@@ -21,6 +21,18 @@ import PageShell from "@/components/PageShell";
 import { getSupabaseClient } from "@/lib/supabase";
 import { createAuditLog } from "@/lib/audit";
 
+type ProviderPhaseRow = {
+  id: string;
+  provider_id: string;
+  phase_name: string;
+  phase_order: number;
+  minimum_days: number | null;
+  curfew_description: string | null;
+  requirements_description: string | null;
+  is_active: boolean;
+  created_at: string;
+};
+
 type ResidentDetail = {
   id: string;
   provider_id: string;
@@ -35,6 +47,7 @@ type ResidentDetail = {
   file_status: string;
   medication_status: string;
   rci_status: string;
+  current_phase_id: string | null;
   current_phase: string | null;
   has_sponsor: boolean;
   has_home_group: boolean;
@@ -319,6 +332,7 @@ export default function ResidentProfilePage() {
   const [generatingRciLink, setGeneratingRciLink] = useState(false);
   const [savingSnapshotStatus, setSavingSnapshotStatus] = useState(false);
   const [providerName, setProviderName] = useState("Current Provider");
+  const [providerPhaseLevels, setProviderPhaseLevels] = useState<ProviderPhaseRow[]>([]);
   const [activeTab, setActiveTab] = useState("snapshot");
   const [medLogDate, setMedLogDate] = useState("");
   const [medLogType, setMedLogType] = useState("med_box_check");
@@ -382,6 +396,19 @@ export default function ResidentProfilePage() {
       if (!providerResult.error && providerResult.data?.legal_name) {
         setProviderName(providerResult.data.legal_name);
       }
+
+      const phaseLevelsResult = await supabase
+        .from("provider_phase_levels")
+        .select("*")
+        .eq("provider_id", residentData.provider_id)
+        .eq("is_active", true)
+        .order("phase_order", { ascending: true });
+
+      if (phaseLevelsResult.error) {
+        throw phaseLevelsResult.error;
+      }
+
+      setProviderPhaseLevels((phaseLevelsResult.data ?? []) as ProviderPhaseRow[]);
 
       if (residentData.house_id) {
         const houseResult = await supabase
@@ -936,6 +963,45 @@ export default function ResidentProfilePage() {
     }
   }
 
+  async function updateResidentPhase(phaseId: string) {
+    if (!resident) {
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    const selectedPhase = providerPhaseLevels.find((phase) => phase.id === phaseId);
+
+    setSavingSnapshotStatus(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase
+        .from("residents")
+        .update({
+          current_phase_id: selectedPhase?.id ?? null,
+          current_phase: selectedPhase?.phase_name ?? null,
+        })
+        .eq("id", resident.id)
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setResident(data as ResidentDetail);
+      setMessage("Resident phase updated.");
+    } catch (err) {
+      const phaseError = err as { message?: unknown };
+      setError(phaseError?.message ? String(phaseError.message) : "Could not update resident phase.");
+    } finally {
+      setSavingSnapshotStatus(false);
+    }
+  }
+
   const residentName = resident ? `${resident.first_name} ${resident.last_name}` : "Resident Profile";
 
   return (
@@ -1076,17 +1142,17 @@ export default function ResidentProfilePage() {
                             </div>
 
                             <select
-                              value={resident.current_phase || ""}
-                              onChange={(event) => updateResidentSnapshotField("current_phase", event.target.value || null)}
+                              value={resident.current_phase_id || ""}
+                              onChange={(event) => updateResidentPhase(event.target.value)}
                               disabled={savingSnapshotStatus}
                               className="h-11 min-w-48 rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                             >
                               <option value="">Select phase</option>
-                              <option value="Phase 1">Phase 1</option>
-                              <option value="Phase 2">Phase 2</option>
-                              <option value="Phase 3">Phase 3</option>
-                              <option value="Phase 4">Phase 4</option>
-                              <option value="Custom / Provider Phase">Custom / Provider Phase</option>
+                              {providerPhaseLevels.map((phase) => (
+                                <option key={phase.id} value={phase.id}>
+                                  {phase.phase_name}
+                                </option>
+                              ))}
                             </select>
                           </div>
                         </div>
