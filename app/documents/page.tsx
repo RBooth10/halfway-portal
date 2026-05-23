@@ -14,6 +14,7 @@ import {
   FolderOpen,
   Home,
   Loader2,
+  Pencil,
   Plus,
   ShieldCheck,
   Upload,
@@ -187,6 +188,7 @@ export default function DocumentsPage() {
   const [form, setForm] = useState<DocumentForm>(initialForm);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
+  const [editingDocumentId, setEditingDocumentId] = useState<string | null>(null);
   const [providerId, setProviderId] = useState<string | null>(null);
   const [providerName, setProviderName] = useState("Current Provider");
   const [saving, setSaving] = useState(false);
@@ -290,6 +292,25 @@ export default function DocumentsPage() {
     }
   }
 
+  function startEditingDocument(document: DocumentRow) {
+    setEditingDocumentId(document.id);
+    setForm({
+      document_name: document.document_name ?? "",
+      category: document.category ?? "Provider",
+      compliance_domain: document.compliance_domain ?? "Administrative Operations",
+      applies_to: document.applies_to ?? "Provider-wide",
+      version_label: document.version_label ?? "",
+      effective_date: document.effective_date ?? "",
+      status: document.status ?? "not_uploaded",
+      notes: document.notes ?? "",
+    });
+    setSelectedFile(null);
+    setMessage(`Editing ${document.document_name}. Update the form and click Save Changes.`);
+    setError("");
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   async function archiveDocument(documentId: string, documentName: string) {
     const confirmed = window.confirm(`Archive ${documentName}? This keeps the record but marks it archived.`);
 
@@ -363,19 +384,52 @@ export default function DocumentsPage() {
         }
       }
 
+      const documentPayload = {
+        provider_id: providerId,
+        document_name: form.document_name.trim(),
+        category: form.category,
+        compliance_domain: form.compliance_domain,
+        applies_to: form.applies_to,
+        version_label: form.version_label.trim() || null,
+        effective_date: form.effective_date || null,
+        status: selectedFile ? "uploaded" : form.status,
+        notes: form.notes.trim() || null,
+      };
+
+      if (editingDocumentId) {
+        const updatePayload = selectedFile
+          ? { ...documentPayload, file_url: filePath }
+          : documentPayload;
+
+        const { data, error } = await supabase
+          .from("documents")
+          .update(updatePayload)
+          .eq("id", editingDocumentId)
+          .select("*")
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        setDocuments((current) =>
+          current.map((document) =>
+            document.id === editingDocumentId ? (data as DocumentRow) : document
+          )
+        );
+
+        setForm(initialForm);
+        setSelectedFile(null);
+        setEditingDocumentId(null);
+        setMessage(`${data.document_name} was updated successfully.`);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("documents")
         .insert({
-          provider_id: providerId,
-          document_name: form.document_name.trim(),
-          category: form.category,
-          compliance_domain: form.compliance_domain,
-          applies_to: form.applies_to,
-          version_label: form.version_label.trim() || null,
-          effective_date: form.effective_date || null,
-          status: selectedFile ? "uploaded" : form.status,
+          ...documentPayload,
           file_url: filePath,
-          notes: form.notes.trim() || null,
         })
         .select("*")
         .single();
@@ -387,6 +441,7 @@ export default function DocumentsPage() {
       setDocuments((current) => [data as DocumentRow, ...current]);
       setForm(initialForm);
       setSelectedFile(null);
+      setEditingDocumentId(null);
       setMessage(`${data.document_name} was saved successfully.`);
     } catch (err) {
       const supabaseError = err as {
@@ -481,9 +536,11 @@ export default function DocumentsPage() {
       <section className="grid gap-6 lg:grid-cols-[1fr_390px]">
         <div className="space-y-6">
           <form className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">Add Document Record</h2>
+            <h2 className="text-lg font-semibold">{editingDocumentId ? "Edit Document Record" : "Add Document Record"}</h2>
             <p className="mt-1 text-sm text-slate-500">
-              This creates a document record. Actual file upload storage will be connected later.
+              {editingDocumentId
+                ? "Update the selected document record. Attaching a new file will replace the stored file reference."
+                : "This creates a document record and can attach a file to private Supabase Storage."}
             </p>
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -604,7 +661,7 @@ export default function DocumentsPage() {
                 className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                {saving ? "Saving..." : "Save Document"}
+                {saving ? "Saving..." : editingDocumentId ? "Save Changes" : "Save Document"}
               </button>
 
               <button
@@ -612,10 +669,13 @@ export default function DocumentsPage() {
                 onClick={() => {
                   setForm(initialForm);
                   setSelectedFile(null);
+                  setEditingDocumentId(null);
+                  setMessage("");
+                  setError("");
                 }}
                 className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
               >
-                Clear Form
+                {editingDocumentId ? "Cancel Edit" : "Clear Form"}
               </button>
 
               <Link
@@ -670,15 +730,26 @@ export default function DocumentsPage() {
                           <StatusBadge value={doc.status} />
                         </td>
                         <td className="px-4 py-4">
-                          <button
-                            type="button"
-                            onClick={() => archiveDocument(doc.id, doc.document_name)}
-                            disabled={doc.status === "archived"}
-                            className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <Archive className="h-3.5 w-3.5" />
-                            {doc.status === "archived" ? "Archived" : "Archive"}
-                          </button>
+                          <div className="flex flex-col gap-2">
+                            <button
+                              type="button"
+                              onClick={() => startEditingDocument(doc)}
+                              className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Edit
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => archiveDocument(doc.id, doc.document_name)}
+                              disabled={doc.status === "archived"}
+                              className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <Archive className="h-3.5 w-3.5" />
+                              {doc.status === "archived" ? "Archived" : "Archive"}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
