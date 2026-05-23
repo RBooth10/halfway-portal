@@ -18,11 +18,9 @@ import PageShell from "@/components/PageShell";
 import { getSupabaseClient } from "@/lib/supabase";
 
 const certificationOptions = [
-  "Not certified yet",
-  "Preparing for FARR certification",
-  "FARR certified",
-  "NARR affiliate certified",
-  "Other",
+  "Not certified",
+  "Application in progress",
+  "FARR Certified",
 ];
 
 type ProviderForm = {
@@ -35,6 +33,15 @@ type ProviderForm = {
   certification_status: string;
   farr_level: string;
   mat_mar_statement: string;
+  program_fee_model: string;
+  cost_per_client: string;
+  split_rent_total_amount: string;
+  split_rent_client_count: string;
+  program_fee_frequency: string;
+  program_fee_charge_day_of_month: string;
+  program_fee_charge_day_of_week: string;
+  admission_fee_amount: string;
+  admission_fee_refundable: boolean;
 };
 
 type ProviderPhaseRow = {
@@ -108,7 +115,7 @@ export default function ProviderOnboardingPage() {
     }
   }
 
-  function updateField(field: keyof ProviderForm, value: string) {
+  function updateField(field: keyof ProviderForm, value: string | boolean) {
     setForm((current) => ({
       ...current,
       [field]: value,
@@ -304,7 +311,7 @@ export default function ProviderOnboardingPage() {
   }
 
   return (
-    <PageShell maxWidth="max-w-5xl">
+    <PageShell maxWidth="max-w-7xl">
       <Link
         href="/"
         className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-slate-50"
@@ -424,7 +431,7 @@ export default function ProviderOnboardingPage() {
                 onChange={(event) => updateField("farr_level", event.target.value)}
                 className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
               >
-                <option>Not sure yet</option>
+                <option value="">Select level</option>
                 <option>Level 1</option>
                 <option>Level 2</option>
                 <option>Level 3</option>
@@ -432,18 +439,128 @@ export default function ProviderOnboardingPage() {
                 <option>Not applicable</option>
               </select>
             </label>
+          </div>
 
-            <label className="block md:col-span-2">
-              <span className="text-sm font-medium text-slate-700">
-                MAT/MAR access statement
-              </span>
-              <textarea
-                value={form.mat_mar_statement}
-                onChange={(event) => updateField("mat_mar_statement", event.target.value)}
-                placeholder="Describe how the provider supports residents prescribed MAT/MAR."
-                className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-              />
-            </label>
+          <div className="mt-8 rounded-2xl border bg-slate-50 p-5 md:col-span-2">
+            <h2 className="text-lg font-semibold text-slate-950">Program Fees</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              Set the provider-level fee structure. House-specific billing can be connected later.
+            </p>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Fee model</span>
+                <select
+                  value={form.program_fee_model}
+                  onChange={(event) => updateField("program_fee_model", event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="cost_per_client">Cost per client</option>
+                  <option value="split_rent">Split rent among clients per house</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Cost per client</span>
+                <input
+                  type="number"
+                  value={form.cost_per_client}
+                  onChange={(event) => updateField("cost_per_client", event.target.value)}
+                  placeholder="$"
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Split rent total amount</span>
+                <input
+                  type="number"
+                  value={form.split_rent_total_amount}
+                  onChange={(event) => updateField("split_rent_total_amount", event.target.value)}
+                  placeholder="$"
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Split among number of clients</span>
+                <input
+                  type="number"
+                  value={form.split_rent_client_count}
+                  onChange={(event) => updateField("split_rent_client_count", event.target.value)}
+                  placeholder="# of clients"
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Paid</span>
+                <select
+                  value={form.program_fee_frequency}
+                  onChange={(event) => updateField("program_fee_frequency", event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="biweekly">Bi-weekly</option>
+                  <option value="daily">By day</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Program fee charge day of month</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={form.program_fee_charge_day_of_month}
+                  onChange={(event) => updateField("program_fee_charge_day_of_month", event.target.value)}
+                  placeholder="1-31"
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Selected day of week</span>
+                <select
+                  value={form.program_fee_charge_day_of_week}
+                  onChange={(event) => updateField("program_fee_charge_day_of_week", event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="">Select day</option>
+                  <option value="Monday">Monday</option>
+                  <option value="Tuesday">Tuesday</option>
+                  <option value="Wednesday">Wednesday</option>
+                  <option value="Thursday">Thursday</option>
+                  <option value="Friday">Friday</option>
+                  <option value="Saturday">Saturday</option>
+                  <option value="Sunday">Sunday</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">One-time admission fee</span>
+                <input
+                  type="number"
+                  value={form.admission_fee_amount}
+                  onChange={(event) => updateField("admission_fee_amount", event.target.value)}
+                  placeholder="$"
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="flex items-center gap-3 rounded-xl border bg-white p-4">
+                <input
+                  type="checkbox"
+                  checked={form.admission_fee_refundable}
+                  onChange={(event) => updateField("admission_fee_refundable", event.target.checked)}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700">
+                  Admission fee is refundable
+                </span>
+              </label>
+            </div>
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
