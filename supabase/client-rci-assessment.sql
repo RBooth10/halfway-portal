@@ -89,7 +89,7 @@ on conflict (rci_version, question_number) do nothing;
 create or replace function public.get_client_rci_assessment(p_access_token text)
 returns jsonb
 language plpgsql
-stable
+volatile
 security definer
 set search_path = public
 as $$
