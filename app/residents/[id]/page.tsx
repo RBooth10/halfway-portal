@@ -152,6 +152,24 @@ type RciAssessmentRow = {
   created_at: string;
 };
 
+type RecoveryGoalRow = {
+  id: string;
+  provider_id: string;
+  resident_id: string;
+  rci_assessment_id: string | null;
+  created_by_auth_user_id: string | null;
+  created_by_source: string;
+  goal_area: string;
+  goal_text: string;
+  action_steps: string | null;
+  supports_needed: string | null;
+  target_date: string | null;
+  priority: string;
+  status: string;
+  progress_notes: string | null;
+  created_at: string;
+};
+
 function MetricCard({
   title,
   value,
@@ -226,6 +244,7 @@ export default function ResidentProfilePage() {
   const [medicationRecords, setMedicationRecords] = useState<MedicationRecordRow[]>([]);
   const [medicationLogs, setMedicationLogs] = useState<MedicationLogRow[]>([]);
   const [rciAssessments, setRciAssessments] = useState<RciAssessmentRow[]>([]);
+  const [recoveryGoals, setRecoveryGoals] = useState<RecoveryGoalRow[]>([]);
   const [clientRciLink, setClientRciLink] = useState("");
   const [generatingRciLink, setGeneratingRciLink] = useState(false);
   const [providerName, setProviderName] = useState("Current Provider");
@@ -375,6 +394,18 @@ export default function ResidentProfilePage() {
       }
 
       setRciAssessments((rciResult.data ?? []) as RciAssessmentRow[]);
+
+      const recoveryGoalsResult = await supabase
+        .from("recovery_goals")
+        .select("*")
+        .eq("resident_id", residentData.id)
+        .order("created_at", { ascending: false });
+
+      if (recoveryGoalsResult.error) {
+        throw recoveryGoalsResult.error;
+      }
+
+      setRecoveryGoals((recoveryGoalsResult.data ?? []) as RecoveryGoalRow[]);
     } catch (err) {
       const profileError = err as { message?: unknown };
       setError(profileError?.message ? String(profileError.message) : "Could not load resident profile.");
@@ -1580,6 +1611,56 @@ export default function ResidentProfilePage() {
                           ) : null}
                         </div>
                       ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold">Resident-Created Recovery Goals</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Goals created by the resident after reviewing their RCI results.
+                </p>
+
+                {recoveryGoals.length === 0 ? (
+                  <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                    No resident-created recovery goals have been submitted yet.
+                  </p>
+                ) : (
+                  <div className="mt-5 space-y-3">
+                    {recoveryGoals.map((goal) => (
+                      <div key={goal.id} className="rounded-2xl bg-slate-50 p-4">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-950">
+                              {goal.goal_area.replaceAll("_", " ")} • {goal.priority}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              Status: {goal.status} • Source: {goal.created_by_source.replaceAll("_", " ")}
+                            </p>
+                          </div>
+
+                          <p className="text-xs font-medium text-slate-500">
+                            {formatDate(goal.created_at)}
+                          </p>
+                        </div>
+
+                        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                          {goal.goal_text}
+                        </p>
+
+                        {goal.action_steps ? (
+                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                            Action steps: {goal.action_steps}
+                          </p>
+                        ) : null}
+
+                        {goal.supports_needed ? (
+                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                            Supports needed: {goal.supports_needed}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
