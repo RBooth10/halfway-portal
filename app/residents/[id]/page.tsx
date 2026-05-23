@@ -100,6 +100,28 @@ type MedicationRecordRow = {
   created_at: string;
 };
 
+type MedicationLogRow = {
+  id: string;
+  provider_id: string;
+  resident_id: string;
+  medication_record_id: string | null;
+  created_by_auth_user_id: string | null;
+  log_date: string;
+  log_type: string;
+  all_current_meds_checked: boolean;
+  checked_medications: Array<{
+    id: string;
+    medication_name: string;
+    dosage: string | null;
+    status: string;
+    mat_mar_related: boolean;
+  }>;
+  note_text: string;
+  follow_up_needed: boolean;
+  follow_up_notes: string | null;
+  created_at: string;
+};
+
 function MetricCard({
   title,
   value,
@@ -172,7 +194,16 @@ export default function ResidentProfilePage() {
   const [progressNotes, setProgressNotes] = useState<ProgressNoteRow[]>([]);
   const [uaBaLogs, setUaBaLogs] = useState<UaBaLogRow[]>([]);
   const [medicationRecords, setMedicationRecords] = useState<MedicationRecordRow[]>([]);
+  const [medicationLogs, setMedicationLogs] = useState<MedicationLogRow[]>([]);
   const [providerName, setProviderName] = useState("Current Provider");
+  const [medLogDate, setMedLogDate] = useState("");
+  const [medLogType, setMedLogType] = useState("med_box_check");
+  const [selectedMedicationRecordId, setSelectedMedicationRecordId] = useState("");
+  const [checkedMedicationIds, setCheckedMedicationIds] = useState<string[]>([]);
+  const [medLogNote, setMedLogNote] = useState("");
+  const [medFollowUpNeeded, setMedFollowUpNeeded] = useState(false);
+  const [medFollowUpNotes, setMedFollowUpNotes] = useState("");
+  const [savingMedicationLog, setSavingMedicationLog] = useState(false);
   const [medicationName, setMedicationName] = useState("");
   const [medicationType, setMedicationType] = useState("prescription");
   const [dosage, setDosage] = useState("");
@@ -286,6 +317,19 @@ export default function ResidentProfilePage() {
       }
 
       setMedicationRecords((medicationResult.data ?? []) as MedicationRecordRow[]);
+
+      const medicationLogsResult = await supabase
+        .from("medication_logs")
+        .select("*")
+        .eq("resident_id", residentId)
+        .order("log_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (medicationLogsResult.error) {
+        throw medicationLogsResult.error;
+      }
+
+      setMedicationLogs((medicationLogsResult.data ?? []) as MedicationLogRow[]);
     } catch (err) {
       const profileError = err as { message?: unknown };
       setError(profileError?.message ? String(profileError.message) : "Could not load resident profile.");
@@ -418,6 +462,128 @@ export default function ResidentProfilePage() {
       setError(testError?.message ? String(testError.message) : "Could not save UA/BA log.");
     } finally {
       setSavingUaBaLog(false);
+    }
+  }
+
+  function toggleCheckedMedication(medicationId: string) {
+    setCheckedMedicationIds((current) =>
+      current.includes(medicationId)
+        ? current.filter((id) => id !== medicationId)
+        : [...current, medicationId]
+    );
+  }
+
+  function checkAllCurrentMedications() {
+    const activeMedicationIds = medicationRecords
+      .filter((medication) => medication.status === "active")
+      .map((medication) => medication.id);
+
+    setCheckedMedicationIds(activeMedicationIds);
+  }
+
+  function clearCheckedMedications() {
+    setCheckedMedicationIds([]);
+  }
+
+  async function saveMedicationLog() {
+    setSavingMedicationLog(true);
+    setMessage("");
+    setError("");
+
+    if (!resident) {
+      setSavingMedicationLog(false);
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    const selectedMedication = medicationRecords.find(
+      (medication) => medication.id === selectedMedicationRecordId
+    );
+
+    const checkedMedicationSnapshot = medicationRecords
+      .filter((medication) => checkedMedicationIds.includes(medication.id))
+      .map((medication) => ({
+        id: medication.id,
+        medication_name: medication.medication_name,
+        dosage: medication.dosage,
+        status: medication.status,
+        mat_mar_related: medication.mat_mar_related,
+      }));
+
+    if (!medLogNote.trim() && checkedMedicationSnapshot.length === 0) {
+      setSavingMedicationLog(false);
+      setError("Add a medication log note or check off at least one medication.");
+      return;
+    }
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data: userData } = await supabase.auth.getUser();
+
+      const { data, error } = await supabase
+        .from("medication_logs")
+        .insert({
+          provider_id: resident.provider_id,
+          resident_id: resident.id,
+          medication_record_id: selectedMedicationRecordId || null,
+          created_by_auth_user_id: userData.user?.id ?? null,
+          log_date: medLogDate || new Date().toISOString().slice(0, 10),
+          log_type: medLogType,
+          all_current_meds_checked:
+            medicationRecords.filter((medication) => medication.status === "active").length > 0 &&
+            checkedMedicationSnapshot.length === medicationRecords.filter((medication) => medication.status === "active").length,
+          checked_medications: checkedMedicationSnapshot,
+          note_text: medLogNote.trim() || "Medication log completed.",
+          follow_up_needed: medFollowUpNeeded,
+          follow_up_notes: medFollowUpNotes.trim() || null,
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      if (medLogType === "med_discontinued" && selectedMedication?.id) {
+        await supabase
+          .from("medication_records")
+          .update({ status: "discontinued" })
+          .eq("id", selectedMedication.id);
+
+        setMedicationRecords((current) =>
+          current.map((medication) =>
+            medication.id === selectedMedication.id
+              ? { ...medication, status: "discontinued" }
+              : medication
+          )
+        );
+      }
+
+      setMedicationLogs((current) => [data as MedicationLogRow, ...current]);
+      setMedLogDate("");
+      setMedLogType("med_box_check");
+      setSelectedMedicationRecordId("");
+      setCheckedMedicationIds([]);
+      setMedLogNote("");
+      setMedFollowUpNeeded(false);
+      setMedFollowUpNotes("");
+      setMessage("Medication log saved successfully.");
+
+      await createAuditLog({
+        providerId: resident.provider_id,
+        action: "medication_log_created",
+        tableName: "medication_logs",
+        recordId: data.id,
+        oldValues: null,
+        newValues: data as Record<string, unknown>,
+        reason: "Medication log created from resident profile.",
+      });
+    } catch (err) {
+      const medicationLogError = err as { message?: unknown };
+      setError(medicationLogError?.message ? String(medicationLogError.message) : "Could not save medication log.");
+    } finally {
+      setSavingMedicationLog(false);
     }
   }
 
@@ -962,6 +1128,205 @@ export default function ResidentProfilePage() {
                         <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
                           {medication.notes || "No medication notes entered."}
                         </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold">Medication Log</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Document medication activity such as med box checks, refills, discontinuations, new medications, and discrepancies.
+                </p>
+
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Log date</span>
+                    <input
+                      type="date"
+                      value={medLogDate}
+                      onChange={(event) => setMedLogDate(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Log type</span>
+                    <select
+                      value={medLogType}
+                      onChange={(event) => setMedLogType(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option value="med_box_check">All meds added to med box / med box check</option>
+                      <option value="new_med_added">New medication added</option>
+                      <option value="med_refilled">Medication refilled</option>
+                      <option value="med_discontinued">Medication discontinued</option>
+                      <option value="med_count_check">Medication count checked</option>
+                      <option value="med_discrepancy">Medication discrepancy noted</option>
+                      <option value="storage_update">Medication storage updated</option>
+                      <option value="other">Other medication note</option>
+                    </select>
+                  </label>
+
+                  <label className="block md:col-span-2">
+                    <span className="text-sm font-medium text-slate-700">Medication involved, if specific</span>
+                    <select
+                      value={selectedMedicationRecordId}
+                      onChange={(event) => setSelectedMedicationRecordId(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option value="">No single medication selected</option>
+                      {medicationRecords.map((medication) => (
+                        <option key={medication.id} value={medication.id}>
+                          {medication.medication_name} — {medication.status}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="md:col-span-2 rounded-2xl border bg-slate-50 p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-950">Medication checklist</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Check off medications included in this log, such as meds added to the med box or counted.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={checkAllCurrentMedications}
+                          className="rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                          Check all active meds
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={clearCheckedMedications}
+                          className="rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                          Clear checks
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-2 md:grid-cols-2">
+                      {medicationRecords.length === 0 ? (
+                        <p className="rounded-xl bg-white p-3 text-sm text-slate-500">
+                          No medication records available yet.
+                        </p>
+                      ) : (
+                        medicationRecords.map((medication) => (
+                          <label
+                            key={medication.id}
+                            className="flex items-start gap-3 rounded-xl bg-white p-3 text-sm text-slate-700"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checkedMedicationIds.includes(medication.id)}
+                              onChange={() => toggleCheckedMedication(medication.id)}
+                              className="mt-1 h-4 w-4"
+                            />
+                            <span>
+                              <span className="font-medium text-slate-950">{medication.medication_name}</span>
+                              <br />
+                              {medication.dosage || "No dosage entered"} • {medication.status}
+                              {medication.mat_mar_related ? " • MAT/MAR" : ""}
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <label className="block md:col-span-2">
+                    <span className="text-sm font-medium text-slate-700">Medication log note</span>
+                    <textarea
+                      value={medLogNote}
+                      onChange={(event) => setMedLogNote(event.target.value)}
+                      placeholder="Example: All current medications were added to the resident medication box. Count verified. No discrepancies noted."
+                      className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4 text-sm font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={medFollowUpNeeded}
+                      onChange={(event) => setMedFollowUpNeeded(event.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    Follow-up needed
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Follow-up notes</span>
+                    <input
+                      type="text"
+                      value={medFollowUpNotes}
+                      onChange={(event) => setMedFollowUpNotes(event.target.value)}
+                      placeholder="Example: Need refill verification"
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={saveMedicationLog}
+                  disabled={savingMedicationLog}
+                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingMedicationLog ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  {savingMedicationLog ? "Saving..." : "Save Medication Log"}
+                </button>
+
+                <div className="mt-6 space-y-3">
+                  {medicationLogs.length === 0 ? (
+                    <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                      No medication logs saved yet.
+                    </p>
+                  ) : (
+                    medicationLogs.map((log) => (
+                      <div key={log.id} className="rounded-2xl bg-slate-50 p-4">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-950">
+                              {log.log_type.replaceAll("_", " ")}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              {log.all_current_meds_checked ? "All active meds checked" : `${log.checked_medications.length} medication(s) checked`}
+                              {log.follow_up_needed ? " • Follow-up needed" : ""}
+                            </p>
+                          </div>
+                          <p className="text-xs font-medium text-slate-500">
+                            {formatDate(log.log_date)}
+                          </p>
+                        </div>
+
+                        {log.checked_medications.length > 0 ? (
+                          <div className="mt-3 rounded-xl bg-white p-3 text-sm text-slate-600">
+                            <p className="font-medium text-slate-950">Checked medications</p>
+                            <p className="mt-1">
+                              {log.checked_medications
+                                .map((medication) => medication.medication_name)
+                                .join(", ")}
+                            </p>
+                          </div>
+                        ) : null}
+
+                        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                          {log.note_text}
+                        </p>
+
+                        {log.follow_up_notes ? (
+                          <p className="mt-2 text-sm text-slate-600">
+                            Follow-up: {log.follow_up_notes}
+                          </p>
+                        ) : null}
                       </div>
                     ))
                   )}
