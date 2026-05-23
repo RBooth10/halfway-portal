@@ -41,6 +41,7 @@ type DocumentRow = {
   version_label: string | null;
   effective_date: string | null;
   status: string;
+  file_url: string | null;
   notes: string | null;
 };
 
@@ -172,8 +173,17 @@ function Field({
   );
 }
 
+function sanitizeFileName(fileName: string) {
+  return fileName
+    .toLowerCase()
+    .replace(/[^a-z0-9.\-_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 export default function DocumentsPage() {
   const [form, setForm] = useState<DocumentForm>(initialForm);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [providerId, setProviderId] = useState<string | null>(null);
   const [providerName, setProviderName] = useState("Current Provider");
@@ -271,6 +281,24 @@ export default function DocumentsPage() {
     try {
       const supabase = getSupabaseClient();
 
+      let filePath: string | null = null;
+
+      if (selectedFile) {
+        const safeFileName = sanitizeFileName(selectedFile.name);
+        filePath = `${providerId}/${Date.now()}-${safeFileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("compliance-documents")
+          .upload(filePath, selectedFile, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+
+        if (uploadError) {
+          throw uploadError;
+        }
+      }
+
       const { data, error } = await supabase
         .from("documents")
         .insert({
@@ -281,7 +309,8 @@ export default function DocumentsPage() {
           applies_to: form.applies_to,
           version_label: form.version_label.trim() || null,
           effective_date: form.effective_date || null,
-          status: form.status,
+          status: selectedFile ? "uploaded" : form.status,
+          file_url: filePath,
           notes: form.notes.trim() || null,
         })
         .select("*")
@@ -293,6 +322,7 @@ export default function DocumentsPage() {
 
       setDocuments((current) => [data as DocumentRow, ...current]);
       setForm(initialForm);
+      setSelectedFile(null);
       setMessage(`${data.document_name} was saved successfully.`);
     } catch (err) {
       const supabaseError = err as {
@@ -478,6 +508,20 @@ export default function DocumentsPage() {
               </label>
 
               <label className="block md:col-span-2">
+                <span className="text-sm font-medium text-slate-700">Attach file</span>
+                <input
+                  type="file"
+                  onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                  className="mt-2 block w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+                {selectedFile ? (
+                  <p className="mt-2 text-sm text-slate-500">
+                    Selected: {selectedFile.name}
+                  </p>
+                ) : null}
+              </label>
+
+              <label className="block md:col-span-2">
                 <span className="text-sm font-medium text-slate-700">Notes</span>
                 <textarea
                   value={form.notes}
@@ -501,7 +545,10 @@ export default function DocumentsPage() {
 
               <button
                 type="button"
-                onClick={() => setForm(initialForm)}
+                onClick={() => {
+                  setForm(initialForm);
+                  setSelectedFile(null);
+                }}
                 className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
               >
                 Clear Form
@@ -530,6 +577,7 @@ export default function DocumentsPage() {
                       <th className="px-4 py-3">Document</th>
                       <th className="px-4 py-3">Category</th>
                       <th className="px-4 py-3">Domain</th>
+                      <th className="px-4 py-3">File</th>
                       <th className="px-4 py-3">Status</th>
                     </tr>
                   </thead>
@@ -539,6 +587,9 @@ export default function DocumentsPage() {
                         <td className="px-4 py-4 font-medium text-slate-950">{doc.document_name}</td>
                         <td className="px-4 py-4 text-slate-600">{doc.category}</td>
                         <td className="px-4 py-4 text-slate-600">{doc.compliance_domain || "Not set"}</td>
+                        <td className="px-4 py-4 text-slate-600">
+                          {doc.file_url ? "Stored" : "No file"}
+                        </td>
                         <td className="px-4 py-4">
                           <StatusBadge value={doc.status} />
                         </td>
