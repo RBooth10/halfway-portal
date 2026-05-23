@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { CheckCircle2, Loader2, Plus, ShieldCheck } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -12,6 +12,7 @@ type RciQuestion = {
   question_text: string;
   min_score: number;
   max_score: number;
+  reverse_scored: boolean;
 };
 
 type GoalForm = {
@@ -20,6 +21,23 @@ type GoalForm = {
   action_steps: string;
   supports_needed: string;
   priority: string;
+};
+
+type DomainResult = {
+  domain: string;
+  score: number;
+  max: number;
+  level: string;
+  summary: string;
+};
+
+type ResultPreview = {
+  totalScore: number;
+  totalMax: number;
+  level: string;
+  percent: number;
+  summary: string;
+  domainResults: DomainResult[];
 };
 
 const initialGoalForms: GoalForm[] = [
@@ -48,15 +66,15 @@ const initialGoalForms: GoalForm[] = [
 
 function domainDescription(domain: string | null) {
   if (domain === "Personal Capital") {
-    return "This section reflects your internal strengths and overall stability.";
+    return "This section reflects your internal strengths and overall stability, including health, housing, finances, employment, nutrition, and daily life.";
   }
 
   if (domain === "Social Capital") {
-    return "This section focuses on your relationships, support network, and community connection.";
+    return "This section focuses on relationships, family support, friends, your support network, and community connection.";
   }
 
   if (domain === "Cultural Capital") {
-    return "This section explores your values, purpose, spirituality, identity, and community role.";
+    return "This section explores values, purpose, spirituality, identity, and meaningful participation in family or community.";
   }
 
   return "";
@@ -66,6 +84,40 @@ function goalAreaLabel(value: string) {
   return value
     .replaceAll("_", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function calculateLevel(score: number, max: number) {
+  if (max <= 0) return "not calculated";
+
+  const ratio = score / max;
+
+  if (ratio < 0.4) return "low";
+  if (ratio < 0.7) return "moderate";
+  return "high";
+}
+
+function levelSummary(level: string, domain?: string) {
+  const area = domain ? `${domain} ` : "";
+
+  if (level === "high") {
+    return `${area}results show strong recovery capital. This area may be a strength to maintain and build from.`;
+  }
+
+  if (level === "moderate") {
+    return `${area}results show some stability with room for growth. This may be a good area for practical recovery goals.`;
+  }
+
+  if (level === "low") {
+    return `${area}results show this area may need additional support, structure, or connection to resources.`;
+  }
+
+  return `${area}results could not be calculated.`;
+}
+
+function adjustedScore(question: RciQuestion, rawScore: number) {
+  if (!question.reverse_scored) return rawScore;
+
+  return question.max_score + question.min_score - rawScore;
 }
 
 export default function ClientRciPage() {
@@ -78,6 +130,8 @@ export default function ClientRciPage() {
   const [clientEmail, setClientEmail] = useState("");
   const [responses, setResponses] = useState<Record<string, number>>({});
   const [goalForms, setGoalForms] = useState<GoalForm[]>(initialGoalForms);
+  const [showResults, setShowResults] = useState(false);
+  const [resultPreview, setResultPreview] = useState<ResultPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [complete, setComplete] = useState(false);
@@ -115,11 +169,22 @@ export default function ClientRciPage() {
     void loadAssessment();
   }, [token]);
 
+  const groupedQuestions = useMemo(() => {
+    return questions.reduce<Record<string, RciQuestion[]>>((groups, question) => {
+      const domain = question.domain ?? "Assessment";
+      groups[domain] = groups[domain] ?? [];
+      groups[domain].push(question);
+      return groups;
+    }, {});
+  }, [questions]);
+
   function setScore(questionId: string, score: number) {
     setResponses((current) => ({
       ...current,
       [questionId]: score,
     }));
+    setShowResults(false);
+    setResultPreview(null);
   }
 
   function updateGoal(index: number, field: keyof GoalForm, value: string) {
@@ -143,22 +208,60 @@ export default function ClientRciPage() {
     ]);
   }
 
-  async function submitAssessment() {
-    setSubmitting(true);
+  function calculateResultsPreview() {
     setError("");
     setMessage("");
-
-    if (questions.length === 0) {
-      setSubmitting(false);
-      setError("No questions are available for this assessment.");
-      return;
-    }
 
     const unanswered = questions.filter((question) => responses[question.id] === undefined);
 
     if (unanswered.length > 0) {
+      setError(`Please answer all questions before viewing your results. Remaining: ${unanswered.length}`);
+      return;
+    }
+
+    const domainResults = Object.entries(groupedQuestions).map(([domain, domainQuestions]) => {
+      const score = domainQuestions.reduce((sum, question) => {
+        return sum + adjustedScore(question, responses[question.id]);
+      }, 0);
+
+      const max = domainQuestions.reduce((sum, question) => sum + question.max_score, 0);
+      const level = calculateLevel(score, max);
+
+      return {
+        domain,
+        score,
+        max,
+        level,
+        summary: levelSummary(level, domain),
+      };
+    });
+
+    const totalScore = domainResults.reduce((sum, result) => sum + result.score, 0);
+    const totalMax = domainResults.reduce((sum, result) => sum + result.max, 0);
+    const level = calculateLevel(totalScore, totalMax);
+    const percent = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
+
+    setResultPreview({
+      totalScore,
+      totalMax,
+      level,
+      percent,
+      summary: levelSummary(level),
+      domainResults,
+    });
+
+    setShowResults(true);
+    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+  }
+
+  async function submitAssessmentAndGoals() {
+    setSubmitting(true);
+    setError("");
+    setMessage("");
+
+    if (!resultPreview) {
       setSubmitting(false);
-      setError(`Please answer all questions before submitting. Remaining: ${unanswered.length}`);
+      setError("Please view your RCI results before submitting your recovery goals.");
       return;
     }
 
@@ -218,21 +321,14 @@ export default function ClientRciPage() {
       }
 
       setComplete(true);
-      setMessage("Thank you. Your assessment and recovery goals were submitted successfully.");
+      setMessage("Thank you. Your RCI assessment and recovery goals were submitted successfully.");
     } catch (err) {
       const submitError = err as { message?: unknown };
-      setError(submitError?.message ? String(submitError.message) : "Could not submit assessment.");
+      setError(submitError?.message ? String(submitError.message) : "Could not submit assessment and goals.");
     } finally {
       setSubmitting(false);
     }
   }
-
-  const groupedQuestions = questions.reduce<Record<string, RciQuestion[]>>((groups, question) => {
-    const domain = question.domain ?? "Assessment";
-    groups[domain] = groups[domain] ?? [];
-    groups[domain].push(question);
-    return groups;
-  }, {});
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-950">
@@ -246,8 +342,8 @@ export default function ClientRciPage() {
               <p className="text-sm font-medium text-slate-500">Client Assessment</p>
               <h1 className="mt-1 text-3xl font-semibold tracking-tight">Recovery Capital Assessment</h1>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                Complete each question based on how true it feels for you today. After the assessment,
-                create recovery goals that feel meaningful and realistic for you.
+                Complete each question based on how true it feels for you today. After you answer,
+                you will see your results and use them to create your recovery goals.
               </p>
               {rciVersion ? (
                 <p className="mt-2 text-xs font-medium text-slate-500">Version: {rciVersion}</p>
@@ -356,103 +452,153 @@ export default function ClientRciPage() {
               </section>
             ))}
 
-            <section className="rounded-2xl border bg-white p-6 shadow-sm">
-              <h2 className="text-xl font-semibold">My Recovery Goals</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                Based on your answers, write at least one goal you want to work on. These goals will be
-                sent to your support team with your RCI summary.
-              </p>
-
-              <div className="mt-5 space-y-5">
-                {goalForms.map((goal, index) => (
-                  <div key={index} className="rounded-2xl bg-slate-50 p-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label className="block">
-                        <span className="text-sm font-medium text-slate-700">Goal area</span>
-                        <select
-                          value={goal.goal_area}
-                          onChange={(event) => updateGoal(index, "goal_area", event.target.value)}
-                          className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                        >
-                          <option value="personal_capital">Personal Capital</option>
-                          <option value="social_capital">Social Capital</option>
-                          <option value="cultural_capital">Cultural Capital</option>
-                          <option value="housing_stability">Housing / Stability</option>
-                          <option value="employment_financial">Employment / Financial</option>
-                          <option value="health_medication">Health / Medication</option>
-                          <option value="community_support">Community Support</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </label>
-
-                      <label className="block">
-                        <span className="text-sm font-medium text-slate-700">Priority</span>
-                        <select
-                          value={goal.priority}
-                          onChange={(event) => updateGoal(index, "priority", event.target.value)}
-                          className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                        >
-                          <option value="low">Low</option>
-                          <option value="medium">Medium</option>
-                          <option value="high">High</option>
-                        </select>
-                      </label>
-
-                      <label className="block md:col-span-2">
-                        <span className="text-sm font-medium text-slate-700">
-                          Goal {index + 1}
-                        </span>
-                        <textarea
-                          value={goal.goal_text}
-                          onChange={(event) => updateGoal(index, "goal_text", event.target.value)}
-                          placeholder={`Example for ${goalAreaLabel(goal.goal_area)}: I want to...`}
-                          className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                        />
-                      </label>
-
-                      <label className="block md:col-span-2">
-                        <span className="text-sm font-medium text-slate-700">Action steps</span>
-                        <textarea
-                          value={goal.action_steps}
-                          onChange={(event) => updateGoal(index, "action_steps", event.target.value)}
-                          placeholder="What steps will help you work toward this goal?"
-                          className="mt-2 min-h-20 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                        />
-                      </label>
-
-                      <label className="block md:col-span-2">
-                        <span className="text-sm font-medium text-slate-700">Support needed</span>
-                        <textarea
-                          value={goal.supports_needed}
-                          onChange={(event) => updateGoal(index, "supports_needed", event.target.value)}
-                          placeholder="What support, resources, reminders, or help would make this goal easier?"
-                          className="mt-2 min-h-20 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                        />
-                      </label>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={addGoal}
-                className="mt-4 inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                <Plus className="h-4 w-4" />
-                Add Another Goal
-              </button>
-            </section>
-
             <button
               type="button"
-              onClick={submitAssessment}
-              disabled={submitting}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={calculateResultsPreview}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-medium text-white hover:bg-slate-800"
             >
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              {submitting ? "Submitting..." : "Submit Assessment and Goals"}
+              <CheckCircle2 className="h-4 w-4" />
+              View My Results and Create Goals
             </button>
+
+            {showResults && resultPreview ? (
+              <>
+                <section className="rounded-2xl border bg-white p-6 shadow-sm">
+                  <h2 className="text-xl font-semibold">Your RCI Results</h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    These results are not a judgment. They are meant to help you see strengths,
+                    identify support needs, and create a recovery plan that fits your life today.
+                  </p>
+
+                  <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+                    <p className="text-sm font-medium text-slate-500">Overall Recovery Capital</p>
+                    <p className="mt-2 text-2xl font-semibold text-slate-950">
+                      {resultPreview.totalScore} out of {resultPreview.totalMax} • {resultPreview.level}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      {resultPreview.summary}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    {resultPreview.domainResults.map((result) => (
+                      <div key={result.domain} className="rounded-2xl bg-slate-50 p-4">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                          {result.domain}
+                        </p>
+                        <p className="mt-2 text-lg font-semibold text-slate-950">
+                          {result.score} / {result.max}
+                        </p>
+                        <p className="mt-1 text-sm font-medium text-slate-700">
+                          {result.level}
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">
+                          {result.summary}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border bg-white p-6 shadow-sm">
+                  <h2 className="text-xl font-semibold">My Recovery Goals</h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    Based on your results, write at least one goal you want to work on. These goals
+                    will be sent to your support team with your RCI summary.
+                  </p>
+
+                  <div className="mt-5 space-y-5">
+                    {goalForms.map((goal, index) => (
+                      <div key={index} className="rounded-2xl bg-slate-50 p-4">
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <label className="block">
+                            <span className="text-sm font-medium text-slate-700">Goal area</span>
+                            <select
+                              value={goal.goal_area}
+                              onChange={(event) => updateGoal(index, "goal_area", event.target.value)}
+                              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                            >
+                              <option value="personal_capital">Personal Capital</option>
+                              <option value="social_capital">Social Capital</option>
+                              <option value="cultural_capital">Cultural Capital</option>
+                              <option value="housing_stability">Housing / Stability</option>
+                              <option value="employment_financial">Employment / Financial</option>
+                              <option value="health_medication">Health / Medication</option>
+                              <option value="community_support">Community Support</option>
+                              <option value="other">Other</option>
+                            </select>
+                          </label>
+
+                          <label className="block">
+                            <span className="text-sm font-medium text-slate-700">Priority</span>
+                            <select
+                              value={goal.priority}
+                              onChange={(event) => updateGoal(index, "priority", event.target.value)}
+                              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                            >
+                              <option value="low">Low</option>
+                              <option value="medium">Medium</option>
+                              <option value="high">High</option>
+                            </select>
+                          </label>
+
+                          <label className="block md:col-span-2">
+                            <span className="text-sm font-medium text-slate-700">
+                              Goal {index + 1}
+                            </span>
+                            <textarea
+                              value={goal.goal_text}
+                              onChange={(event) => updateGoal(index, "goal_text", event.target.value)}
+                              placeholder={`Example for ${goalAreaLabel(goal.goal_area)}: I want to...`}
+                              className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                            />
+                          </label>
+
+                          <label className="block md:col-span-2">
+                            <span className="text-sm font-medium text-slate-700">Action steps</span>
+                            <textarea
+                              value={goal.action_steps}
+                              onChange={(event) => updateGoal(index, "action_steps", event.target.value)}
+                              placeholder="What steps will help you work toward this goal?"
+                              className="mt-2 min-h-20 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                            />
+                          </label>
+
+                          <label className="block md:col-span-2">
+                            <span className="text-sm font-medium text-slate-700">Support needed</span>
+                            <textarea
+                              value={goal.supports_needed}
+                              onChange={(event) => updateGoal(index, "supports_needed", event.target.value)}
+                              placeholder="What support, resources, reminders, or help would make this goal easier?"
+                              className="mt-2 min-h-20 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={addGoal}
+                    className="mt-4 inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Another Goal
+                  </button>
+                </section>
+
+                <button
+                  type="button"
+                  onClick={submitAssessmentAndGoals}
+                  disabled={submitting}
+                  className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  {submitting ? "Submitting..." : "Submit Assessment and Goals"}
+                </button>
+              </>
+            ) : null}
           </>
         ) : null}
       </div>

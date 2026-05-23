@@ -19,10 +19,13 @@ create table if not exists public.recovery_goals (
   updated_at timestamptz not null default now()
 );
 
+alter table public.recovery_goals
+add column if not exists rci_assessment_id uuid references public.rci_assessments(id) on delete set null,
+add column if not exists created_by_source text not null default 'resident_client';
+
 create index if not exists idx_recovery_goals_provider_id on public.recovery_goals(provider_id);
 create index if not exists idx_recovery_goals_resident_id on public.recovery_goals(resident_id);
 create index if not exists idx_recovery_goals_rci_assessment_id on public.recovery_goals(rci_assessment_id);
-create index if not exists idx_recovery_goals_created_by_auth_user_id on public.recovery_goals(created_by_auth_user_id);
 
 alter table public.recovery_goals enable row level security;
 
@@ -68,7 +71,6 @@ begin
   from public.rci_assessments
   where client_access_token = p_access_token
     and client_access_token is not null
-    and (client_link_expires_at is null or client_link_expires_at > now())
     and status = 'completed'
   limit 1;
 
