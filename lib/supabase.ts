@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
+let supabaseClient: ReturnType<typeof createClient> | null = null;
+
 export function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -12,5 +14,9 @@ export function getSupabaseClient() {
     throw new Error("Missing NEXT_PUBLIC_SUPABASE_ANON_KEY. Add it to .env.local.");
   }
 
-  return createClient(supabaseUrl, supabaseAnonKey);
+  if (!supabaseClient) {
+    supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+  }
+
+  return supabaseClient;
 }
