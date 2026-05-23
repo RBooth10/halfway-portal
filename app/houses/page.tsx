@@ -3,6 +3,7 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import {
+  Archive,
   ArrowLeft,
   BedDouble,
   Building2,
@@ -195,6 +196,41 @@ export default function HousesPage() {
 
     initialize();
   }, []);
+
+  async function archiveHouse(houseId: string, houseName: string) {
+    const confirmed = window.confirm(`Archive ${houseName}? This keeps the house record but marks it inactive.`);
+
+    if (!confirmed) return;
+
+    setMessage("");
+    setError("");
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase
+        .from("houses")
+        .update({ status: "inactive" })
+        .eq("id", houseId)
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setHouses((current) =>
+        current.map((house) =>
+          house.id === houseId ? (data as HouseRow) : house
+        )
+      );
+
+      setMessage(`${houseName} was archived successfully.`);
+    } catch (err) {
+      const houseError = err as { message?: unknown };
+      setError(houseError?.message ? String(houseError.message) : "Could not archive house.");
+    }
+  }
 
   async function saveHouse() {
     setSaving(true);
@@ -479,13 +515,30 @@ export default function HousesPage() {
               <div className="mt-4 space-y-3">
                 {houses.map((house) => (
                   <div key={house.id} className="rounded-2xl bg-slate-50 p-4">
-                    <p className="font-medium text-slate-950">{house.name}</p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {house.total_beds} beds • {house.gender_served || "Population not set"}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {[house.city, house.state].filter(Boolean).join(", ") || "Address not complete"}
-                    </p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-slate-950">{house.name}</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {house.total_beds} beds • {house.gender_served || "Population not set"}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {[house.city, house.state].filter(Boolean).join(", ") || "Address not complete"}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Status: {house.status}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => archiveHouse(house.id, house.name)}
+                        disabled={house.status === "inactive"}
+                        className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Archive className="h-3.5 w-3.5" />
+                        {house.status === "inactive" ? "Archived" : "Archive"}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
