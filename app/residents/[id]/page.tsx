@@ -66,6 +66,20 @@ type ProgressNoteRow = {
   created_at: string;
 };
 
+type UaBaLogRow = {
+  id: string;
+  provider_id: string;
+  resident_id: string;
+  created_by_auth_user_id: string | null;
+  collection_date: string;
+  test_type: string;
+  result: string;
+  breathalyzer_result: string | null;
+  reason: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
 function MetricCard({
   title,
   value,
@@ -136,7 +150,15 @@ export default function ResidentProfilePage() {
   const [house, setHouse] = useState<HouseRow | null>(null);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [progressNotes, setProgressNotes] = useState<ProgressNoteRow[]>([]);
+  const [uaBaLogs, setUaBaLogs] = useState<UaBaLogRow[]>([]);
   const [providerName, setProviderName] = useState("Current Provider");
+  const [collectionDate, setCollectionDate] = useState("");
+  const [testType, setTestType] = useState("UA");
+  const [testResult, setTestResult] = useState("pending");
+  const [breathalyzerResult, setBreathalyzerResult] = useState("");
+  const [testReason, setTestReason] = useState("");
+  const [testNotes, setTestNotes] = useState("");
+  const [savingUaBaLog, setSavingUaBaLog] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [noteType, setNoteType] = useState("general");
   const [savingNote, setSavingNote] = useState(false);
@@ -205,6 +227,19 @@ export default function ResidentProfilePage() {
       }
 
       setProgressNotes((notesResult.data ?? []) as ProgressNoteRow[]);
+
+      const uaBaResult = await supabase
+        .from("ua_ba_logs")
+        .select("*")
+        .eq("resident_id", residentId)
+        .order("collection_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (uaBaResult.error) {
+        throw uaBaResult.error;
+      }
+
+      setUaBaLogs((uaBaResult.data ?? []) as UaBaLogRow[]);
     } catch (err) {
       const profileError = err as { message?: unknown };
       setError(profileError?.message ? String(profileError.message) : "Could not load resident profile.");
@@ -275,6 +310,68 @@ export default function ResidentProfilePage() {
       setError(noteError?.message ? String(noteError.message) : "Could not save progress note.");
     } finally {
       setSavingNote(false);
+    }
+  }
+
+  async function saveUaBaLog() {
+    setSavingUaBaLog(true);
+    setMessage("");
+    setError("");
+
+    if (!resident) {
+      setSavingUaBaLog(false);
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data: userData } = await supabase.auth.getUser();
+
+      const { data, error } = await supabase
+        .from("ua_ba_logs")
+        .insert({
+          provider_id: resident.provider_id,
+          resident_id: resident.id,
+          created_by_auth_user_id: userData.user?.id ?? null,
+          collection_date: collectionDate || new Date().toISOString().slice(0, 10),
+          test_type: testType,
+          result: testResult,
+          breathalyzer_result: breathalyzerResult.trim() || null,
+          reason: testReason.trim() || null,
+          notes: testNotes.trim() || null,
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setUaBaLogs((current) => [data as UaBaLogRow, ...current]);
+      setCollectionDate("");
+      setTestType("UA");
+      setTestResult("pending");
+      setBreathalyzerResult("");
+      setTestReason("");
+      setTestNotes("");
+      setMessage("UA/BA log saved successfully.");
+
+      await createAuditLog({
+        providerId: resident.provider_id,
+        action: "ua_ba_log_created",
+        tableName: "ua_ba_logs",
+        recordId: data.id,
+        oldValues: null,
+        newValues: data as Record<string, unknown>,
+        reason: "UA/BA log created from resident profile.",
+      });
+    } catch (err) {
+      const testError = err as { message?: unknown };
+      setError(testError?.message ? String(testError.message) : "Could not save UA/BA log.");
+    } finally {
+      setSavingUaBaLog(false);
     }
   }
 
@@ -445,6 +542,122 @@ export default function ResidentProfilePage() {
               </div>
 
               <div className="rounded-2xl border bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold">UA/BA Logs</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Add drug screen and breathalyzer records tied to this resident profile.
+                </p>
+
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Collection date</span>
+                    <input
+                      type="date"
+                      value={collectionDate}
+                      onChange={(event) => setCollectionDate(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Test type</span>
+                    <select
+                      value={testType}
+                      onChange={(event) => setTestType(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option value="UA">UA</option>
+                      <option value="BA">BA</option>
+                      <option value="UA_BA">UA + BA</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Result</span>
+                    <select
+                      value={testResult}
+                      onChange={(event) => setTestResult(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="passed">Passed</option>
+                      <option value="failed">Failed</option>
+                      <option value="not_done">Not Done</option>
+                      <option value="refused">Refused</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Breathalyzer result</span>
+                    <input
+                      type="text"
+                      value={breathalyzerResult}
+                      onChange={(event) => setBreathalyzerResult(event.target.value)}
+                      placeholder="Example: 0.00"
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block md:col-span-2">
+                    <span className="text-sm font-medium text-slate-700">Reason</span>
+                    <input
+                      type="text"
+                      value={testReason}
+                      onChange={(event) => setTestReason(event.target.value)}
+                      placeholder="Example: Random screen, intake, relapse in close proximity, house meeting"
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block md:col-span-2">
+                    <span className="text-sm font-medium text-slate-700">Notes</span>
+                    <textarea
+                      value={testNotes}
+                      onChange={(event) => setTestNotes(event.target.value)}
+                      placeholder="Add UA/BA notes here..."
+                      className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={saveUaBaLog}
+                  disabled={savingUaBaLog}
+                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingUaBaLog ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  {savingUaBaLog ? "Saving..." : "Save UA/BA Log"}
+                </button>
+
+                <div className="mt-6 space-y-3">
+                  {uaBaLogs.length === 0 ? (
+                    <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                      No UA/BA logs saved yet.
+                    </p>
+                  ) : (
+                    uaBaLogs.map((log) => (
+                      <div key={log.id} className="rounded-2xl bg-slate-50 p-4">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                          <p className="text-sm font-semibold text-slate-950">
+                            {log.test_type} • {log.result}
+                          </p>
+                          <p className="text-xs font-medium text-slate-500">
+                            {formatDate(log.collection_date)}
+                          </p>
+                        </div>
+                        <p className="mt-2 text-sm text-slate-600">
+                          BA: {log.breathalyzer_result || "Not entered"} • Reason: {log.reason || "Not entered"}
+                        </p>
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                          {log.notes || "No notes entered."}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border bg-white p-6 shadow-sm">
                 <h2 className="text-lg font-semibold">Resident Documents</h2>
                 {documents.length === 0 ? (
                   <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
@@ -482,7 +695,7 @@ export default function ResidentProfilePage() {
                       <ShieldCheck className="h-4 w-4" />
                       UA/BA Logs
                     </div>
-                    <p className="mt-1">Future workflow for drug screen and breathalyzer tracking.</p>
+                    <p className="mt-1">Active now.</p>
                   </div>
 
                   <div className="rounded-2xl bg-slate-50 p-4">
