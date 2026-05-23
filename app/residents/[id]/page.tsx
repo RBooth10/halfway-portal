@@ -121,6 +121,27 @@ type MedicationLogRow = {
   created_at: string;
 };
 
+type RciAssessmentRow = {
+  id: string;
+  provider_id: string;
+  resident_id: string;
+  created_by_auth_user_id: string | null;
+  assessment_date: string;
+  rci_version: string;
+  rci_score: number | null;
+  recovery_capital_level: string | null;
+  status: string;
+  strengths_summary: string | null;
+  needs_summary: string | null;
+  notes: string | null;
+  client_access_token: string | null;
+  client_link_expires_at: string | null;
+  client_completed_at: string | null;
+  client_name: string | null;
+  client_email: string | null;
+  created_at: string;
+};
+
 function MetricCard({
   title,
   value,
@@ -194,6 +215,18 @@ export default function ResidentProfilePage() {
   const [uaBaLogs, setUaBaLogs] = useState<UaBaLogRow[]>([]);
   const [medicationRecords, setMedicationRecords] = useState<MedicationRecordRow[]>([]);
   const [medicationLogs, setMedicationLogs] = useState<MedicationLogRow[]>([]);
+  const [rciAssessments, setRciAssessments] = useState<RciAssessmentRow[]>([]);
+  const [rciAssessmentDate, setRciAssessmentDate] = useState("");
+  const [rciVersion, setRciVersion] = useState("RCI-36");
+  const [rciScore, setRciScore] = useState("");
+  const [recoveryCapitalLevel, setRecoveryCapitalLevel] = useState("not_selected");
+  const [rciStatus, setRciStatus] = useState("completed");
+  const [rciStrengths, setRciStrengths] = useState("");
+  const [rciNeeds, setRciNeeds] = useState("");
+  const [rciNotes, setRciNotes] = useState("");
+  const [savingRciAssessment, setSavingRciAssessment] = useState(false);
+  const [clientRciLink, setClientRciLink] = useState("");
+  const [generatingRciLink, setGeneratingRciLink] = useState(false);
   const [providerName, setProviderName] = useState("Current Provider");
   const [medLogDate, setMedLogDate] = useState("");
   const [medLogType, setMedLogType] = useState("med_box_check");
@@ -663,6 +696,134 @@ export default function ResidentProfilePage() {
       setError(medicationError?.message ? String(medicationError.message) : "Could not save medication record.");
     } finally {
       setSavingMedication(false);
+    }
+  }
+
+  async function generateClientRciLink() {
+    setGeneratingRciLink(true);
+    setMessage("");
+    setError("");
+
+    if (!resident) {
+      setGeneratingRciLink(false);
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    try {
+      const supabase = getSupabaseClient();
+      const { data: userData } = await supabase.auth.getUser();
+
+      const token = crypto.randomUUID();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 14);
+
+      const { data, error } = await supabase
+        .from("rci_assessments")
+        .insert({
+          provider_id: resident.provider_id,
+          resident_id: resident.id,
+          created_by_auth_user_id: userData.user?.id ?? null,
+          assessment_date: new Date().toISOString().slice(0, 10),
+          rci_version: "DEMO-RCI",
+          status: "sent",
+          client_access_token: token,
+          client_link_expires_at: expiresAt.toISOString(),
+          notes: "Client-facing RCI link generated from resident profile.",
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      const link = `${window.location.origin}/client/rci/${token}`;
+
+      setClientRciLink(link);
+      setRciAssessments((current) => [data as RciAssessmentRow, ...current]);
+      setMessage("Client RCI link generated successfully.");
+
+      await createAuditLog({
+        providerId: resident.provider_id,
+        action: "client_rci_link_generated",
+        tableName: "rci_assessments",
+        recordId: data.id,
+        oldValues: null,
+        newValues: data as Record<string, unknown>,
+        reason: "Client RCI assessment link generated from resident profile.",
+      });
+    } catch (err) {
+      const rciLinkError = err as { message?: unknown };
+      setError(rciLinkError?.message ? String(rciLinkError.message) : "Could not generate client RCI link.");
+    } finally {
+      setGeneratingRciLink(false);
+    }
+  }
+
+  async function saveRciAssessment() {
+    setSavingRciAssessment(true);
+    setMessage("");
+    setError("");
+
+    if (!resident) {
+      setSavingRciAssessment(false);
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data: userData } = await supabase.auth.getUser();
+
+      const { data, error } = await supabase
+        .from("rci_assessments")
+        .insert({
+          provider_id: resident.provider_id,
+          resident_id: resident.id,
+          created_by_auth_user_id: userData.user?.id ?? null,
+          assessment_date: rciAssessmentDate || new Date().toISOString().slice(0, 10),
+          rci_version: rciVersion,
+          rci_score: rciScore.trim() ? Number(rciScore) : null,
+          recovery_capital_level: recoveryCapitalLevel === "not_selected" ? null : recoveryCapitalLevel,
+          status: rciStatus,
+          strengths_summary: rciStrengths.trim() || null,
+          needs_summary: rciNeeds.trim() || null,
+          notes: rciNotes.trim() || null,
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setRciAssessments((current) => [data as RciAssessmentRow, ...current]);
+      setRciAssessmentDate("");
+      setRciVersion("RCI-36");
+      setRciScore("");
+      setRecoveryCapitalLevel("not_selected");
+      setRciStatus("completed");
+      setRciStrengths("");
+      setRciNeeds("");
+      setRciNotes("");
+      setMessage("RCI assessment saved successfully.");
+
+      await createAuditLog({
+        providerId: resident.provider_id,
+        action: "rci_assessment_created",
+        tableName: "rci_assessments",
+        recordId: data.id,
+        oldValues: null,
+        newValues: data as Record<string, unknown>,
+        reason: "RCI assessment created from resident profile.",
+      });
+    } catch (err) {
+      const rciError = err as { message?: unknown };
+      setError(rciError?.message ? String(rciError.message) : "Could not save RCI assessment.");
+    } finally {
+      setSavingRciAssessment(false);
     }
   }
 
@@ -1334,6 +1495,351 @@ export default function ResidentProfilePage() {
               </div>
 
               <div className="rounded-2xl border bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold">Client RCI Assessment Link</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Generate a private link the resident can use to complete the assessment without logging into the staff portal.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={generateClientRciLink}
+                  disabled={generatingRciLink}
+                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {generatingRciLink ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  {generatingRciLink ? "Generating..." : "Generate Client RCI Link"}
+                </button>
+
+                {clientRciLink ? (
+                  <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+                    <p className="text-sm font-medium text-slate-950">Client link</p>
+                    <p className="mt-2 break-all text-sm text-slate-600">{clientRciLink}</p>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(clientRciLink)}
+                      className="mt-3 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Copy Link
+                    </button>
+                  </div>
+                ) : null}
+
+                <div className="mt-5 rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-800">
+                  This is currently using DEMO-RCI questions for testing only. Replace with approved RCI wording before real use.
+                </div>
+              </div>
+
+              <div className="rounded-2xl border bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold">RCI Assessment Tracking</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Log RCI assessments, recovery capital level, strengths, needs, and clinical/support notes.
+                </p>
+
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Assessment date</span>
+                    <input
+                      type="date"
+                      value={rciAssessmentDate}
+                      onChange={(event) => setRciAssessmentDate(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">RCI version</span>
+                    <select
+                      value={rciVersion}
+                      onChange={(event) => setRciVersion(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option value="RCI-36">RCI-36</option>
+                      <option value="RCI-37">RCI-37</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Score</span>
+                    <input
+                      type="number"
+                      value={rciScore}
+                      onChange={(event) => setRciScore(event.target.value)}
+                      placeholder="Enter score"
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Recovery capital level</span>
+                    <select
+                      value={recoveryCapitalLevel}
+                      onChange={(event) => setRecoveryCapitalLevel(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option value="not_selected">Not selected</option>
+                      <option value="low">Low</option>
+                      <option value="moderate">Moderate</option>
+                      <option value="high">High</option>
+                      <option value="very_high">Very High</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Status</span>
+                    <select
+                      value={rciStatus}
+                      onChange={(event) => setRciStatus(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option value="completed">Completed</option>
+                      <option value="pending">Pending</option>
+                      <option value="needs_review">Needs Review</option>
+                    </select>
+                  </label>
+
+                  <label className="block md:col-span-2">
+                    <span className="text-sm font-medium text-slate-700">Strengths summary</span>
+                    <textarea
+                      value={rciStrengths}
+                      onChange={(event) => setRciStrengths(event.target.value)}
+                      placeholder="Summarize resident strengths and protective factors identified through the RCI."
+                      className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block md:col-span-2">
+                    <span className="text-sm font-medium text-slate-700">Needs summary</span>
+                    <textarea
+                      value={rciNeeds}
+                      onChange={(event) => setRciNeeds(event.target.value)}
+                      placeholder="Summarize recovery capital needs, barriers, or support priorities."
+                      className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block md:col-span-2">
+                    <span className="text-sm font-medium text-slate-700">RCI notes</span>
+                    <textarea
+                      value={rciNotes}
+                      onChange={(event) => setRciNotes(event.target.value)}
+                      placeholder="Add notes about assessment context, follow-up, recovery plan implications, or review needs."
+                      className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={saveRciAssessment}
+                  disabled={savingRciAssessment}
+                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingRciAssessment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  {savingRciAssessment ? "Saving..." : "Save RCI Assessment"}
+                </button>
+
+                <div className="mt-6 space-y-3">
+                  {rciAssessments.length === 0 ? (
+                    <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                      No RCI assessments saved yet.
+                    </p>
+                  ) : (
+                    rciAssessments.map((assessment) => (
+                      <div key={assessment.id} className="rounded-2xl bg-slate-50 p-4">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-950">
+                              {assessment.rci_version} • {assessment.status}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              Score: {assessment.rci_score ?? "Not entered"} • Level: {assessment.recovery_capital_level || "Not entered"}
+                            </p>
+                          </div>
+                          <p className="text-xs font-medium text-slate-500">
+                            {formatDate(assessment.assessment_date)}
+                          </p>
+                        </div>
+
+                        {assessment.strengths_summary ? (
+                          <p className="mt-3 text-sm leading-6 text-slate-600">
+                            Strengths: {assessment.strengths_summary}
+                          </p>
+                        ) : null}
+
+                        {assessment.needs_summary ? (
+                          <p className="mt-2 text-sm leading-6 text-slate-600">
+                            Needs: {assessment.needs_summary}
+                          </p>
+                        ) : null}
+
+                        {assessment.notes ? (
+                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                            Notes: {assessment.notes}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold">RCI Assessment Tracking</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Log RCI assessments, recovery capital level, strengths, needs, and clinical/support notes.
+                </p>
+
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Assessment date</span>
+                    <input
+                      type="date"
+                      value={rciAssessmentDate}
+                      onChange={(event) => setRciAssessmentDate(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">RCI version</span>
+                    <select
+                      value={rciVersion}
+                      onChange={(event) => setRciVersion(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option value="RCI-36">RCI-36</option>
+                      <option value="RCI-37">RCI-37</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Score</span>
+                    <input
+                      type="number"
+                      value={rciScore}
+                      onChange={(event) => setRciScore(event.target.value)}
+                      placeholder="Enter score"
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Recovery capital level</span>
+                    <select
+                      value={recoveryCapitalLevel}
+                      onChange={(event) => setRecoveryCapitalLevel(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option value="not_selected">Not selected</option>
+                      <option value="low">Low</option>
+                      <option value="moderate">Moderate</option>
+                      <option value="high">High</option>
+                      <option value="very_high">Very High</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Status</span>
+                    <select
+                      value={rciStatus}
+                      onChange={(event) => setRciStatus(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option value="completed">Completed</option>
+                      <option value="pending">Pending</option>
+                      <option value="needs_review">Needs Review</option>
+                    </select>
+                  </label>
+
+                  <label className="block md:col-span-2">
+                    <span className="text-sm font-medium text-slate-700">Strengths summary</span>
+                    <textarea
+                      value={rciStrengths}
+                      onChange={(event) => setRciStrengths(event.target.value)}
+                      placeholder="Summarize resident strengths and protective factors identified through the RCI."
+                      className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block md:col-span-2">
+                    <span className="text-sm font-medium text-slate-700">Needs summary</span>
+                    <textarea
+                      value={rciNeeds}
+                      onChange={(event) => setRciNeeds(event.target.value)}
+                      placeholder="Summarize recovery capital needs, barriers, or support priorities."
+                      className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block md:col-span-2">
+                    <span className="text-sm font-medium text-slate-700">RCI notes</span>
+                    <textarea
+                      value={rciNotes}
+                      onChange={(event) => setRciNotes(event.target.value)}
+                      placeholder="Add notes about assessment context, follow-up, recovery plan implications, or review needs."
+                      className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={saveRciAssessment}
+                  disabled={savingRciAssessment}
+                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingRciAssessment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  {savingRciAssessment ? "Saving..." : "Save RCI Assessment"}
+                </button>
+
+                <div className="mt-6 space-y-3">
+                  {rciAssessments.length === 0 ? (
+                    <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                      No RCI assessments saved yet.
+                    </p>
+                  ) : (
+                    rciAssessments.map((assessment) => (
+                      <div key={assessment.id} className="rounded-2xl bg-slate-50 p-4">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-950">
+                              {assessment.rci_version} • {assessment.status}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              Score: {assessment.rci_score ?? "Not entered"} • Level: {assessment.recovery_capital_level || "Not entered"}
+                            </p>
+                          </div>
+                          <p className="text-xs font-medium text-slate-500">
+                            {formatDate(assessment.assessment_date)}
+                          </p>
+                        </div>
+
+                        {assessment.strengths_summary ? (
+                          <p className="mt-3 text-sm leading-6 text-slate-600">
+                            Strengths: {assessment.strengths_summary}
+                          </p>
+                        ) : null}
+
+                        {assessment.needs_summary ? (
+                          <p className="mt-2 text-sm leading-6 text-slate-600">
+                            Needs: {assessment.needs_summary}
+                          </p>
+                        ) : null}
+
+                        {assessment.notes ? (
+                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                            Notes: {assessment.notes}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border bg-white p-6 shadow-sm">
                 <h2 className="text-lg font-semibold">Resident Documents</h2>
                 {documents.length === 0 ? (
                   <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
@@ -1387,7 +1893,7 @@ export default function ResidentProfilePage() {
                       <HeartHandshake className="h-4 w-4" />
                       RCI / Recovery Plan
                     </div>
-                    <p className="mt-1">Future workflow for RCI and recovery planning.</p>
+                    <p className="mt-1">RCI tracking active now. Recovery plan goals come next.</p>
                   </div>
 
                   <div className="rounded-2xl bg-slate-50 p-4">
