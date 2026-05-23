@@ -133,6 +133,13 @@ export default function ProviderOnboardingPage() {
                 <p className="rounded-2xl bg-slate-50 p-4">Upload provider policies and compliance documents.</p>
                 <p className="rounded-2xl bg-slate-50 p-4">Start resident onboarding.</p>
               </div>
+
+              <Link
+                href="/houses"
+                className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                Continue to House Setup
+              </Link>
             </div>
 
             <div className="rounded-2xl border bg-white p-6 shadow-sm">
