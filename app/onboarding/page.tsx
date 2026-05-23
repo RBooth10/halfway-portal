@@ -469,175 +469,146 @@ export default function ProviderOnboardingPage() {
             >
               Clear Form
             </button>
-
-            {savedProviderId && (
-              <section className="rounded-3xl border bg-white p-6 shadow-sm">
-                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <h2 className="text-xl font-semibold text-slate-950">Provider Phase Levels</h2>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
-                      Define the number of phases this provider uses. Resident profiles will only allow staff to select from these provider-defined phases.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Phase name</span>
-                    <input
-                      type="text"
-                      value={phaseName}
-                      onChange={(event) => setPhaseName(event.target.value)}
-                      placeholder="Phase 1"
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Display order</span>
-                    <input
-                      type="number"
-                      value={phaseOrder}
-                      onChange={(event) => setPhaseOrder(event.target.value)}
-                      placeholder={String(phaseLevels.length + 1)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Minimum days</span>
-                    <input
-                      type="number"
-                      value={minimumDays}
-                      onChange={(event) => setMinimumDays(event.target.value)}
-                      placeholder="30"
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Curfew</span>
-                    <input
-                      type="text"
-                      value={curfewDescription}
-                      onChange={(event) => setCurfewDescription(event.target.value)}
-                      placeholder="10:00 PM curfew"
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block md:col-span-2">
-                    <span className="text-sm font-medium text-slate-700">Requirements</span>
-                    <textarea
-                      value={requirementsDescription}
-                      onChange={(event) => setRequirementsDescription(event.target.value)}
-                      placeholder="Sponsor, home group, meeting attendance, employment, payment status, recovery plan, etc."
-                      className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-                </div>
-
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={saveProviderPhase}
-                    disabled={savingPhase}
-                    className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {savingPhase ? "Saving..." : editingPhaseId ? "Save Phase Changes" : "Add Phase Level"}
-                  </button>
-
-                  {editingPhaseId ? (
-                    <button
-                      type="button"
-                      onClick={cancelPhaseEdit}
-                      className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      Cancel Edit
-                    </button>
-                  ) : null}
-                </div>
-
-                <div className="mt-6 space-y-3">
-                  {phaseLevels.length === 0 ? (
-                    <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-                      No phase levels have been added yet.
-                    </p>
-                  ) : (
-                    phaseLevels.map((phase) => (
-                      <div key={phase.id} className="rounded-2xl bg-slate-50 p-4">
-                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-950">
-                              {phase.phase_order}. {phase.phase_name}
-                            </p>
-                            <p className="mt-1 text-sm text-slate-600">
-                              Minimum days: {phase.minimum_days ?? "Not set"} • Curfew: {phase.curfew_description || "Not set"}
-                            </p>
-                            {phase.requirements_description ? (
-                              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
-                                {phase.requirements_description}
-                              </p>
-                            ) : null}
-                          </div>
-
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => editProviderPhase(phase)}
-                              className="rounded-xl border bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                            >
-                              Edit
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => toggleProviderPhase(phase)}
-                              className="rounded-xl border bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                            >
-                              {phase.is_active ? "Deactivate" : "Reactivate"}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </section>
-            )}
-
-            {savedProviderId && (
-              <Link
-                href="/houses"
-                className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
-              >
-                Continue to House Setup
-              </Link>
-            )}
           </div>
         </form>
+      </section>
 
-        <aside className="space-y-4">
-          <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">After this step</h2>
-            <div className="mt-4 space-y-3 text-sm text-slate-600">
-              <p className="rounded-2xl bg-slate-50 p-4">Add houses and bed counts.</p>
-              <p className="rounded-2xl bg-slate-50 p-4">Invite staff and assign roles.</p>
-              <p className="rounded-2xl bg-slate-50 p-4">Upload provider policies and compliance documents.</p>
-              <p className="rounded-2xl bg-slate-50 p-4">Start resident onboarding.</p>
+      {savedProviderId ? (
+        <section className="rounded-3xl border bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-950">Provider Phase Levels</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                Define the number of phases this provider uses. Resident profiles will only allow staff to select from these provider-defined phases.
+              </p>
             </div>
           </div>
 
-          <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">Access model</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Each provider should only see its own houses, residents, staff, documents,
-              UA/BA records, incidents, grievances, and reports. We will add stronger
-              authentication and row-level security after the core forms are working.
-            </p>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">Phase name</span>
+              <input
+                type="text"
+                value={phaseName}
+                onChange={(event) => setPhaseName(event.target.value)}
+                placeholder="Phase 1"
+                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">Display order</span>
+              <input
+                type="number"
+                value={phaseOrder}
+                onChange={(event) => setPhaseOrder(event.target.value)}
+                placeholder={String(phaseLevels.length + 1)}
+                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">Minimum days</span>
+              <input
+                type="number"
+                value={minimumDays}
+                onChange={(event) => setMinimumDays(event.target.value)}
+                placeholder="30"
+                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">Curfew</span>
+              <input
+                type="text"
+                value={curfewDescription}
+                onChange={(event) => setCurfewDescription(event.target.value)}
+                placeholder="10:00 PM curfew"
+                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+              />
+            </label>
+
+            <label className="block md:col-span-2">
+              <span className="text-sm font-medium text-slate-700">Requirements</span>
+              <textarea
+                value={requirementsDescription}
+                onChange={(event) => setRequirementsDescription(event.target.value)}
+                placeholder="Sponsor, home group, meeting attendance, employment, payment status, recovery plan, etc."
+                className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+              />
+            </label>
           </div>
-        </aside>
-      </section>
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={saveProviderPhase}
+              disabled={savingPhase}
+              className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {savingPhase ? "Saving..." : editingPhaseId ? "Save Phase Changes" : "Add Phase Level"}
+            </button>
+
+            {editingPhaseId ? (
+              <button
+                type="button"
+                onClick={cancelPhaseEdit}
+                className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel Edit
+              </button>
+            ) : null}
+          </div>
+
+          <div className="mt-6 space-y-3">
+            {phaseLevels.length === 0 ? (
+              <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                No phase levels have been added yet.
+              </p>
+            ) : (
+              phaseLevels.map((phase) => (
+                <div key={phase.id} className="rounded-2xl bg-slate-50 p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-950">
+                        {phase.phase_order}. {phase.phase_name}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        Minimum days: {phase.minimum_days ?? "Not set"} • Curfew: {phase.curfew_description || "Not set"}
+                      </p>
+                      {phase.requirements_description ? (
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                          {phase.requirements_description}
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => editProviderPhase(phase)}
+                        className="rounded-xl border bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleProviderPhase(phase)}
+                        className="rounded-xl border bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        {phase.is_active ? "Deactivate" : "Reactivate"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      ) : null}
+
     </PageShell>
   );
 }
