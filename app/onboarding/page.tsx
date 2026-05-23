@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   Building2,
@@ -37,6 +37,18 @@ type ProviderForm = {
   mat_mar_statement: string;
 };
 
+type ProviderPhaseRow = {
+  id: string;
+  provider_id: string;
+  phase_name: string;
+  phase_order: number;
+  minimum_days: number | null;
+  curfew_description: string | null;
+  requirements_description: string | null;
+  is_active: boolean;
+  created_at: string;
+};
+
 const initialForm: ProviderForm = {
   legal_name: "",
   dba_name: "",
@@ -53,8 +65,47 @@ export default function ProviderOnboardingPage() {
   const [form, setForm] = useState<ProviderForm>(initialForm);
   const [saving, setSaving] = useState(false);
   const [savedProviderId, setSavedProviderId] = useState<string | null>(null);
+  const [phaseLevels, setPhaseLevels] = useState<ProviderPhaseRow[]>([]);
+  const [phaseName, setPhaseName] = useState("");
+  const [phaseOrder, setPhaseOrder] = useState("");
+  const [minimumDays, setMinimumDays] = useState("");
+  const [curfewDescription, setCurfewDescription] = useState("");
+  const [requirementsDescription, setRequirementsDescription] = useState("");
+  const [savingPhase, setSavingPhase] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const activeProviderId = localStorage.getItem("current_provider_id");
+
+    if (activeProviderId) {
+      void Promise.resolve().then(() => {
+        setSavedProviderId(activeProviderId);
+        void loadProviderPhases(activeProviderId);
+      });
+    }
+  }, []);
+
+  async function loadProviderPhases(providerId: string) {
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase
+        .from("provider_phase_levels")
+        .select("*")
+        .eq("provider_id", providerId)
+        .order("phase_order", { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+
+      setPhaseLevels((data ?? []) as ProviderPhaseRow[]);
+    } catch (err) {
+      const phaseError = err as { message?: unknown };
+      setError(phaseError?.message ? String(phaseError.message) : "Could not load provider phase levels.");
+    }
+  }
 
   function updateField(field: keyof ProviderForm, value: string) {
     setForm((current) => ({
@@ -109,6 +160,7 @@ export default function ProviderOnboardingPage() {
 
       setSavedProviderId(data.id);
       localStorage.setItem("current_provider_id", data.id);
+      await loadProviderPhases(data.id);
       setMessage(`${data.legal_name} was saved successfully. You can continue to house setup.`);
     } catch (err) {
       if (err && typeof err === "object" && "message" in err) {
@@ -118,6 +170,91 @@ export default function ProviderOnboardingPage() {
       }
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function saveProviderPhase() {
+    setSavingPhase(true);
+    setError("");
+    setMessage("");
+
+    if (!savedProviderId) {
+      setSavingPhase(false);
+      setError("Save the provider profile before adding phase levels.");
+      return;
+    }
+
+    if (!phaseName.trim()) {
+      setSavingPhase(false);
+      setError("Phase name is required.");
+      return;
+    }
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase
+        .from("provider_phase_levels")
+        .insert({
+          provider_id: savedProviderId,
+          phase_name: phaseName.trim(),
+          phase_order: Number(phaseOrder || phaseLevels.length + 1),
+          minimum_days: minimumDays ? Number(minimumDays) : null,
+          curfew_description: curfewDescription.trim() || null,
+          requirements_description: requirementsDescription.trim() || null,
+          is_active: true,
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setPhaseLevels((current) =>
+        [...current, data as ProviderPhaseRow].sort((a, b) => a.phase_order - b.phase_order)
+      );
+      setPhaseName("");
+      setPhaseOrder("");
+      setMinimumDays("");
+      setCurfewDescription("");
+      setRequirementsDescription("");
+      setMessage("Provider phase level saved.");
+    } catch (err) {
+      const phaseError = err as { message?: unknown };
+      setError(phaseError?.message ? String(phaseError.message) : "Could not save provider phase level.");
+    } finally {
+      setSavingPhase(false);
+    }
+  }
+
+  async function toggleProviderPhase(phase: ProviderPhaseRow) {
+    setError("");
+    setMessage("");
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase
+        .from("provider_phase_levels")
+        .update({ is_active: !phase.is_active })
+        .eq("id", phase.id)
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setPhaseLevels((current) =>
+        current
+          .map((item) => (item.id === phase.id ? (data as ProviderPhaseRow) : item))
+          .sort((a, b) => a.phase_order - b.phase_order)
+      );
+      setMessage("Provider phase level updated.");
+    } catch (err) {
+      const phaseError = err as { message?: unknown };
+      setError(phaseError?.message ? String(phaseError.message) : "Could not update provider phase level.");
     }
   }
 
@@ -287,6 +424,120 @@ export default function ProviderOnboardingPage() {
             >
               Clear Form
             </button>
+
+            {savedProviderId && (
+              <section className="rounded-3xl border bg-white p-6 shadow-sm">
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-950">Provider Phase Levels</h2>
+                    <p className="mt-1 text-sm leading-6 text-slate-500">
+                      Define the number of phases this provider uses. Resident profiles will only allow staff to select from these provider-defined phases.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Phase name</span>
+                    <input
+                      type="text"
+                      value={phaseName}
+                      onChange={(event) => setPhaseName(event.target.value)}
+                      placeholder="Phase 1"
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Display order</span>
+                    <input
+                      type="number"
+                      value={phaseOrder}
+                      onChange={(event) => setPhaseOrder(event.target.value)}
+                      placeholder={String(phaseLevels.length + 1)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Minimum days</span>
+                    <input
+                      type="number"
+                      value={minimumDays}
+                      onChange={(event) => setMinimumDays(event.target.value)}
+                      placeholder="30"
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Curfew</span>
+                    <input
+                      type="text"
+                      value={curfewDescription}
+                      onChange={(event) => setCurfewDescription(event.target.value)}
+                      placeholder="10:00 PM curfew"
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block md:col-span-2">
+                    <span className="text-sm font-medium text-slate-700">Requirements</span>
+                    <textarea
+                      value={requirementsDescription}
+                      onChange={(event) => setRequirementsDescription(event.target.value)}
+                      placeholder="Sponsor, home group, meeting attendance, employment, payment status, recovery plan, etc."
+                      className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={saveProviderPhase}
+                  disabled={savingPhase}
+                  className="mt-5 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingPhase ? "Saving..." : "Add Phase Level"}
+                </button>
+
+                <div className="mt-6 space-y-3">
+                  {phaseLevels.length === 0 ? (
+                    <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                      No phase levels have been added yet.
+                    </p>
+                  ) : (
+                    phaseLevels.map((phase) => (
+                      <div key={phase.id} className="rounded-2xl bg-slate-50 p-4">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-950">
+                              {phase.phase_order}. {phase.phase_name}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              Minimum days: {phase.minimum_days ?? "Not set"} • Curfew: {phase.curfew_description || "Not set"}
+                            </p>
+                            {phase.requirements_description ? (
+                              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                                {phase.requirements_description}
+                              </p>
+                            ) : null}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleProviderPhase(phase)}
+                            className="rounded-xl border bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            {phase.is_active ? "Deactivate" : "Reactivate"}
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+            )}
 
             {savedProviderId && (
               <Link
