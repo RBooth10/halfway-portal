@@ -226,15 +226,6 @@ export default function ResidentProfilePage() {
   const [medicationRecords, setMedicationRecords] = useState<MedicationRecordRow[]>([]);
   const [medicationLogs, setMedicationLogs] = useState<MedicationLogRow[]>([]);
   const [rciAssessments, setRciAssessments] = useState<RciAssessmentRow[]>([]);
-  const [rciAssessmentDate, setRciAssessmentDate] = useState("");
-  const [rciVersion, setRciVersion] = useState("RCI-36");
-  const [rciScore, setRciScore] = useState("");
-  const [recoveryCapitalLevel, setRecoveryCapitalLevel] = useState("not_selected");
-  const [rciStatus, setRciStatus] = useState("completed");
-  const [rciStrengths, setRciStrengths] = useState("");
-  const [rciNeeds, setRciNeeds] = useState("");
-  const [rciNotes, setRciNotes] = useState("");
-  const [savingRciAssessment, setSavingRciAssessment] = useState(false);
   const [clientRciLink, setClientRciLink] = useState("");
   const [generatingRciLink, setGeneratingRciLink] = useState(false);
   const [providerName, setProviderName] = useState("Current Provider");
@@ -778,72 +769,6 @@ export default function ResidentProfilePage() {
       setError(rciLinkError?.message ? String(rciLinkError.message) : "Could not generate client RCI link.");
     } finally {
       setGeneratingRciLink(false);
-    }
-  }
-
-  async function saveRciAssessment() {
-    setSavingRciAssessment(true);
-    setMessage("");
-    setError("");
-
-    if (!resident) {
-      setSavingRciAssessment(false);
-      setError("Resident profile is not loaded yet.");
-      return;
-    }
-
-    try {
-      const supabase = getSupabaseClient();
-
-      const { data: userData } = await supabase.auth.getUser();
-
-      const { data, error } = await supabase
-        .from("rci_assessments")
-        .insert({
-          provider_id: resident.provider_id,
-          resident_id: resident.id,
-          created_by_auth_user_id: userData.user?.id ?? null,
-          assessment_date: rciAssessmentDate || new Date().toISOString().slice(0, 10),
-          rci_version: rciVersion,
-          rci_score: rciScore.trim() ? Number(rciScore) : null,
-          recovery_capital_level: recoveryCapitalLevel === "not_selected" ? null : recoveryCapitalLevel,
-          status: rciStatus,
-          strengths_summary: rciStrengths.trim() || null,
-          needs_summary: rciNeeds.trim() || null,
-          notes: rciNotes.trim() || null,
-        })
-        .select("*")
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      setRciAssessments((current) => [data as RciAssessmentRow, ...current]);
-      setRciAssessmentDate("");
-      setRciVersion("RCI-36");
-      setRciScore("");
-      setRecoveryCapitalLevel("not_selected");
-      setRciStatus("completed");
-      setRciStrengths("");
-      setRciNeeds("");
-      setRciNotes("");
-      setMessage("RCI assessment saved successfully.");
-
-      await createAuditLog({
-        providerId: resident.provider_id,
-        action: "rci_assessment_created",
-        tableName: "rci_assessments",
-        recordId: data.id,
-        oldValues: null,
-        newValues: data as Record<string, unknown>,
-        reason: "RCI assessment created from resident profile.",
-      });
-    } catch (err) {
-      const rciError = err as { message?: unknown };
-      setError(rciError?.message ? String(rciError.message) : "Could not save RCI assessment.");
-    } finally {
-      setSavingRciAssessment(false);
     }
   }
 
