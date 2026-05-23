@@ -20,6 +20,7 @@ import {
 import Link from "next/link";
 import PageShell from "@/components/PageShell";
 import { getSupabaseClient } from "@/lib/supabase";
+import { createAuditLog } from "@/lib/audit";
 
 type HouseForm = {
   name: string;
@@ -240,11 +241,25 @@ export default function HousesPage() {
         throw error;
       }
 
+      const previousHouse = houses.find((house) => house.id === houseId) ?? null;
+
       setHouses((current) =>
         current.map((house) =>
           house.id === houseId ? (data as HouseRow) : house
         )
       );
+
+      if (providerId) {
+        await createAuditLog({
+          providerId,
+          action: "house_archived",
+          tableName: "houses",
+          recordId: houseId,
+          oldValues: previousHouse,
+          newValues: data as Record<string, unknown>,
+          reason: "House archived from portal.",
+        });
+      }
 
       setMessage(`${houseName} was archived successfully.`);
     } catch (err) {
@@ -306,11 +321,24 @@ export default function HousesPage() {
           throw error;
         }
 
+        const previousHouse = houses.find((house) => house.id === editingHouseId) ?? null;
+
         setHouses((current) =>
           current.map((house) =>
             house.id === editingHouseId ? (data as HouseRow) : house
           )
         );
+
+        await createAuditLog({
+          providerId,
+          action: "house_updated",
+          tableName: "houses",
+          recordId: editingHouseId,
+          oldValues: previousHouse,
+          newValues: data as Record<string, unknown>,
+          reason: "House updated from portal.",
+        });
+
         setForm(initialForm);
         setEditingHouseId(null);
         setMessage(`${data.name} was updated successfully.`);
