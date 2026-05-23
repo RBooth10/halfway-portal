@@ -3,6 +3,7 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import {
+  Archive,
   ArrowLeft,
   Building2,
   CheckCircle2,
@@ -286,6 +287,41 @@ export default function DocumentsPage() {
     } catch (err) {
       const storageError = err as { message?: unknown };
       setError(storageError?.message ? String(storageError.message) : "Could not open file.");
+    }
+  }
+
+  async function archiveDocument(documentId: string, documentName: string) {
+    const confirmed = window.confirm(`Archive ${documentName}? This keeps the record but marks it archived.`);
+
+    if (!confirmed) return;
+
+    setMessage("");
+    setError("");
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase
+        .from("documents")
+        .update({ status: "archived" })
+        .eq("id", documentId)
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setDocuments((current) =>
+        current.map((document) =>
+          document.id === documentId ? (data as DocumentRow) : document
+        )
+      );
+
+      setMessage(`${documentName} was archived successfully.`);
+    } catch (err) {
+      const documentError = err as { message?: unknown };
+      setError(documentError?.message ? String(documentError.message) : "Could not archive document.");
     }
   }
 
@@ -607,6 +643,7 @@ export default function DocumentsPage() {
                       <th className="px-4 py-3">Domain</th>
                       <th className="px-4 py-3">File</th>
                       <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -631,6 +668,17 @@ export default function DocumentsPage() {
                         </td>
                         <td className="px-4 py-4">
                           <StatusBadge value={doc.status} />
+                        </td>
+                        <td className="px-4 py-4">
+                          <button
+                            type="button"
+                            onClick={() => archiveDocument(doc.id, doc.document_name)}
+                            disabled={doc.status === "archived"}
+                            className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Archive className="h-3.5 w-3.5" />
+                            {doc.status === "archived" ? "Archived" : "Archive"}
+                          </button>
                         </td>
                       </tr>
                     ))}
