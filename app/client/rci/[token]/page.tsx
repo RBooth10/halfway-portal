@@ -323,8 +323,18 @@ export default function ClientRciPage() {
       setComplete(true);
       setMessage("Thank you. Your RCI assessment and recovery goals were submitted successfully.");
     } catch (err) {
-      const submitError = err as { message?: unknown };
-      setError(submitError?.message ? String(submitError.message) : "Could not submit assessment and goals.");
+      console.error("Client RCI submit error:", err);
+      const submitError = err as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+      setError(
+        [
+          submitError?.message ? String(submitError.message) : "Could not submit assessment and goals.",
+          submitError?.details ? `Details: ${String(submitError.details)}` : "",
+          submitError?.hint ? `Hint: ${String(submitError.hint)}` : "",
+          submitError?.code ? `Code: ${String(submitError.code)}` : "",
+        ]
+          .filter(Boolean)
+          .join(" ")
+      );
     } finally {
       setSubmitting(false);
     }

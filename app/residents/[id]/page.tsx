@@ -307,7 +307,7 @@ export default function ResidentProfilePage() {
       const documentsResult = await supabase
         .from("documents")
         .select("id, document_name, category, status, file_url")
-        .eq("resident_id", residentId)
+        .eq("resident_id", residentData.id)
         .order("created_at", { ascending: false });
 
       if (!documentsResult.error) {
@@ -317,7 +317,7 @@ export default function ResidentProfilePage() {
       const notesResult = await supabase
         .from("progress_notes")
         .select("*")
-        .eq("resident_id", residentId)
+        .eq("resident_id", residentData.id)
         .order("created_at", { ascending: false });
 
       if (notesResult.error) {
@@ -329,7 +329,7 @@ export default function ResidentProfilePage() {
       const uaBaResult = await supabase
         .from("ua_ba_logs")
         .select("*")
-        .eq("resident_id", residentId)
+        .eq("resident_id", residentData.id)
         .order("collection_date", { ascending: false })
         .order("created_at", { ascending: false });
 
@@ -342,7 +342,7 @@ export default function ResidentProfilePage() {
       const medicationResult = await supabase
         .from("medication_records")
         .select("*")
-        .eq("resident_id", residentId)
+        .eq("resident_id", residentData.id)
         .order("created_at", { ascending: false });
 
       if (medicationResult.error) {
@@ -354,7 +354,7 @@ export default function ResidentProfilePage() {
       const medicationLogsResult = await supabase
         .from("medication_logs")
         .select("*")
-        .eq("resident_id", residentId)
+        .eq("resident_id", residentData.id)
         .order("log_date", { ascending: false })
         .order("created_at", { ascending: false });
 
@@ -363,6 +363,18 @@ export default function ResidentProfilePage() {
       }
 
       setMedicationLogs((medicationLogsResult.data ?? []) as MedicationLogRow[]);
+
+      const rciResult = await supabase
+        .from("rci_assessments")
+        .select("*")
+        .eq("resident_id", residentData.id)
+        .order("created_at", { ascending: false });
+
+      if (rciResult.error) {
+        throw rciResult.error;
+      }
+
+      setRciAssessments((rciResult.data ?? []) as RciAssessmentRow[]);
     } catch (err) {
       const profileError = err as { message?: unknown };
       setError(profileError?.message ? String(profileError.message) : "Could not load resident profile.");
