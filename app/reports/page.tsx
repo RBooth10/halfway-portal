@@ -13,7 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import SetupNav from "@/components/SetupNav";
+import PageShell from "@/components/PageShell";
 
 const readinessDomains = [
   {
@@ -183,9 +183,7 @@ function ReadinessDomainCard({
 
 export default function ReportsPage() {
   return (
-    <main className="min-h-screen bg-slate-100 p-6 text-slate-950">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <SetupNav />
+    <PageShell>
         <div className="flex flex-wrap gap-3">
           <Link
             href="/"
@@ -271,7 +269,6 @@ export default function ReportsPage() {
             ))}
           </div>
         </section>
-      </div>
-    </main>
+    </PageShell>
   );
 }
