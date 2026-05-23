@@ -139,6 +139,16 @@ type RciAssessmentRow = {
   client_completed_at: string | null;
   client_name: string | null;
   client_email: string | null;
+  personal_capital_score: number | null;
+  personal_capital_level: string | null;
+  personal_capital_summary: string | null;
+  social_capital_score: number | null;
+  social_capital_level: string | null;
+  social_capital_summary: string | null;
+  cultural_capital_score: number | null;
+  cultural_capital_level: string | null;
+  cultural_capital_summary: string | null;
+  overall_summary: string | null;
   created_at: string;
 };
 
@@ -730,7 +740,7 @@ export default function ResidentProfilePage() {
           resident_id: resident.id,
           created_by_auth_user_id: userData.user.id,
           assessment_date: new Date().toISOString().slice(0, 10),
-          rci_version: "DEMO-RCI",
+          rci_version: "RCI-36",
           status: "sent",
           client_access_token: token,
           client_link_expires_at: expiresAt.toISOString(),
@@ -1535,318 +1545,106 @@ export default function ResidentProfilePage() {
                 ) : null}
 
                 <div className="mt-5 rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-800">
-                  This is currently using DEMO-RCI questions for testing only. Replace with approved RCI wording before real use.
+                  Client links now use the RCI-36 assessment. Completed results will return a summary to this resident profile.
                 </div>
               </div>
 
               <div className="rounded-2xl border bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold">RCI Assessment Tracking</h2>
+                <h2 className="text-lg font-semibold">RCI Results Summary</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Log RCI assessments, recovery capital level, strengths, needs, and clinical/support notes.
+                  Completed client assessments return a summary to the resident profile. Individual question responses remain stored in Supabase but are not displayed here.
                 </p>
 
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Assessment date</span>
-                    <input
-                      type="date"
-                      value={rciAssessmentDate}
-                      onChange={(event) => setRciAssessmentDate(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
+                {rciAssessments.filter((assessment) => assessment.status === "completed").length === 0 ? (
+                  <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                    No completed client RCI assessment has been submitted yet.
+                  </p>
+                ) : (
+                  <div className="mt-5 space-y-4">
+                    {rciAssessments
+                      .filter((assessment) => assessment.status === "completed")
+                      .map((assessment) => (
+                        <div key={assessment.id} className="rounded-2xl bg-slate-50 p-4">
+                          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-950">
+                                {assessment.rci_version} Completed
+                              </p>
+                              <p className="mt-1 text-sm text-slate-600">
+                                Overall score: {assessment.rci_score ?? "Not calculated"} • Level: {assessment.recovery_capital_level || "Not calculated"}
+                              </p>
+                            </div>
 
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">RCI version</span>
-                    <select
-                      value={rciVersion}
-                      onChange={(event) => setRciVersion(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    >
-                      <option value="RCI-36">RCI-36</option>
-                      <option value="RCI-37">RCI-37</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Score</span>
-                    <input
-                      type="number"
-                      value={rciScore}
-                      onChange={(event) => setRciScore(event.target.value)}
-                      placeholder="Enter score"
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Recovery capital level</span>
-                    <select
-                      value={recoveryCapitalLevel}
-                      onChange={(event) => setRecoveryCapitalLevel(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    >
-                      <option value="not_selected">Not selected</option>
-                      <option value="low">Low</option>
-                      <option value="moderate">Moderate</option>
-                      <option value="high">High</option>
-                      <option value="very_high">Very High</option>
-                    </select>
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Status</span>
-                    <select
-                      value={rciStatus}
-                      onChange={(event) => setRciStatus(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    >
-                      <option value="completed">Completed</option>
-                      <option value="pending">Pending</option>
-                      <option value="needs_review">Needs Review</option>
-                    </select>
-                  </label>
-
-                  <label className="block md:col-span-2">
-                    <span className="text-sm font-medium text-slate-700">Strengths summary</span>
-                    <textarea
-                      value={rciStrengths}
-                      onChange={(event) => setRciStrengths(event.target.value)}
-                      placeholder="Summarize resident strengths and protective factors identified through the RCI."
-                      className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block md:col-span-2">
-                    <span className="text-sm font-medium text-slate-700">Needs summary</span>
-                    <textarea
-                      value={rciNeeds}
-                      onChange={(event) => setRciNeeds(event.target.value)}
-                      placeholder="Summarize recovery capital needs, barriers, or support priorities."
-                      className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block md:col-span-2">
-                    <span className="text-sm font-medium text-slate-700">RCI notes</span>
-                    <textarea
-                      value={rciNotes}
-                      onChange={(event) => setRciNotes(event.target.value)}
-                      placeholder="Add notes about assessment context, follow-up, recovery plan implications, or review needs."
-                      className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={saveRciAssessment}
-                  disabled={savingRciAssessment}
-                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {savingRciAssessment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  {savingRciAssessment ? "Saving..." : "Save RCI Assessment"}
-                </button>
-
-                <div className="mt-6 space-y-3">
-                  {rciAssessments.length === 0 ? (
-                    <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-                      No RCI assessments saved yet.
-                    </p>
-                  ) : (
-                    rciAssessments.map((assessment) => (
-                      <div key={assessment.id} className="rounded-2xl bg-slate-50 p-4">
-                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-950">
-                              {assessment.rci_version} • {assessment.status}
-                            </p>
-                            <p className="mt-1 text-sm text-slate-600">
-                              Score: {assessment.rci_score ?? "Not entered"} • Level: {assessment.recovery_capital_level || "Not entered"}
+                            <p className="text-xs font-medium text-slate-500">
+                              {formatDate(assessment.client_completed_at || assessment.assessment_date)}
                             </p>
                           </div>
-                          <p className="text-xs font-medium text-slate-500">
-                            {formatDate(assessment.assessment_date)}
-                          </p>
-                        </div>
 
-                        {assessment.strengths_summary ? (
-                          <p className="mt-3 text-sm leading-6 text-slate-600">
-                            Strengths: {assessment.strengths_summary}
-                          </p>
-                        ) : null}
+                          <div className="mt-4 grid gap-3 md:grid-cols-3">
+                            <div className="rounded-xl bg-white p-3">
+                              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                Personal Capital
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-slate-950">
+                                {assessment.personal_capital_score ?? "—"} • {assessment.personal_capital_level || "Not calculated"}
+                              </p>
+                            </div>
 
-                        {assessment.needs_summary ? (
-                          <p className="mt-2 text-sm leading-6 text-slate-600">
-                            Needs: {assessment.needs_summary}
-                          </p>
-                        ) : null}
+                            <div className="rounded-xl bg-white p-3">
+                              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                Social Capital
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-slate-950">
+                                {assessment.social_capital_score ?? "—"} • {assessment.social_capital_level || "Not calculated"}
+                              </p>
+                            </div>
 
-                        {assessment.notes ? (
-                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
-                            Notes: {assessment.notes}
-                          </p>
-                        ) : null}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-semibold">RCI Assessment Tracking</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Log RCI assessments, recovery capital level, strengths, needs, and clinical/support notes.
-                </p>
-
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Assessment date</span>
-                    <input
-                      type="date"
-                      value={rciAssessmentDate}
-                      onChange={(event) => setRciAssessmentDate(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">RCI version</span>
-                    <select
-                      value={rciVersion}
-                      onChange={(event) => setRciVersion(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    >
-                      <option value="RCI-36">RCI-36</option>
-                      <option value="RCI-37">RCI-37</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Score</span>
-                    <input
-                      type="number"
-                      value={rciScore}
-                      onChange={(event) => setRciScore(event.target.value)}
-                      placeholder="Enter score"
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Recovery capital level</span>
-                    <select
-                      value={recoveryCapitalLevel}
-                      onChange={(event) => setRecoveryCapitalLevel(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    >
-                      <option value="not_selected">Not selected</option>
-                      <option value="low">Low</option>
-                      <option value="moderate">Moderate</option>
-                      <option value="high">High</option>
-                      <option value="very_high">Very High</option>
-                    </select>
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Status</span>
-                    <select
-                      value={rciStatus}
-                      onChange={(event) => setRciStatus(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    >
-                      <option value="completed">Completed</option>
-                      <option value="pending">Pending</option>
-                      <option value="needs_review">Needs Review</option>
-                    </select>
-                  </label>
-
-                  <label className="block md:col-span-2">
-                    <span className="text-sm font-medium text-slate-700">Strengths summary</span>
-                    <textarea
-                      value={rciStrengths}
-                      onChange={(event) => setRciStrengths(event.target.value)}
-                      placeholder="Summarize resident strengths and protective factors identified through the RCI."
-                      className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block md:col-span-2">
-                    <span className="text-sm font-medium text-slate-700">Needs summary</span>
-                    <textarea
-                      value={rciNeeds}
-                      onChange={(event) => setRciNeeds(event.target.value)}
-                      placeholder="Summarize recovery capital needs, barriers, or support priorities."
-                      className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block md:col-span-2">
-                    <span className="text-sm font-medium text-slate-700">RCI notes</span>
-                    <textarea
-                      value={rciNotes}
-                      onChange={(event) => setRciNotes(event.target.value)}
-                      placeholder="Add notes about assessment context, follow-up, recovery plan implications, or review needs."
-                      className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={saveRciAssessment}
-                  disabled={savingRciAssessment}
-                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {savingRciAssessment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  {savingRciAssessment ? "Saving..." : "Save RCI Assessment"}
-                </button>
-
-                <div className="mt-6 space-y-3">
-                  {rciAssessments.length === 0 ? (
-                    <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-                      No RCI assessments saved yet.
-                    </p>
-                  ) : (
-                    rciAssessments.map((assessment) => (
-                      <div key={assessment.id} className="rounded-2xl bg-slate-50 p-4">
-                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-950">
-                              {assessment.rci_version} • {assessment.status}
-                            </p>
-                            <p className="mt-1 text-sm text-slate-600">
-                              Score: {assessment.rci_score ?? "Not entered"} • Level: {assessment.recovery_capital_level || "Not entered"}
-                            </p>
+                            <div className="rounded-xl bg-white p-3">
+                              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                Cultural Capital
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-slate-950">
+                                {assessment.cultural_capital_score ?? "—"} • {assessment.cultural_capital_level || "Not calculated"}
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-xs font-medium text-slate-500">
-                            {formatDate(assessment.assessment_date)}
-                          </p>
+
+                          {assessment.overall_summary || assessment.notes ? (
+                            <div className="mt-4 rounded-xl bg-white p-3">
+                              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                Overall Summary
+                              </p>
+                              <p className="mt-2 text-sm leading-6 text-slate-600">
+                                {assessment.overall_summary || assessment.notes}
+                              </p>
+                            </div>
+                          ) : null}
+
+                          {assessment.strengths_summary ? (
+                            <div className="mt-3 rounded-xl bg-white p-3">
+                              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                Strengths
+                              </p>
+                              <p className="mt-2 text-sm leading-6 text-slate-600">
+                                {assessment.strengths_summary}
+                              </p>
+                            </div>
+                          ) : null}
+
+                          {assessment.needs_summary ? (
+                            <div className="mt-3 rounded-xl bg-white p-3">
+                              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                Needs / Recovery Planning Focus
+                              </p>
+                              <p className="mt-2 text-sm leading-6 text-slate-600">
+                                {assessment.needs_summary}
+                              </p>
+                            </div>
+                          ) : null}
                         </div>
-
-                        {assessment.strengths_summary ? (
-                          <p className="mt-3 text-sm leading-6 text-slate-600">
-                            Strengths: {assessment.strengths_summary}
-                          </p>
-                        ) : null}
-
-                        {assessment.needs_summary ? (
-                          <p className="mt-2 text-sm leading-6 text-slate-600">
-                            Needs: {assessment.needs_summary}
-                          </p>
-                        ) : null}
-
-                        {assessment.notes ? (
-                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
-                            Notes: {assessment.notes}
-                          </p>
-                        ) : null}
-                      </div>
-                    ))
-                  )}
-                </div>
+                      ))}
+                  </div>
+                )}
               </div>
 
               <div className="rounded-2xl border bg-white p-6 shadow-sm">
