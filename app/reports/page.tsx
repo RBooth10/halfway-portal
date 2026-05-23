@@ -13,6 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
+import SetupNav from "@/components/SetupNav";
 
 const readinessDomains = [
   {
@@ -184,6 +185,7 @@ export default function ReportsPage() {
   return (
     <main className="min-h-screen bg-slate-100 p-6 text-slate-950">
       <div className="mx-auto max-w-7xl space-y-6">
+        <SetupNav />
         <div className="flex flex-wrap gap-3">
           <Link
             href="/"

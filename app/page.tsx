@@ -1,5 +1,6 @@
 import type React from "react";
 import Link from "next/link";
+import SetupNav from "@/components/SetupNav";
 import {
   ArrowRight,
   BedDouble,
@@ -73,6 +74,7 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen bg-slate-100 p-6 text-slate-950">
       <div className="mx-auto max-w-7xl space-y-6">
+        <SetupNav />
         <section className="rounded-3xl border bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex gap-4">

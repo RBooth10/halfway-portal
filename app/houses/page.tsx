@@ -11,6 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
+import SetupNav from "@/components/SetupNav";
 
 const setupItems = [
   "House name",
@@ -79,6 +80,7 @@ export default function HousesPage() {
   return (
     <main className="min-h-screen bg-slate-100 p-6 text-slate-950">
       <div className="mx-auto max-w-7xl space-y-6">
+        <SetupNav />
         <Link
           href="/"
           className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-slate-50"
