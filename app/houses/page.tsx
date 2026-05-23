@@ -12,6 +12,7 @@ import {
   Home,
   Loader2,
   MapPin,
+  Pencil,
   Plus,
   ShieldCheck,
   Users,
@@ -136,6 +137,7 @@ export default function HousesPage() {
   const [houses, setHouses] = useState<HouseRow[]>([]);
   const [providerId, setProviderId] = useState<string | null>(null);
   const [providerName, setProviderName] = useState("Current Provider");
+  const [editingHouseId, setEditingHouseId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -197,6 +199,25 @@ export default function HousesPage() {
     initialize();
   }, []);
 
+  function startEditingHouse(house: HouseRow) {
+    setEditingHouseId(house.id);
+    setForm({
+      name: house.name ?? "",
+      street_address: house.street_address ?? "",
+      city: house.city ?? "",
+      state: house.state ?? "",
+      zip: house.zip ?? "",
+      gender_served: house.gender_served ?? "Male",
+      farr_level: house.farr_level ?? "Level 2",
+      total_beds: String(house.total_beds ?? ""),
+      status: house.status ?? "pending_setup",
+    });
+    setMessage(`Editing ${house.name}. Update the form and click Save Changes.`);
+    setError("");
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   async function archiveHouse(houseId: string, houseName: string) {
     const confirmed = window.confirm(`Archive ${houseName}? This keeps the house record but marks it inactive.`);
 
@@ -257,23 +278,48 @@ export default function HousesPage() {
       return;
     }
 
+    const housePayload = {
+      provider_id: providerId,
+      name: form.name.trim(),
+      street_address: form.street_address.trim() || null,
+      city: form.city.trim() || null,
+      state: form.state.trim() || null,
+      zip: form.zip.trim() || null,
+      gender_served: form.gender_served,
+      farr_level: form.farr_level,
+      total_beds: totalBeds,
+      status: form.status,
+    };
+
     try {
       const supabase = getSupabaseClient();
 
+      if (editingHouseId) {
+        const { data, error } = await supabase
+          .from("houses")
+          .update(housePayload)
+          .eq("id", editingHouseId)
+          .select("*")
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        setHouses((current) =>
+          current.map((house) =>
+            house.id === editingHouseId ? (data as HouseRow) : house
+          )
+        );
+        setForm(initialForm);
+        setEditingHouseId(null);
+        setMessage(`${data.name} was updated successfully.`);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("houses")
-        .insert({
-          provider_id: providerId,
-          name: form.name.trim(),
-          street_address: form.street_address.trim() || null,
-          city: form.city.trim() || null,
-          state: form.state.trim() || null,
-          zip: form.zip.trim() || null,
-          gender_served: form.gender_served,
-          farr_level: form.farr_level,
-          total_beds: totalBeds,
-          status: form.status,
-        })
+        .insert(housePayload)
         .select("*")
         .single();
 
@@ -366,9 +412,11 @@ export default function HousesPage() {
 
       <section className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <form className="rounded-2xl border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Add House</h2>
+          <h2 className="text-lg font-semibold">{editingHouseId ? "Edit House" : "Add House"}</h2>
           <p className="mt-1 text-sm text-slate-500">
-            This creates a house record under the selected provider.
+            {editingHouseId
+              ? "Update the selected house record."
+              : "This creates a house record under the selected provider."}
           </p>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -473,7 +521,7 @@ export default function HousesPage() {
               className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {saving ? "Saving..." : "Save House"}
+              {saving ? "Saving..." : editingHouseId ? "Save Changes" : "Save House"}
             </button>
 
             <button
@@ -529,15 +577,26 @@ export default function HousesPage() {
                         </p>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => archiveHouse(house.id, house.name)}
-                        disabled={house.status === "inactive"}
-                        className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Archive className="h-3.5 w-3.5" />
-                        {house.status === "inactive" ? "Archived" : "Archive"}
-                      </button>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={() => startEditingHouse(house)}
+                          className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => archiveHouse(house.id, house.name)}
+                          disabled={house.status === "inactive"}
+                          className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Archive className="h-3.5 w-3.5" />
+                          {house.status === "inactive" ? "Archived" : "Archive"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
