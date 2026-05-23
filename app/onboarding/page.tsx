@@ -72,6 +72,7 @@ export default function ProviderOnboardingPage() {
   const [curfewDescription, setCurfewDescription] = useState("");
   const [requirementsDescription, setRequirementsDescription] = useState("");
   const [savingPhase, setSavingPhase] = useState(false);
+  const [editingPhaseId, setEditingPhaseId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -193,39 +194,83 @@ export default function ProviderOnboardingPage() {
     try {
       const supabase = getSupabaseClient();
 
-      const { data, error } = await supabase
-        .from("provider_phase_levels")
-        .insert({
-          provider_id: savedProviderId,
-          phase_name: phaseName.trim(),
-          phase_order: Number(phaseOrder || phaseLevels.length + 1),
-          minimum_days: minimumDays ? Number(minimumDays) : null,
-          curfew_description: curfewDescription.trim() || null,
-          requirements_description: requirementsDescription.trim() || null,
-          is_active: true,
-        })
-        .select("*")
-        .single();
+      const payload = {
+        provider_id: savedProviderId,
+        phase_name: phaseName.trim(),
+        phase_order: Number(phaseOrder || phaseLevels.length + 1),
+        minimum_days: minimumDays ? Number(minimumDays) : null,
+        curfew_description: curfewDescription.trim() || null,
+        requirements_description: requirementsDescription.trim() || null,
+        is_active: true,
+      };
 
-      if (error) {
-        throw error;
+      if (editingPhaseId) {
+        const { data, error } = await supabase
+          .from("provider_phase_levels")
+          .update(payload)
+          .eq("id", editingPhaseId)
+          .select("*")
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        setPhaseLevels((current) =>
+          current
+            .map((phase) => (phase.id === editingPhaseId ? (data as ProviderPhaseRow) : phase))
+            .sort((a, b) => a.phase_order - b.phase_order)
+        );
+        setMessage("Provider phase level updated.");
+      } else {
+        const { data, error } = await supabase
+          .from("provider_phase_levels")
+          .insert(payload)
+          .select("*")
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        setPhaseLevels((current) =>
+          [...current, data as ProviderPhaseRow].sort((a, b) => a.phase_order - b.phase_order)
+        );
+        setMessage("Provider phase level saved.");
       }
 
-      setPhaseLevels((current) =>
-        [...current, data as ProviderPhaseRow].sort((a, b) => a.phase_order - b.phase_order)
-      );
+      setEditingPhaseId(null);
       setPhaseName("");
       setPhaseOrder("");
       setMinimumDays("");
       setCurfewDescription("");
       setRequirementsDescription("");
-      setMessage("Provider phase level saved.");
     } catch (err) {
       const phaseError = err as { message?: unknown };
       setError(phaseError?.message ? String(phaseError.message) : "Could not save provider phase level.");
     } finally {
       setSavingPhase(false);
     }
+  }
+
+  function editProviderPhase(phase: ProviderPhaseRow) {
+    setEditingPhaseId(phase.id);
+    setPhaseName(phase.phase_name);
+    setPhaseOrder(String(phase.phase_order));
+    setMinimumDays(phase.minimum_days === null ? "" : String(phase.minimum_days));
+    setCurfewDescription(phase.curfew_description ?? "");
+    setRequirementsDescription(phase.requirements_description ?? "");
+    setMessage("");
+    setError("");
+  }
+
+  function cancelPhaseEdit() {
+    setEditingPhaseId(null);
+    setPhaseName("");
+    setPhaseOrder("");
+    setMinimumDays("");
+    setCurfewDescription("");
+    setRequirementsDescription("");
   }
 
   async function toggleProviderPhase(phase: ProviderPhaseRow) {
@@ -492,14 +537,26 @@ export default function ProviderOnboardingPage() {
                   </label>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={saveProviderPhase}
-                  disabled={savingPhase}
-                  className="mt-5 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {savingPhase ? "Saving..." : "Add Phase Level"}
-                </button>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={saveProviderPhase}
+                    disabled={savingPhase}
+                    className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {savingPhase ? "Saving..." : editingPhaseId ? "Save Phase Changes" : "Add Phase Level"}
+                  </button>
+
+                  {editingPhaseId ? (
+                    <button
+                      type="button"
+                      onClick={cancelPhaseEdit}
+                      className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Cancel Edit
+                    </button>
+                  ) : null}
+                </div>
 
                 <div className="mt-6 space-y-3">
                   {phaseLevels.length === 0 ? (
@@ -524,13 +581,23 @@ export default function ProviderOnboardingPage() {
                             ) : null}
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => toggleProviderPhase(phase)}
-                            className="rounded-xl border bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                          >
-                            {phase.is_active ? "Deactivate" : "Reactivate"}
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => editProviderPhase(phase)}
+                              className="rounded-xl border bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => toggleProviderPhase(phase)}
+                              className="rounded-xl border bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                              {phase.is_active ? "Deactivate" : "Reactivate"}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))
