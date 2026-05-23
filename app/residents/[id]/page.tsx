@@ -371,7 +371,8 @@ export default function ResidentProfilePage() {
   }
 
   useEffect(() => {
-    loadResidentProfile();
+    void Promise.resolve().then(() => loadResidentProfile());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [residentId]);
 
   async function saveProgressNote() {

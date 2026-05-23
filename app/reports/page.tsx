@@ -9,10 +9,8 @@ import {
   CheckCircle2,
   Download,
   FolderOpen,
-  Home,
   Loader2,
   ShieldCheck,
-  Users,
 } from "lucide-react";
 import Link from "next/link";
 import PageShell from "@/components/PageShell";

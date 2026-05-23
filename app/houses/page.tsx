@@ -6,7 +6,6 @@ import {
   Archive,
   ArrowLeft,
   BedDouble,
-  Building2,
   CheckCircle2,
   Download,
   Home,

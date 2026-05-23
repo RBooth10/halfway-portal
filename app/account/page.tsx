@@ -85,7 +85,7 @@ export default function AccountPage() {
   }
 
   useEffect(() => {
-    loadAccount();
+    void Promise.resolve().then(() => loadAccount());
   }, []);
 
   async function linkProfile() {

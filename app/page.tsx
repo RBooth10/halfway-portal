@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
-  BedDouble,
   Building2,
   CheckCircle2,
   FileText,
