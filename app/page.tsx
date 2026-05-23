@@ -1,5 +1,6 @@
 import type React from "react";
 import Link from "next/link";
+import SetupProgress from "@/components/SetupProgress";
 import SetupNav from "@/components/SetupNav";
 import {
   ArrowRight,
@@ -108,6 +109,8 @@ export default function DashboardPage() {
             <StatCard key={item.title} {...item} />
           ))}
         </section>
+
+        <SetupProgress />
 
         <section className="grid gap-6 xl:grid-cols-[1fr_420px]">
           <div className="rounded-2xl border bg-white p-6 shadow-sm">
