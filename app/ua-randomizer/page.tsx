@@ -6,10 +6,9 @@ import {
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
-  Dice5,
   Home,
   Loader2,
-  Save,
+  RefreshCw,
   Shuffle,
   Users,
 } from "lucide-react";
@@ -23,6 +22,8 @@ type ResidentRow = {
   admission_date: string | null;
   house_id: string | null;
   resident_status: string | null;
+  current_phase: string | null;
+  current_phase_id: string | null;
 };
 
 type HouseRow = {
@@ -31,12 +32,24 @@ type HouseRow = {
   status: string | null;
 };
 
-type PreviewRow = {
+type ScheduleRow = {
+  id: string;
   resident_id: string;
-  resident_name: string;
   house_id: string | null;
   scheduled_date: string;
-  reason: string;
+  status: string;
+  reason: string | null;
+};
+
+type UaRuleRow = {
+  id: string;
+  provider_id: string;
+  phase_id: string | null;
+  phase_name: string | null;
+  min_tests_per_window: number;
+  max_tests_per_window: number;
+  window_days: number;
+  is_active: boolean;
 };
 
 function todayDate() {
@@ -58,7 +71,9 @@ function formatDate(value: string | null) {
   return date.toLocaleDateString();
 }
 
-function residentName(resident: ResidentRow) {
+function residentName(resident: ResidentRow | undefined) {
+  if (!resident) return "Unknown Resident";
+
   return [resident.first_name, resident.last_name].filter(Boolean).join(" ") || "Unnamed Resident";
 }
 
@@ -73,73 +88,17 @@ function daysSinceAdmission(admissionDate: string | null) {
   return Math.max(0, Math.floor((today - start) / (1000 * 60 * 60 * 24)) + 1);
 }
 
-function dateRange(startDate: string, endDate: string) {
-  const dates: string[] = [];
-  let cursor = startDate;
-
-  while (cursor <= endDate) {
-    dates.push(cursor);
-    cursor = addDays(cursor, 1);
-  }
-
-  return dates;
-}
-
-function randomInt(min: number, max: number) {
-  const safeMin = Math.ceil(min);
-  const safeMax = Math.floor(max);
-
-  return Math.floor(Math.random() * (safeMax - safeMin + 1)) + safeMin;
-}
-
-function shuffleValues<T>(values: T[]) {
-  const copied = [...values];
-
-  for (let index = copied.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
-    [copied[index], copied[randomIndex]] = [copied[randomIndex], copied[index]];
-  }
-
-  return copied;
-}
-
-function testsForResident(
-  resident: ResidentRow,
-  strategy: "random" | "length_of_stay",
-  minTests: number,
-  maxTests: number
-) {
-  if (strategy === "random") {
-    return randomInt(minTests, maxTests);
-  }
-
-  const daysInProgram = daysSinceAdmission(resident.admission_date);
-
-  if (daysInProgram <= 30) {
-    return maxTests;
-  }
-
-  if (daysInProgram <= 90) {
-    const midpoint = Math.max(minTests, Math.ceil((minTests + maxTests) / 2));
-    return randomInt(midpoint, maxTests);
-  }
-
-  return minTests;
-}
-
 export default function UaRandomizerPage() {
   const [providerId, setProviderId] = useState<string | null>(null);
   const [residents, setResidents] = useState<ResidentRow[]>([]);
   const [houses, setHouses] = useState<HouseRow[]>([]);
+  const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([]);
   const [selectedHouseId, setSelectedHouseId] = useState("");
-  const [strategy, setStrategy] = useState<"random" | "length_of_stay">("random");
-  const [startDate, setStartDate] = useState(todayDate());
-  const [endDate, setEndDate] = useState(addDays(todayDate(), 30));
+  const [windowDays, setWindowDays] = useState(30);
   const [minTests, setMinTests] = useState(1);
   const [maxTests, setMaxTests] = useState(2);
-  const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingSchedule, setSavingSchedule] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -148,6 +107,40 @@ export default function UaRandomizerPage() {
       String(resident.resident_status ?? "active").toLowerCase() === "active" &&
       (!selectedHouseId || resident.house_id === selectedHouseId)
   );
+
+  const visibleScheduleRows = scheduleRows.filter((row) => {
+    if (row.status !== "scheduled") return false;
+    if (!selectedHouseId) return true;
+
+    return row.house_id === selectedHouseId;
+  });
+
+  function getResident(residentId: string) {
+    return residents.find((resident) => resident.id === residentId);
+  }
+
+  function getHouseName(houseId: string | null) {
+    if (!houseId) return "No house assigned";
+
+    return houses.find((house) => house.id === houseId)?.name ?? "Unknown house";
+  }
+
+  async function refreshSchedule(activeProviderId: string) {
+    const supabase = getSupabaseClient();
+
+    const scheduleResult = await supabase
+      .from("ua_randomizer_schedule")
+      .select("id, resident_id, house_id, scheduled_date, status, reason")
+      .eq("provider_id", activeProviderId)
+      .eq("status", "scheduled")
+      .order("scheduled_date", { ascending: true });
+
+    if (scheduleResult.error) {
+      throw scheduleResult.error;
+    }
+
+    setScheduleRows((scheduleResult.data ?? []) as ScheduleRow[]);
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -164,7 +157,7 @@ export default function UaRandomizerPage() {
 
         const residentsResult = await supabase
           .from("residents")
-          .select("id, first_name, last_name, admission_date, house_id, resident_status")
+          .select("id, first_name, last_name, admission_date, house_id, resident_status, current_phase, current_phase_id")
           .eq("provider_id", activeProviderId)
           .eq("resident_status", "active")
           .order("last_name", { ascending: true });
@@ -184,18 +177,53 @@ export default function UaRandomizerPage() {
           throw housesResult.error;
         }
 
+        const ruleResult = await supabase
+          .from("ua_randomizer_rules")
+          .select("*")
+          .eq("provider_id", activeProviderId)
+          .is("phase_id", null)
+          .is("phase_name", null)
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (ruleResult.error) {
+          throw ruleResult.error;
+        }
+
+        const scheduleResult = await supabase
+          .from("ua_randomizer_schedule")
+          .select("id, resident_id, house_id, scheduled_date, status, reason")
+          .eq("provider_id", activeProviderId)
+          .eq("status", "scheduled")
+          .order("scheduled_date", { ascending: true });
+
+        if (scheduleResult.error) {
+          throw scheduleResult.error;
+        }
+
         if (!isMounted) return;
+
+        const savedRule = ruleResult.data as UaRuleRow | null;
 
         setProviderId(activeProviderId);
         setResidents((residentsResult.data ?? []) as ResidentRow[]);
         setHouses((housesResult.data ?? []) as HouseRow[]);
+        setScheduleRows((scheduleResult.data ?? []) as ScheduleRow[]);
+
+        if (savedRule) {
+          setWindowDays(savedRule.window_days);
+          setMinTests(savedRule.min_tests_per_window);
+          setMaxTests(savedRule.max_tests_per_window);
+        }
       })
       .catch((err: { message?: unknown }) => {
         if (!isMounted) return;
-        setError(err?.message ? String(err.message) : "Could not load UA randomizer data.");
+
+        setError(err?.message ? String(err.message) : "Could not load rolling UA schedule.");
       })
       .finally(() => {
         if (!isMounted) return;
+
         setLoading(false);
       });
 
@@ -204,130 +232,95 @@ export default function UaRandomizerPage() {
     };
   }, []);
 
-  function generatePreview() {
-    setMessage("");
-    setError("");
+  async function saveDefaultRollingRule(activeProviderId: string) {
+    const supabase = getSupabaseClient();
 
-    if (activeResidents.length === 0) {
-      setPreviewRows([]);
-      setError("No active residents found for the selected house/filter.");
-      return;
+    const existingRuleResult = await supabase
+      .from("ua_randomizer_rules")
+      .select("id")
+      .eq("provider_id", activeProviderId)
+      .is("phase_id", null)
+      .is("phase_name", null)
+      .maybeSingle();
+
+    if (existingRuleResult.error) {
+      throw existingRuleResult.error;
     }
 
-    if (!startDate || !endDate || startDate > endDate) {
-      setError("Enter a valid start and end date.");
-      return;
-    }
+    if (existingRuleResult.data?.id) {
+      const { error: updateError } = await supabase
+        .from("ua_randomizer_rules")
+        .update({
+          min_tests_per_window: minTests,
+          max_tests_per_window: maxTests,
+          window_days: windowDays,
+          is_active: true,
+        })
+        .eq("id", existingRuleResult.data.id);
 
-    if (minTests < 0 || maxTests < 1 || minTests > maxTests) {
-      setError("Minimum and maximum test counts are not valid.");
-      return;
-    }
-
-    const availableDates = dateRange(startDate, endDate);
-
-    if (availableDates.length === 0) {
-      setError("No dates available in the selected range.");
-      return;
-    }
-
-    const rows: PreviewRow[] = [];
-
-    activeResidents.forEach((resident) => {
-      const requestedCount = testsForResident(resident, strategy, minTests, maxTests);
-      const cappedCount = Math.min(requestedCount, availableDates.length);
-      const selectedDates = shuffleValues(availableDates).slice(0, cappedCount).sort();
-
-      selectedDates.forEach((scheduledDate) => {
-        const daysInProgram = daysSinceAdmission(resident.admission_date);
-
-        rows.push({
-          resident_id: resident.id,
-          resident_name: residentName(resident),
-          house_id: resident.house_id,
-          scheduled_date: scheduledDate,
-          reason:
-            strategy === "length_of_stay"
-              ? `Length-of-stay weighted randomization. Days with provider: ${daysInProgram}.`
-              : `Randomized between minimum ${minTests} and maximum ${maxTests} tests.`,
-        });
-      });
-    });
-
-    rows.sort((first, second) => {
-      if (first.scheduled_date !== second.scheduled_date) {
-        return first.scheduled_date.localeCompare(second.scheduled_date);
+      if (updateError) {
+        throw updateError;
       }
 
-      return first.resident_name.localeCompare(second.resident_name);
-    });
+      return;
+    }
 
-    setPreviewRows(rows);
-    setMessage(`Generated ${rows.length} scheduled UA item(s). Review, then save the schedule.`);
+    const { error: insertError } = await supabase
+      .from("ua_randomizer_rules")
+      .insert({
+        provider_id: activeProviderId,
+        phase_id: null,
+        phase_name: null,
+        min_tests_per_window: minTests,
+        max_tests_per_window: maxTests,
+        window_days: windowDays,
+        is_active: true,
+      });
+
+    if (insertError) {
+      throw insertError;
+    }
   }
 
-  async function saveSchedule() {
+  async function syncRollingSchedule() {
     if (!providerId) {
       setError("No provider selected.");
       return;
     }
 
-    if (previewRows.length === 0) {
-      setError("Generate a preview before saving the schedule.");
+    if (minTests < 0 || maxTests < 1 || minTests > maxTests) {
+      setError("Minimum and maximum UA counts are not valid.");
       return;
     }
 
-    setSavingSchedule(true);
+    setSyncing(true);
     setMessage("");
     setError("");
 
     try {
       const supabase = getSupabaseClient();
 
-      const { data: runData, error: runError } = await supabase
-        .from("ua_randomizer_runs")
-        .insert({
-          provider_id: providerId,
-          house_id: selectedHouseId || null,
-          start_date: startDate,
-          end_date: endDate,
-          strategy,
-          min_tests_per_resident: minTests,
-          max_tests_per_resident: maxTests,
-          generated_count: previewRows.length,
-        })
-        .select("id")
-        .single();
+      await saveDefaultRollingRule(providerId);
 
-      if (runError) {
-        throw runError;
+      const { data, error: syncError } = await supabase.rpc("ensure_provider_rolling_ua_schedule", {
+        p_provider_id: providerId,
+        p_window_days: windowDays,
+        p_min_tests: minTests,
+        p_max_tests: maxTests,
+      });
+
+      if (syncError) {
+        throw syncError;
       }
 
-      const scheduleRows = previewRows.map((row) => ({
-        provider_id: providerId,
-        run_id: runData.id,
-        resident_id: row.resident_id,
-        house_id: row.house_id,
-        scheduled_date: row.scheduled_date,
-        status: "scheduled",
-        reason: row.reason,
-      }));
+      await refreshSchedule(providerId);
 
-      const { error: scheduleError } = await supabase
-        .from("ua_randomizer_schedule")
-        .insert(scheduleRows);
-
-      if (scheduleError) {
-        throw scheduleError;
-      }
-
-      setPreviewRows([]);
-      setMessage(`UA schedule saved with ${scheduleRows.length} scheduled item(s).`);
+      setMessage(`Rolling UA schedule initialized. ${Number(data ?? 0)} new scheduled item(s) added. Future resident and phase changes will update automatically.`);
     } catch (err) {
-      const scheduleError = err as { message?: unknown };
-      setError(scheduleError?.message ? String(scheduleError.message) : "Could not save UA schedule.");
+      const syncError = err as { message?: unknown };
+      setError(syncError?.message ? String(syncError.message) : "Could not sync rolling UA schedule.");
     } finally {
-      setSavingSchedule(false);
+      setSyncing(false);
     }
   }
 
@@ -347,15 +340,15 @@ export default function UaRandomizerPage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="text-sm font-medium text-slate-500">UA/BA Workflow</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight">UA Randomizer</h1>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight">Rolling UA Schedule</h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              Generate randomized UA schedules for active residents by house, date range, and testing frequency.
+              Keep future UA schedules current as residents are added, discharged, readmitted, or moved through phases.
             </p>
           </div>
 
           <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
             <p className="font-medium text-slate-950">{activeResidents.length} active resident(s)</p>
-            <p className="mt-1">Current filter: {selectedHouseId ? "Selected house" : "All active houses"}</p>
+            <p className="mt-1">{visibleScheduleRows.length} scheduled UA item(s)</p>
           </div>
         </div>
       </section>
@@ -379,16 +372,16 @@ export default function UaRandomizerPage() {
         <div className="rounded-2xl border bg-white p-6 text-sm text-slate-500 shadow-sm">
           <div className="flex items-center gap-2">
             <Loader2 className="h-5 w-5 animate-spin" />
-            Loading residents and houses...
+            Loading rolling UA schedule...
           </div>
         </div>
       ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
         <div className="rounded-3xl border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Schedule Settings</h2>
+          <h2 className="text-lg font-semibold">Rolling Schedule Rule</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Choose who should be randomized and how many UA dates should be generated.
+            Set the rolling UA rule once. After initialization, resident additions, phase changes, house moves, readmissions, and discharges update the future UA list automatically.
           </p>
 
           <div className="mt-5 grid gap-4">
@@ -398,10 +391,7 @@ export default function UaRandomizerPage() {
                 <Home className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <select
                   value={selectedHouseId}
-                  onChange={(event) => {
-                    setSelectedHouseId(event.target.value);
-                    setPreviewRows([]);
-                  }}
+                  onChange={(event) => setSelectedHouseId(event.target.value)}
                   className="h-11 w-full rounded-xl border bg-white pl-10 pr-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                 >
                   <option value="">All active houses</option>
@@ -415,50 +405,15 @@ export default function UaRandomizerPage() {
             </label>
 
             <label className="block">
-              <span className="text-sm font-medium text-slate-700">Randomizer type</span>
-              <div className="relative mt-2">
-                <Shuffle className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <select
-                  value={strategy}
-                  onChange={(event) => {
-                    setStrategy(event.target.value as "random" | "length_of_stay");
-                    setPreviewRows([]);
-                  }}
-                  className="h-11 w-full rounded-xl border bg-white pl-10 pr-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                >
-                  <option value="random">Random by minimum / maximum</option>
-                  <option value="length_of_stay">Weighted by length of stay</option>
-                </select>
-              </div>
+              <span className="text-sm font-medium text-slate-700">Rolling window days</span>
+              <input
+                type="number"
+                min="1"
+                value={windowDays}
+                onChange={(event) => setWindowDays(Number(event.target.value))}
+                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+              />
             </label>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Start date</span>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(event) => {
-                    setStartDate(event.target.value);
-                    setPreviewRows([]);
-                  }}
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                />
-              </label>
-
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">End date</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(event) => {
-                    setEndDate(event.target.value);
-                    setPreviewRows([]);
-                  }}
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                />
-              </label>
-            </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block">
@@ -467,10 +422,7 @@ export default function UaRandomizerPage() {
                   type="number"
                   min="0"
                   value={minTests}
-                  onChange={(event) => {
-                    setMinTests(Number(event.target.value));
-                    setPreviewRows([]);
-                  }}
+                  onChange={(event) => setMinTests(Number(event.target.value))}
                   className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                 />
               </label>
@@ -481,10 +433,7 @@ export default function UaRandomizerPage() {
                   type="number"
                   min="1"
                   value={maxTests}
-                  onChange={(event) => {
-                    setMaxTests(Number(event.target.value));
-                    setPreviewRows([]);
-                  }}
+                  onChange={(event) => setMaxTests(Number(event.target.value))}
                   className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                 />
               </label>
@@ -492,12 +441,12 @@ export default function UaRandomizerPage() {
 
             <button
               type="button"
-              onClick={generatePreview}
-              disabled={loading}
+              onClick={() => void syncRollingSchedule()}
+              disabled={loading || syncing}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Dice5 className="h-4 w-4" />
-              Generate Schedule Preview
+              {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {syncing ? "Initializing..." : "Initialize Rolling Schedule"}
             </button>
           </div>
         </div>
@@ -505,21 +454,16 @@ export default function UaRandomizerPage() {
         <div className="rounded-3xl border bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold">Generated UA Schedule</h2>
+              <h2 className="text-lg font-semibold">Scheduled UA List</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Preview the randomized schedule before saving it.
+                Scheduled UA items stay active until completed, skipped, cancelled, or updated by a resident status/phase change.
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={saveSchedule}
-              disabled={savingSchedule || previewRows.length === 0}
-              className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {savingSchedule ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {savingSchedule ? "Saving..." : "Save Schedule"}
-            </button>
+            <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+              <Shuffle className="h-3.5 w-3.5" />
+              Rolling schedule
+            </span>
           </div>
 
           <div className="mt-5 grid gap-3 md:grid-cols-3">
@@ -529,39 +473,48 @@ export default function UaRandomizerPage() {
             </div>
 
             <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Scheduled Items</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-950">{previewRows.length}</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Scheduled</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-950">{visibleScheduleRows.length}</p>
             </div>
 
             <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Date Range</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Window</p>
               <p className="mt-1 text-sm font-semibold text-slate-950">
-                {formatDate(startDate)} - {formatDate(endDate)}
+                Today - {formatDate(addDays(todayDate(), windowDays - 1))}
               </p>
             </div>
           </div>
 
           <div className="mt-5 space-y-3">
-            {previewRows.length === 0 ? (
+            {visibleScheduleRows.length === 0 ? (
               <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-                No schedule generated yet.
+                No UA items scheduled yet. Initialize the rolling schedule once to create the first future list.
               </p>
             ) : (
-              previewRows.map((row, index) => (
-                <div key={`${row.resident_id}-${row.scheduled_date}-${index}`} className="rounded-2xl bg-slate-50 p-4">
-                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <p className="font-medium text-slate-950">{row.resident_name}</p>
-                      <p className="mt-1 text-sm text-slate-500">{row.reason}</p>
-                    </div>
+              visibleScheduleRows.map((row) => {
+                const resident = getResident(row.resident_id);
 
-                    <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">
-                      <CalendarDays className="h-3.5 w-3.5" />
-                      {formatDate(row.scheduled_date)}
-                    </span>
+                return (
+                  <div key={row.id} className="rounded-2xl bg-slate-50 p-4">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className="font-medium text-slate-950">{residentName(resident)}</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {getHouseName(row.house_id)} • Phase: {resident?.current_phase || "Not selected"} • Days with provider: {daysSinceAdmission(resident?.admission_date ?? null)}
+                        </p>
+                        {row.reason ? (
+                          <p className="mt-1 text-xs text-slate-500">{row.reason}</p>
+                        ) : null}
+                      </div>
+
+                      <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                        <CalendarDays className="h-3.5 w-3.5" />
+                        {formatDate(row.scheduled_date)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -571,11 +524,11 @@ export default function UaRandomizerPage() {
         <div className="flex items-start gap-3">
           <Users className="mt-1 h-5 w-5 text-slate-600" />
           <div>
-            <h2 className="text-lg font-semibold">How the randomizer works</h2>
+            <h2 className="text-lg font-semibold">How rolling UA scheduling works</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Random mode assigns each active resident a random number of UA dates between the minimum and maximum.
-              Length-of-stay mode assigns newer residents closer to the maximum, residents between 31 and 90 days
-              in the middle range, and longer-term residents closer to the minimum.
+              Initialize the schedule once. After that, the database trigger runs when a resident is added, readmitted,
+              discharged, assigned to a house, or moved to a new phase. The system only updates future scheduled
+              UA items. Completed UA records are not changed.
             </p>
           </div>
         </div>
