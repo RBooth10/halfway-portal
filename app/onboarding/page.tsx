@@ -526,7 +526,7 @@ export default function ProviderOnboardingPage() {
           <div className="mt-8 rounded-2xl border bg-slate-50 p-5 md:col-span-2 xl:col-span-3">
             <h2 className="text-lg font-semibold text-slate-950">Program Fees</h2>
             <p className="mt-1 text-sm leading-6 text-slate-500">
-              Set the provider-level fee structure. House-specific billing can be connected later.
+              Set the provider-level fee structure. The form will only show the fields that apply to the selected fee model.
             </p>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -542,38 +542,42 @@ export default function ProviderOnboardingPage() {
                 </select>
               </label>
 
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Cost per client</span>
-                <input
-                  type="number"
-                  value={form.cost_per_client || ""}
-                  onChange={(event) => updateField("cost_per_client", event.target.value)}
-                  placeholder="$"
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                />
-              </label>
+              {form.program_fee_model === "split_rent" ? (
+                <>
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Total rent amount</span>
+                    <input
+                      type="number"
+                      value={form.split_rent_total_amount || ""}
+                      onChange={(event) => updateField("split_rent_total_amount", event.target.value)}
+                      placeholder="$"
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
 
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Split rent total amount</span>
-                <input
-                  type="number"
-                  value={form.split_rent_total_amount || ""}
-                  onChange={(event) => updateField("split_rent_total_amount", event.target.value)}
-                  placeholder="$"
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                />
-              </label>
-
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Split among number of clients</span>
-                <input
-                  type="number"
-                  value={form.split_rent_client_count || ""}
-                  onChange={(event) => updateField("split_rent_client_count", event.target.value)}
-                  placeholder="# of clients"
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                />
-              </label>
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Split among number of clients</span>
+                    <input
+                      type="number"
+                      value={form.split_rent_client_count || ""}
+                      onChange={(event) => updateField("split_rent_client_count", event.target.value)}
+                      placeholder="# of clients"
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+                </>
+              ) : (
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">Cost per client</span>
+                  <input
+                    type="number"
+                    value={form.cost_per_client || ""}
+                    onChange={(event) => updateField("cost_per_client", event.target.value)}
+                    placeholder="$"
+                    className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                  />
+                </label>
+              )}
 
               <label className="block">
                 <span className="text-sm font-medium text-slate-700">Paid</span>
@@ -589,36 +593,40 @@ export default function ProviderOnboardingPage() {
                 </select>
               </label>
 
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Program fee charge day of month</span>
-                <input
-                  type="number"
-                  min="1"
-                  max="31"
-                  value={form.program_fee_charge_day_of_month || ""}
-                  onChange={(event) => updateField("program_fee_charge_day_of_month", event.target.value)}
-                  placeholder="1-31"
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                />
-              </label>
+              {form.program_fee_frequency === "monthly" ? (
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">Program fee charge day of month</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={form.program_fee_charge_day_of_month || ""}
+                    onChange={(event) => updateField("program_fee_charge_day_of_month", event.target.value)}
+                    placeholder="1-31"
+                    className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                  />
+                </label>
+              ) : null}
 
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Selected day of week</span>
-                <select
-                  value={form.program_fee_charge_day_of_week || ""}
-                  onChange={(event) => updateField("program_fee_charge_day_of_week", event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                >
-                  <option value="">Select day</option>
-                  <option value="Monday">Monday</option>
-                  <option value="Tuesday">Tuesday</option>
-                  <option value="Wednesday">Wednesday</option>
-                  <option value="Thursday">Thursday</option>
-                  <option value="Friday">Friday</option>
-                  <option value="Saturday">Saturday</option>
-                  <option value="Sunday">Sunday</option>
-                </select>
-              </label>
+              {form.program_fee_frequency === "weekly" || form.program_fee_frequency === "biweekly" ? (
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">Selected day of week</span>
+                  <select
+                    value={form.program_fee_charge_day_of_week || ""}
+                    onChange={(event) => updateField("program_fee_charge_day_of_week", event.target.value)}
+                    className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                  >
+                    <option value="">Select day</option>
+                    <option value="Monday">Monday</option>
+                    <option value="Tuesday">Tuesday</option>
+                    <option value="Wednesday">Wednesday</option>
+                    <option value="Thursday">Thursday</option>
+                    <option value="Friday">Friday</option>
+                    <option value="Saturday">Saturday</option>
+                    <option value="Sunday">Sunday</option>
+                  </select>
+                </label>
+              ) : null}
 
               <label className="block">
                 <span className="text-sm font-medium text-slate-700">One-time admission fee</span>
