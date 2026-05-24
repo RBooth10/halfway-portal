@@ -485,6 +485,14 @@ export default function HousesPage() {
                     </div>
 
                     <div className="flex flex-col gap-2">
+                      <Link
+                        href={`/houses/${house.id}`}
+                        className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        <Home className="h-3.5 w-3.5" />
+                        View
+                      </Link>
+
                       <button
                         type="button"
                         onClick={() => startEditingHouse(house)}
