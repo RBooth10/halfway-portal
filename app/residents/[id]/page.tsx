@@ -1210,6 +1210,28 @@ export default function ResidentProfilePage() {
     return Boolean(getSignedRoiForContact(contactId));
   }
 
+  const sortedEmergencyContacts = [...emergencyContacts].sort((firstContact, secondContact) => {
+    const firstHasActiveRoi = contactHasSignedRoi(firstContact.id);
+    const secondHasActiveRoi = contactHasSignedRoi(secondContact.id);
+
+    if (firstHasActiveRoi !== secondHasActiveRoi) {
+      return firstHasActiveRoi ? -1 : 1;
+    }
+
+    const firstHasRevokedRoi = Boolean(getRevokedRoiForContact(firstContact.id));
+    const secondHasRevokedRoi = Boolean(getRevokedRoiForContact(secondContact.id));
+
+    if (firstHasRevokedRoi !== secondHasRevokedRoi) {
+      return firstHasRevokedRoi ? 1 : -1;
+    }
+
+    if (firstContact.is_primary !== secondContact.is_primary) {
+      return firstContact.is_primary ? -1 : 1;
+    }
+
+    return firstContact.contact_name.localeCompare(secondContact.contact_name);
+  });
+
   function buildRoiAuthorizationText(approvedContacts: ResidentEmergencyContactRow[]) {
     const contactLines = approvedContacts
       .map((contact) => `${contact.contact_name} — ${contact.contact_role}${contact.relationship ? ` (${contact.relationship})` : ""}`)
@@ -2037,7 +2059,7 @@ Resident Signature Collected Electronically`;
                       No emergency contacts or approved contacts saved yet.
                     </p>
                   ) : (
-                    emergencyContacts.map((contact) => (
+                    sortedEmergencyContacts.map((contact) => (
                       <div key={contact.id} className="rounded-2xl bg-slate-50 p-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
