@@ -423,6 +423,7 @@ export default function ResidentProfilePage() {
   const [emergencyContacts, setEmergencyContacts] = useState<ResidentEmergencyContactRow[]>([]);
   const [roiAuthorizations, setRoiAuthorizations] = useState<ResidentRoiAuthorizationRow[]>([]);
   const [showRoiSignatureModal, setShowRoiSignatureModal] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
   const [roiSignatureName, setRoiSignatureName] = useState("");
   const [roiSignatureAgreement, setRoiSignatureAgreement] = useState(false);
   const [savingRoiAuthorization, setSavingRoiAuthorization] = useState(false);
@@ -1416,6 +1417,7 @@ Resident Signature Collected Electronically`;
       setSelectedRoiContact(newContact);
       setRoiSignatureName("");
       setRoiSignatureAgreement(false);
+      setShowContactModal(false);
       setShowRoiSignatureModal(true);
       setMessage("Contact saved. Complete the ROI signature for this contact.");
     } catch (err) {
@@ -1556,6 +1558,7 @@ Resident Signature Collected Electronically`;
       setContactNotes("");
       setContactStatus("active");
 
+      setShowContactModal(false);
       setMessage("Emergency contact and ROI information saved.");
     } catch (err) {
       const contactError = err as { message?: unknown };
@@ -1982,141 +1985,41 @@ Resident Signature Collected Electronically`;
           <section className="space-y-6">
             <div className="space-y-6">
               {/* Resident Profile Tabs */}
+
+
+              <div className="flex flex-wrap border-b bg-white">
+                  <TabButton active={activeTab === "snapshot"} label="Snapshot" status="Add or review" onClick={() => setActiveTab("snapshot")} />
+                  <TabButton active={activeTab === "fees"} label="Fee Ledger" status={`Balance $${currentBalance.toFixed(2)} • ${residentPayments.length} payment${residentPayments.length === 1 ? "" : "s"}`} onClick={() => setActiveTab("fees")} />
+                  <TabButton active={activeTab === "notes"} label="Progress Notes" status={`${progressNotes.length} saved`} onClick={() => setActiveTab("notes")} />
+                  <TabButton active={activeTab === "ua"} label="UA/BA Records" status={uaBaLogs.length > 0 ? `${uaBaLogs.length} logged` : "Needs log"} onClick={() => setActiveTab("ua")} />
+                  <TabButton active={activeTab === "medication"} label="Medication Records" status={medicationRecords.length > 0 ? "Complete" : "Needs meds"} onClick={() => setActiveTab("medication")} />
+                  <TabButton active={activeTab === "rci"} label="RCI & Plan" status={latestCompletedRci ? `Complete • ${rciCompletedLabel}` : "Needs RCI"} onClick={() => setActiveTab("rci")} />
+                  <TabButton active={activeTab === "contacts"} label="ROI & Contacts" status={`${emergencyContacts.length} saved`} onClick={() => setActiveTab("contacts")} />
+                  <TabButton active={activeTab === "documents"} label="Documents" status={`${documents.length} uploaded`} onClick={() => setActiveTab("documents")} />
+                </div>
+              </div>
+
               <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
                 <div className={activeTab === "contacts" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
-                <h2 className="text-lg font-semibold">ROI & Emergency Contacts</h2>
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold">ROI & Emergency Contacts</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Review approved contacts and signed ROI records.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowContactModal(true)}
+                    className="rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Add Contact
+                  </button>
+                </div>
                 <p className="mt-1 text-sm text-slate-500">
                   Manage the approved contacts list and collect the resident&apos;s signed Release of Information.
                 </p>
-
-                <div className="mt-5 rounded-2xl bg-slate-50 p-4">
-                  <h3 className="text-sm font-semibold text-slate-950">Add Approved Contact</h3>
-
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <label className="block">
-                      <span className="text-sm font-medium text-slate-700">Contact name</span>
-                      <input
-                        type="text"
-                        value={contactName}
-                        onChange={(event) => setContactName(event.target.value)}
-                        placeholder="Full name"
-                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="text-sm font-medium text-slate-700">Contact role</span>
-                      <select
-                        value={contactRole}
-                        onChange={(event) => setContactRole(event.target.value)}
-                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                      >
-                        <option>Emergency Contact</option>
-                        <option>Referral Source</option>
-                        <option>Probation Officer / Court Rep.</option>
-                        <option>Chosen Sponsor</option>
-                        <option>Prescribing Healthcare Provider</option>
-                        <option>Other Approved Contact</option>
-                      </select>
-                    </label>
-
-                    <label className="block">
-                      <span className="text-sm font-medium text-slate-700">Relationship</span>
-                      <input
-                        type="text"
-                        value={contactRelationship}
-                        onChange={(event) => setContactRelationship(event.target.value)}
-                        placeholder="Mother, father, spouse, friend, sponsor, etc."
-                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="text-sm font-medium text-slate-700">Phone</span>
-                      <input
-                        type="tel"
-                        value={contactPhone}
-                        onChange={(event) => setContactPhone(event.target.value)}
-                        placeholder="Phone number"
-                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="text-sm font-medium text-slate-700">Email</span>
-                      <input
-                        type="email"
-                        value={contactEmail}
-                        onChange={(event) => setContactEmail(event.target.value)}
-                        placeholder="Email address"
-                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="text-sm font-medium text-slate-700">Contact status</span>
-                      <select
-                        value={contactStatus}
-                        onChange={(event) => setContactStatus(event.target.value)}
-                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                      >
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                      </select>
-                    </label>
-
-                    <label className="block md:col-span-2">
-                      <span className="text-sm font-medium text-slate-700">Address</span>
-                      <input
-                        type="text"
-                        value={contactAddress}
-                        onChange={(event) => setContactAddress(event.target.value)}
-                        placeholder="Mailing address"
-                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                      />
-                    </label>
-
-                    <label className="flex items-center gap-3 rounded-xl border bg-white p-4">
-                      <input
-                        type="checkbox"
-                        checked={contactIsPrimary}
-                        onChange={(event) => setContactIsPrimary(event.target.checked)}
-                        className="h-4 w-4"
-                      />
-                      <span className="text-sm font-medium text-slate-700">Primary emergency contact</span>
-                    </label>
-
-                    <label className="block md:col-span-2">
-                      <span className="text-sm font-medium text-slate-700">Notes</span>
-                      <textarea
-                        value={contactNotes}
-                        onChange={(event) => setContactNotes(event.target.value)}
-                        placeholder="Optional contact notes"
-                        className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                      />
-                    </label>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={saveContactAndOpenRoi}
-                      disabled={savingEmergencyContact}
-                      className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      Sign ROI for This Contact
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={saveEmergencyContact}
-                      disabled={savingEmergencyContact}
-                      className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {savingEmergencyContact ? "Saving..." : "Save Contact"}
-                    </button>
-                  </div>
-                </div>
 
                 <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -2201,18 +2104,6 @@ Resident Signature Collected Electronically`;
                   )}
                 </div>
 
-              </div>
-
-              <div className="flex flex-wrap border-b bg-white">
-                  <TabButton active={activeTab === "snapshot"} label="Snapshot" status="Add or review" onClick={() => setActiveTab("snapshot")} />
-                  <TabButton active={activeTab === "fees"} label="Fee Ledger" status={`Balance $${currentBalance.toFixed(2)} • ${residentPayments.length} payment${residentPayments.length === 1 ? "" : "s"}`} onClick={() => setActiveTab("fees")} />
-                  <TabButton active={activeTab === "notes"} label="Progress Notes" status={`${progressNotes.length} saved`} onClick={() => setActiveTab("notes")} />
-                  <TabButton active={activeTab === "ua"} label="UA/BA Records" status={uaBaLogs.length > 0 ? `${uaBaLogs.length} logged` : "Needs log"} onClick={() => setActiveTab("ua")} />
-                  <TabButton active={activeTab === "medication"} label="Medication Records" status={medicationRecords.length > 0 ? "Complete" : "Needs meds"} onClick={() => setActiveTab("medication")} />
-                  <TabButton active={activeTab === "rci"} label="RCI & Plan" status={latestCompletedRci ? `Complete • ${rciCompletedLabel}` : "Needs RCI"} onClick={() => setActiveTab("rci")} />
-                  <TabButton active={activeTab === "contacts"} label="ROI & Contacts" status={`${emergencyContacts.length} saved`} onClick={() => setActiveTab("contacts")} />
-                  <TabButton active={activeTab === "documents"} label="Documents" status={`${documents.length} uploaded`} onClick={() => setActiveTab("documents")} />
-                </div>
               </div>
 
               {activeTab === "snapshot" ? (
@@ -2358,6 +2249,12 @@ Resident Signature Collected Electronically`;
                           description={rciAssessments.some((assessment) => assessment.status === "completed") ? "Generate a new RCI link or review existing RCI records." : "Generate a client RCI link."}
                           onClick={() => setShowRciActionModal(true)}
                         />
+                        <SnapshotAction
+                          title="Add ROI / Contact"
+                          description="Add an approved contact or collect a signed ROI."
+                          onClick={() => setShowContactModal(true)}
+                        />
+
                         <SnapshotAction
                           title="Resident Documents"
                           description={documents.length > 0 ? `${documents.length} document(s) uploaded.` : "No resident documents uploaded yet."}
@@ -3870,6 +3767,160 @@ Resident Signature Collected Electronically`;
                 {savingManualCharge ? "Saving..." : "Add Manual Charge"}
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showContactModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b pb-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">Add Approved Contact</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Add a contact record, then save the contact or collect an ROI for this contact.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowContactModal(false)}
+                className="rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+              <h3 className="text-sm font-semibold text-slate-950">Add Approved Contact</h3>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <label className="block">
+              <span className="text-sm font-medium text-slate-700">Contact name</span>
+              <input
+                type="text"
+                value={contactName}
+                onChange={(event) => setContactName(event.target.value)}
+                placeholder="Full name"
+                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+              />
+                </label>
+
+                <label className="block">
+              <span className="text-sm font-medium text-slate-700">Contact role</span>
+              <select
+                value={contactRole}
+                onChange={(event) => setContactRole(event.target.value)}
+                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+              >
+                <option>Emergency Contact</option>
+                <option>Referral Source</option>
+                <option>Probation Officer / Court Rep.</option>
+                <option>Chosen Sponsor</option>
+                <option>Prescribing Healthcare Provider</option>
+                <option>Other Approved Contact</option>
+              </select>
+                </label>
+
+                <label className="block">
+              <span className="text-sm font-medium text-slate-700">Relationship</span>
+              <input
+                type="text"
+                value={contactRelationship}
+                onChange={(event) => setContactRelationship(event.target.value)}
+                placeholder="Mother, father, spouse, friend, sponsor, etc."
+                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+              />
+                </label>
+
+                <label className="block">
+              <span className="text-sm font-medium text-slate-700">Phone</span>
+              <input
+                type="tel"
+                value={contactPhone}
+                onChange={(event) => setContactPhone(event.target.value)}
+                placeholder="Phone number"
+                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+              />
+                </label>
+
+                <label className="block">
+              <span className="text-sm font-medium text-slate-700">Email</span>
+              <input
+                type="email"
+                value={contactEmail}
+                onChange={(event) => setContactEmail(event.target.value)}
+                placeholder="Email address"
+                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+              />
+                </label>
+
+                <label className="block">
+              <span className="text-sm font-medium text-slate-700">Contact status</span>
+              <select
+                value={contactStatus}
+                onChange={(event) => setContactStatus(event.target.value)}
+                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+                </label>
+
+                <label className="block md:col-span-2">
+              <span className="text-sm font-medium text-slate-700">Address</span>
+              <input
+                type="text"
+                value={contactAddress}
+                onChange={(event) => setContactAddress(event.target.value)}
+                placeholder="Mailing address"
+                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+              />
+                </label>
+
+                <label className="flex items-center gap-3 rounded-xl border bg-white p-4">
+              <input
+                type="checkbox"
+                checked={contactIsPrimary}
+                onChange={(event) => setContactIsPrimary(event.target.checked)}
+                className="h-4 w-4"
+              />
+              <span className="text-sm font-medium text-slate-700">Primary emergency contact</span>
+                </label>
+
+                <label className="block md:col-span-2">
+              <span className="text-sm font-medium text-slate-700">Notes</span>
+              <textarea
+                value={contactNotes}
+                onChange={(event) => setContactNotes(event.target.value)}
+                placeholder="Optional contact notes"
+                className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+              />
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+              type="button"
+              onClick={saveContactAndOpenRoi}
+              disabled={savingEmergencyContact}
+              className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+              Sign ROI for This Contact
+                </button>
+
+                <button
+              type="button"
+              onClick={saveEmergencyContact}
+              disabled={savingEmergencyContact}
+              className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+              {savingEmergencyContact ? "Saving..." : "Save Contact"}
+                </button>
+              </div>
+            </div>
+
+
           </div>
         </div>
       ) : null}
