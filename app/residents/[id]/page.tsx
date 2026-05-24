@@ -453,6 +453,9 @@ export default function ResidentProfilePage() {
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [savingPayment, setSavingPayment] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showProgressNoteModal, setShowProgressNoteModal] = useState(false);
+  const [showUaBaModal, setShowUaBaModal] = useState(false);
   const [clientRciLink, setClientRciLink] = useState("");
   const [generatingRciLink, setGeneratingRciLink] = useState(false);
   const [savingSnapshotStatus, setSavingSnapshotStatus] = useState(false);
@@ -760,6 +763,7 @@ export default function ResidentProfilePage() {
       setProgressNotes((current) => [data as ProgressNoteRow, ...current]);
       setNoteText("");
       setNoteType("general");
+      setShowProgressNoteModal(false);
       setMessage("Progress note saved successfully.");
 
       await createAuditLog({
@@ -822,6 +826,7 @@ export default function ResidentProfilePage() {
       setBreathalyzerResult("");
       setTestReason("");
       setTestNotes("");
+      setShowUaBaModal(false);
       setMessage("UA/BA log saved successfully.");
 
       await createAuditLog({
@@ -1576,6 +1581,7 @@ Resident Signature Collected Electronically`;
       setPaymentAmount("");
       setPaymentReference("");
       setPaymentNotes("");
+      setShowPaymentModal(false);
       setMessage("Payment recorded.");
     } catch (err) {
       const paymentError = err as { message?: unknown };
@@ -2228,20 +2234,20 @@ Resident Signature Collected Electronically`;
                         />
 
                         <SnapshotAction
-                          title="Resident Fees"
+                          title="Record Payment"
                           description={`Current balance: $${currentBalance.toFixed(2)}. Log payments and review charges.`}
-                          onClick={() => setActiveTab("fees")}
+                          onClick={() => setShowPaymentModal(true)}
                         />
 
                         <SnapshotAction
                           title="Complete UA/BA"
                           description={uaBaLogs.length > 0 ? `${uaBaLogs.length} UA/BA log(s) saved.` : "No UA/BA logs yet. Add a screen or breathalyzer result."}
-                          onClick={() => setActiveTab("ua")}
+                          onClick={() => setShowUaBaModal(true)}
                         />
                         <SnapshotAction
                           title="Create Progress Note"
                           description={`${progressNotes.length} note(s) saved. Add a new internal progress note.`}
-                          onClick={() => setActiveTab("notes")}
+                          onClick={() => setShowProgressNoteModal(true)}
                         />
                         <SnapshotAction
                           title="Add or Review Medication"
@@ -2286,46 +2292,20 @@ Resident Signature Collected Electronically`;
               </div>
 
               <div className={activeTab === "notes" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
-                <h2 className="text-lg font-semibold">Progress Notes</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Add internal notes related to progress, support needs, accountability, recovery goals, or house placement.
-                </p>
-
-                <div className="mt-5 grid gap-4">
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Note type</span>
-                    <select
-                      value={noteType}
-                      onChange={(event) => setNoteType(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    >
-                      <option value="general">General</option>
-                      <option value="recovery_support">Recovery Support</option>
-                      <option value="accountability">Accountability</option>
-                      <option value="housing">Housing / Placement</option>
-                      <option value="medication">Medication / MAT-MAR</option>
-                      <option value="incident_follow_up">Incident Follow-Up</option>
-                    </select>
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Progress note</span>
-                    <textarea
-                      value={noteText}
-                      onChange={(event) => setNoteText(event.target.value)}
-                      placeholder="Write the progress note here..."
-                      className="mt-2 min-h-32 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold">Progress Notes</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Review saved internal notes related to progress, support needs, accountability, recovery goals, or house placement.
+                    </p>
+                  </div>
 
                   <button
                     type="button"
-                    onClick={saveProgressNote}
-                    disabled={savingNote}
-                    className="inline-flex w-fit items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() => setShowProgressNoteModal(true)}
+                    className="rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
                   >
-                    {savingNote ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                    {savingNote ? "Saving..." : "Save Progress Note"}
+                    Create Progress Note
                   </button>
                 </div>
 
@@ -2355,92 +2335,22 @@ Resident Signature Collected Electronically`;
               </div>
 
               <div className={activeTab === "ua" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
-                <h2 className="text-lg font-semibold">UA/BA Logs</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Add drug screen and breathalyzer records tied to this resident profile.
-                </p>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold">UA/BA Records</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Review drug screen and breathalyzer records tied to this resident profile.
+                    </p>
+                  </div>
 
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Collection date</span>
-                    <input
-                      type="date"
-                      value={collectionDate}
-                      onChange={(event) => setCollectionDate(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Test type</span>
-                    <select
-                      value={testType}
-                      onChange={(event) => setTestType(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    >
-                      <option value="UA">UA</option>
-                      <option value="BA">BA</option>
-                      <option value="UA_BA">UA + BA</option>
-                    </select>
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Result</span>
-                    <select
-                      value={testResult}
-                      onChange={(event) => setTestResult(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="passed">Passed</option>
-                      <option value="failed">Failed</option>
-                      <option value="not_done">Not Done</option>
-                      <option value="refused">Refused</option>
-                    </select>
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Breathalyzer result</span>
-                    <input
-                      type="text"
-                      value={breathalyzerResult}
-                      onChange={(event) => setBreathalyzerResult(event.target.value)}
-                      placeholder="Example: 0.00"
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block md:col-span-2">
-                    <span className="text-sm font-medium text-slate-700">Reason</span>
-                    <input
-                      type="text"
-                      value={testReason}
-                      onChange={(event) => setTestReason(event.target.value)}
-                      placeholder="Example: Random screen, intake, relapse in close proximity, house meeting"
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block md:col-span-2">
-                    <span className="text-sm font-medium text-slate-700">Notes</span>
-                    <textarea
-                      value={testNotes}
-                      onChange={(event) => setTestNotes(event.target.value)}
-                      placeholder="Add UA/BA notes here..."
-                      className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowUaBaModal(true)}
+                    className="rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Log UA/BA
+                  </button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={saveUaBaLog}
-                  disabled={savingUaBaLog}
-                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {savingUaBaLog ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  {savingUaBaLog ? "Saving..." : "Save UA/BA Log"}
-                </button>
 
                 <div className="mt-6 space-y-3">
                   {uaBaLogs.length === 0 ? (
@@ -3067,7 +2977,22 @@ Resident Signature Collected Electronically`;
               ) : null}
 
               <div className={activeTab === "fees" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
-                <h2 className="text-lg font-semibold">Resident Fees</h2>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold">Fee Ledger</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Review charges, balances, and payment history.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPaymentModal(true)}
+                    className="rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Record Payment
+                  </button>
+                </div>
                 <p className="mt-1 text-sm text-slate-500">
                   Charges are generated from provider program fee settings. Staff can record resident payments here.
                 </p>
@@ -3089,85 +3014,6 @@ Resident Signature Collected Electronically`;
                   </div>
                 </div>
 
-                <div className="mt-6 rounded-2xl bg-slate-50 p-4">
-                  <h3 className="text-sm font-semibold text-slate-950">Record Payment</h3>
-
-                  <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    <label className="block">
-                      <span className="text-sm font-medium text-slate-700">Apply to charge</span>
-                      <select
-                        value={selectedFeeChargeId}
-                        onChange={(event) => setSelectedFeeChargeId(event.target.value)}
-                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                      >
-                        <option value="">Select open charge</option>
-                        {openFeeCharges.map((charge) => (
-                          <option key={charge.id} value={charge.id}>
-                            {charge.charge_type.replaceAll("_", " ")} • Due {formatDate(charge.due_date)} • Balance ${Number(charge.balance_due || 0).toFixed(2)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="block">
-                      <span className="text-sm font-medium text-slate-700">Payment amount</span>
-                      <input
-                        type="number"
-                        value={paymentAmount}
-                        onChange={(event) => setPaymentAmount(event.target.value)}
-                        placeholder="$"
-                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="text-sm font-medium text-slate-700">Payment method</span>
-                      <select
-                        value={paymentMethod}
-                        onChange={(event) => setPaymentMethod(event.target.value)}
-                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                      >
-                        <option value="cash">Cash</option>
-                        <option value="card">Card</option>
-                        <option value="ach">ACH</option>
-                        <option value="check">Check</option>
-                        <option value="zelle">Zelle</option>
-                        <option value="cash_app">Cash App</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </label>
-
-                    <label className="block">
-                      <span className="text-sm font-medium text-slate-700">Reference number</span>
-                      <input
-                        type="text"
-                        value={paymentReference}
-                        onChange={(event) => setPaymentReference(event.target.value)}
-                        placeholder="Optional"
-                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                      />
-                    </label>
-
-                    <label className="block md:col-span-2">
-                      <span className="text-sm font-medium text-slate-700">Payment notes</span>
-                      <textarea
-                        value={paymentNotes}
-                        onChange={(event) => setPaymentNotes(event.target.value)}
-                        placeholder="Optional notes"
-                        className="mt-2 min-h-20 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                      />
-                    </label>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={saveResidentPayment}
-                    disabled={savingPayment}
-                    className="mt-4 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {savingPayment ? "Saving..." : "Record Payment"}
-                  </button>
-                </div>
 
                 <div className="mt-6 grid gap-6 lg:grid-cols-2">
                   <div>
@@ -3541,6 +3387,273 @@ Resident Signature Collected Electronically`;
               <p className="mt-1 text-sm text-slate-600">
                 {selectedRoiAuthorization.signature_text}
               </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showPaymentModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b pb-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">Record Resident Payment</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Apply a payment to an open resident fee charge.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowPaymentModal(false)}
+                className="rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4">
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Open charge</span>
+                <select
+                  value={selectedFeeChargeId}
+                  onChange={(event) => setSelectedFeeChargeId(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="">Select open charge</option>
+                  {openFeeCharges.map((charge) => (
+                    <option key={charge.id} value={charge.id}>
+                      {charge.charge_type.replace("_", " ")} • Balance ${Number(charge.balance_due || 0).toFixed(2)} • Due {formatDate(charge.due_date)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Payment amount</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={paymentAmount}
+                  onChange={(event) => setPaymentAmount(event.target.value)}
+                  placeholder="0.00"
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Payment method</span>
+                <select
+                  value={paymentMethod}
+                  onChange={(event) => setPaymentMethod(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="check">Check</option>
+                  <option value="money_order">Money order</option>
+                  <option value="zelle">Zelle</option>
+                  <option value="cash_app">Cash App</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Reference number</span>
+                <input
+                  type="text"
+                  value={paymentReference}
+                  onChange={(event) => setPaymentReference(event.target.value)}
+                  placeholder="Optional receipt, transaction, or check number"
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Payment notes</span>
+                <textarea
+                  value={paymentNotes}
+                  onChange={(event) => setPaymentNotes(event.target.value)}
+                  placeholder="Optional payment notes"
+                  className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={saveResidentPayment}
+                disabled={savingPayment}
+                className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savingPayment ? "Saving..." : "Record Payment"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showProgressNoteModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b pb-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">Create Progress Note</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Add an internal progress note to this resident record.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowProgressNoteModal(false)}
+                className="rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4">
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Note type</span>
+                <select
+                  value={noteType}
+                  onChange={(event) => setNoteType(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="general">General</option>
+                  <option value="recovery_support">Recovery Support</option>
+                  <option value="accountability">Accountability</option>
+                  <option value="housing">Housing / Placement</option>
+                  <option value="medication">Medication / MAT-MAR</option>
+                  <option value="incident_follow_up">Incident Follow-Up</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Progress note</span>
+                <textarea
+                  value={noteText}
+                  onChange={(event) => setNoteText(event.target.value)}
+                  placeholder="Write the progress note here..."
+                  className="mt-2 min-h-32 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={saveProgressNote}
+                disabled={savingNote}
+                className="inline-flex w-fit items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savingNote ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {savingNote ? "Saving..." : "Save Progress Note"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showUaBaModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b pb-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">Log UA/BA</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Add a drug screen or breathalyzer record to this resident profile.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowUaBaModal(false)}
+                className="rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Collection date</span>
+                <input
+                  type="date"
+                  value={collectionDate}
+                  onChange={(event) => setCollectionDate(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Test type</span>
+                <select
+                  value={testType}
+                  onChange={(event) => setTestType(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="UA">UA</option>
+                  <option value="BA">BA</option>
+                  <option value="UA_BA">UA + BA</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Result</span>
+                <select
+                  value={testResult}
+                  onChange={(event) => setTestResult(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="passed">Passed</option>
+                  <option value="failed">Failed</option>
+                  <option value="not_done">Not Done</option>
+                  <option value="refused">Refused</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Breathalyzer result</span>
+                <input
+                  type="text"
+                  value={breathalyzerResult}
+                  onChange={(event) => setBreathalyzerResult(event.target.value)}
+                  placeholder="Example: 0.00"
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block md:col-span-2">
+                <span className="text-sm font-medium text-slate-700">Reason</span>
+                <input
+                  type="text"
+                  value={testReason}
+                  onChange={(event) => setTestReason(event.target.value)}
+                  placeholder="Example: Random screen, intake, relapse in close proximity, house meeting"
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block md:col-span-2">
+                <span className="text-sm font-medium text-slate-700">Notes</span>
+                <textarea
+                  value={testNotes}
+                  onChange={(event) => setTestNotes(event.target.value)}
+                  placeholder="Add UA/BA notes here..."
+                  className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={saveUaBaLog}
+                disabled={savingUaBaLog}
+                className="inline-flex w-fit items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savingUaBaLog ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {savingUaBaLog ? "Saving..." : "Save UA/BA Log"}
+              </button>
             </div>
           </div>
         </div>
