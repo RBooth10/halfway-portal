@@ -447,17 +447,24 @@ export default function ResidentProfilePage() {
   const [contactNotes, setContactNotes] = useState("");
   const [contactStatus, setContactStatus] = useState("active");
   const [savingEmergencyContact, setSavingEmergencyContact] = useState(false);
-  const [selectedFeeChargeId, setSelectedFeeChargeId] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [savingPayment, setSavingPayment] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showManualChargeModal, setShowManualChargeModal] = useState(false);
+  const [manualChargeDescription, setManualChargeDescription] = useState("");
+  const [manualChargeAmount, setManualChargeAmount] = useState("");
+  const [manualChargeDueDate, setManualChargeDueDate] = useState(new Date().toISOString().slice(0, 10));
+  const [manualChargeNotes, setManualChargeNotes] = useState("");
+  const [savingManualCharge, setSavingManualCharge] = useState(false);
   const [showProgressNoteModal, setShowProgressNoteModal] = useState(false);
   const [showUaBaModal, setShowUaBaModal] = useState(false);
   const [clientRciLink, setClientRciLink] = useState("");
   const [generatingRciLink, setGeneratingRciLink] = useState(false);
+  const [showRciActionModal, setShowRciActionModal] = useState(false);
   const [savingSnapshotStatus, setSavingSnapshotStatus] = useState(false);
   const [dischargeDate, setDischargeDate] = useState(new Date().toISOString().slice(0, 10));
   const [dischargeReason, setDischargeReason] = useState("");
@@ -1119,9 +1126,58 @@ export default function ResidentProfilePage() {
     }
   }
 
-  const currentBalance = feeCharges.reduce((sum, charge) => sum + Number(charge.balance_due || 0), 0);
-  const openFeeCharges = feeCharges.filter((charge) => Number(charge.balance_due || 0) > 0);
+  const totalCharges = feeCharges.reduce((sum, charge) => sum + Number(charge.amount || 0), 0);
   const totalPayments = residentPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const currentBalance = totalCharges - totalPayments;
+
+  const openFeeCharges = feeCharges.filter((charge) => Number(charge.balance_due || 0) > 0);
+
+  const feeLedgerEntries = [
+    ...feeCharges.map((charge) => ({
+      id: `charge-${charge.id}`,
+      date: charge.due_date || charge.period_start || charge.created_at,
+      description: `${charge.charge_type.replaceAll("_", " ")} charge`,
+      debit: Number(charge.amount || 0),
+      credit: 0,
+      status: charge.status,
+      sourceType: "charge" as const,
+    })),
+    ...residentPayments.map((payment) => ({
+      id: `payment-${payment.id}`,
+      date: payment.payment_date || payment.created_at,
+      description: `${payment.payment_method.replaceAll("_", " ")} payment`,
+      debit: 0,
+      credit: Number(payment.amount || 0),
+      status: "payment",
+      sourceType: "payment" as const,
+    })),
+  ].sort((a, b) => {
+    const dateA = a.date ? new Date(a.date).getTime() : 0;
+    const dateB = b.date ? new Date(b.date).getTime() : 0;
+
+    if (dateA !== dateB) return dateA - dateB;
+
+    if (a.sourceType === b.sourceType) return 0;
+
+    return a.sourceType === "charge" ? -1 : 1;
+  });
+
+  const feeLedgerRowsAscending = feeLedgerEntries.reduce<
+    Array<(typeof feeLedgerEntries)[number] & { rollingBalance: number }>
+  >((rows, entry) => {
+    const previousBalance = rows.length > 0 ? rows[rows.length - 1].rollingBalance : 0;
+    const rollingBalance = previousBalance + entry.debit - entry.credit;
+
+    return [
+      ...rows,
+      {
+        ...entry,
+        rollingBalance,
+      },
+    ];
+  }, []);
+
+  const feeLedgerRows = [...feeLedgerRowsAscending].reverse();
 
   const latestCompletedRci = rciAssessments.find((assessment) => assessment.status === "completed");
   const rciCompletedLabel = latestCompletedRci
@@ -1509,21 +1565,85 @@ Resident Signature Collected Electronically`;
     }
   }
 
+  async function saveManualCharge() {
+    if (!resident) {
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    const amount = Number(manualChargeAmount);
+
+    if (!manualChargeDescription.trim()) {
+      setError("Manual charge description is required.");
+      return;
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError("Enter a valid manual charge amount.");
+      return;
+    }
+
+    setSavingManualCharge(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const noteParts = [
+        `Manual charge: ${manualChargeDescription.trim()}`,
+        manualChargeNotes.trim() ? `Notes: ${manualChargeNotes.trim()}` : "",
+      ].filter(Boolean);
+
+      const { data, error } = await supabase
+        .from("resident_fee_charges")
+        .insert({
+          provider_id: resident.provider_id,
+          resident_id: resident.id,
+          house_id: resident.house_id,
+          charge_type: "manual_charge",
+          billing_frequency: "one_time",
+          period_start: null,
+          period_end: null,
+          due_date: manualChargeDueDate || new Date().toISOString().slice(0, 10),
+          amount,
+          amount_paid: 0,
+          balance_due: amount,
+          status: "open",
+          notes: noteParts.join("\n"),
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setFeeCharges((current) => [data as ResidentFeeChargeRow, ...current]);
+      setManualChargeDescription("");
+      setManualChargeAmount("");
+      setManualChargeDueDate(new Date().toISOString().slice(0, 10));
+      setManualChargeNotes("");
+      setShowManualChargeModal(false);
+      setMessage("Manual charge added.");
+    } catch (err) {
+      const chargeError = err as { message?: unknown };
+      setError(chargeError?.message ? String(chargeError.message) : "Could not add manual charge.");
+    } finally {
+      setSavingManualCharge(false);
+    }
+  }
+
   async function saveResidentPayment() {
     if (!resident) {
       setError("Resident profile is not loaded yet.");
       return;
     }
 
-    if (!selectedFeeChargeId) {
-      setError("Select an open charge before recording a payment.");
-      return;
-    }
-
     const amount = Number(paymentAmount);
 
-    if (!amount || amount <= 0) {
-      setError("Enter a payment amount greater than zero.");
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError("Enter a valid payment amount.");
       return;
     }
 
@@ -1534,51 +1654,29 @@ Resident Signature Collected Electronically`;
     try {
       const supabase = getSupabaseClient();
 
-      const { data, error } = await supabase.rpc("record_resident_payment", {
-        p_resident_id: resident.id,
-        p_fee_charge_id: selectedFeeChargeId,
-        p_amount: amount,
-        p_payment_method: paymentMethod,
-        p_reference_number: paymentReference,
-        p_notes: paymentNotes,
-      });
+      const { data, error } = await supabase
+        .from("resident_payments")
+        .insert({
+          provider_id: resident.provider_id,
+          resident_id: resident.id,
+          fee_charge_id: null,
+          payment_date: paymentDate || new Date().toISOString().slice(0, 10),
+          amount,
+          payment_method: paymentMethod,
+          reference_number: paymentReference.trim() || null,
+          notes: paymentNotes.trim() || null,
+        })
+        .select("*")
+        .single();
 
       if (error) {
         throw error;
       }
 
-      if (!data?.ok) {
-        setError(data?.message ?? "Could not record payment.");
-        return;
-      }
-
-      const feeChargesResult = await supabase
-        .from("resident_fee_charges")
-        .select("*")
-        .eq("resident_id", resident.id)
-        .order("due_date", { ascending: false })
-        .order("created_at", { ascending: false });
-
-      if (feeChargesResult.error) {
-        throw feeChargesResult.error;
-      }
-
-      setFeeCharges((feeChargesResult.data ?? []) as ResidentFeeChargeRow[]);
-
-      const paymentsResult = await supabase
-        .from("resident_payments")
-        .select("*")
-        .eq("resident_id", resident.id)
-        .order("payment_date", { ascending: false })
-        .order("created_at", { ascending: false });
-
-      if (paymentsResult.error) {
-        throw paymentsResult.error;
-      }
-
-      setResidentPayments((paymentsResult.data ?? []) as ResidentPaymentRow[]);
-      setSelectedFeeChargeId("");
+      setResidentPayments((current) => [data as ResidentPaymentRow, ...current]);
       setPaymentAmount("");
+      setPaymentDate(new Date().toISOString().slice(0, 10));
+      setPaymentMethod("cash");
       setPaymentReference("");
       setPaymentNotes("");
       setShowPaymentModal(false);
@@ -1590,6 +1688,7 @@ Resident Signature Collected Electronically`;
       setSavingPayment(false);
     }
   }
+
 
   function toggleDischargeContact(contactId: string) {
     setSelectedDischargeContactIds((current) =>
@@ -2106,7 +2205,7 @@ Resident Signature Collected Electronically`;
 
               <div className="flex flex-wrap border-b bg-white">
                   <TabButton active={activeTab === "snapshot"} label="Snapshot" status="Add or review" onClick={() => setActiveTab("snapshot")} />
-                  <TabButton active={activeTab === "fees"} label="Fee Ledger" status={`Balance $${currentBalance.toFixed(2)}`} onClick={() => setActiveTab("fees")} />
+                  <TabButton active={activeTab === "fees"} label="Fee Ledger" status={`Balance $${currentBalance.toFixed(2)} • ${residentPayments.length} payment${residentPayments.length === 1 ? "" : "s"}`} onClick={() => setActiveTab("fees")} />
                   <TabButton active={activeTab === "notes"} label="Progress Notes" status={`${progressNotes.length} saved`} onClick={() => setActiveTab("notes")} />
                   <TabButton active={activeTab === "ua"} label="UA/BA Records" status={uaBaLogs.length > 0 ? `${uaBaLogs.length} logged` : "Needs log"} onClick={() => setActiveTab("ua")} />
                   <TabButton active={activeTab === "medication"} label="Medication Records" status={medicationRecords.length > 0 ? "Complete" : "Needs meds"} onClick={() => setActiveTab("medication")} />
@@ -2255,9 +2354,9 @@ Resident Signature Collected Electronically`;
                           onClick={() => setActiveTab("medication")}
                         />
                         <SnapshotAction
-                          title="RCI & Recovery Plan"
-                          description={rciAssessments.some((assessment) => assessment.status === "completed") ? "RCI results and resident-created goals are available." : "Generate a client RCI link or review the recovery plan."}
-                          onClick={() => setActiveTab("rci")}
+                          title="RCI Action"
+                          description={rciAssessments.some((assessment) => assessment.status === "completed") ? "Generate a new RCI link or review existing RCI records." : "Generate a client RCI link."}
+                          onClick={() => setShowRciActionModal(true)}
                         />
                         <SnapshotAction
                           title="Resident Documents"
@@ -2291,7 +2390,108 @@ Resident Signature Collected Electronically`;
                 </p>
               </div>
 
-              <div className={activeTab === "notes" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
+                            <div className={activeTab === "fees" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold">Fee Ledger</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Review charges, balances, and payment history.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowManualChargeModal(true)}
+                      className="rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Add Manual Charge
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowPaymentModal(true)}
+                      className="rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Record Payment
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid gap-4 md:grid-cols-3">
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Current Balance</p>
+                    <p className="mt-1 text-2xl font-semibold text-slate-950">${currentBalance.toFixed(2)}</p>
+                  </div>
+
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Open Charges</p>
+                    <p className="mt-1 text-2xl font-semibold text-slate-950">{openFeeCharges.length}</p>
+                  </div>
+
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Payments Logged</p>
+                    <p className="mt-1 text-2xl font-semibold text-slate-950">{residentPayments.length}</p>
+                  </div>
+                </div>
+
+                <div className="mt-6 rounded-2xl bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-950">Rolling Balance</h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Charges increase the balance. Payments reduce the balance.
+                      </p>
+                    </div>
+                  </div>
+
+                  {feeLedgerRows.length === 0 ? (
+                    <p className="mt-4 rounded-2xl bg-white p-4 text-sm text-slate-500">
+                      No fee ledger activity found.
+                    </p>
+                  ) : (
+                    <div className="mt-4 overflow-x-auto">
+                      <table className="w-full min-w-[720px] text-left text-sm">
+                        <thead>
+                          <tr className="border-b text-xs uppercase tracking-wide text-slate-500">
+                            <th className="py-2 pr-4 font-medium">Date</th>
+                            <th className="py-2 pr-4 font-medium">Description</th>
+                            <th className="py-2 pr-4 font-medium">Charge</th>
+                            <th className="py-2 pr-4 font-medium">Payment</th>
+                            <th className="py-2 font-medium">Running Balance</th>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {feeLedgerRows.map((row) => (
+                            <tr key={row.id} className="border-b last:border-0">
+                              <td className="py-3 pr-4 text-slate-600">
+                                {formatDate(row.date)}
+                              </td>
+                              <td className="py-3 pr-4">
+                                <p className="font-medium text-slate-950">{row.description}</p>
+                                <p className="text-xs text-slate-500">{row.status}</p>
+                              </td>
+                              <td className="py-3 pr-4 text-slate-600">
+                                {row.debit > 0 ? `$${row.debit.toFixed(2)}` : "—"}
+                              </td>
+                              <td className="py-3 pr-4 text-slate-600">
+                                {row.credit > 0 ? `$${row.credit.toFixed(2)}` : "—"}
+                              </td>
+                              <td className="py-3 font-semibold text-slate-950">
+                                ${row.rollingBalance.toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+<div className={activeTab === "notes" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold">Progress Notes</h2>
@@ -2765,306 +2965,26 @@ Resident Signature Collected Electronically`;
                 </div>
               </div>
 
-              <div className={activeTab === "rci" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
-                <h2 className="text-lg font-semibold">Client RCI Assessment Link</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Generate a private link the resident can use to complete the assessment without logging into the staff portal.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={generateClientRciLink}
-                  disabled={generatingRciLink}
-                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {generatingRciLink ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  {generatingRciLink ? "Generating..." : "Generate Client RCI Link"}
-                </button>
-
-                {clientRciLink ? (
-                  <div className="mt-5 rounded-2xl bg-slate-50 p-4">
-                    <p className="text-sm font-medium text-slate-950">Client link</p>
-                    <p className="mt-2 break-all text-sm text-slate-600">{clientRciLink}</p>
-                    <button
-                      type="button"
-                      onClick={() => navigator.clipboard.writeText(clientRciLink)}
-                      className="mt-3 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      Copy Link
-                    </button>
-                  </div>
-                ) : null}
-
-                <div className="mt-5 rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-800">
-                  Client links now use the RCI-36 assessment. Completed results will return a summary to this resident profile.
-                </div>
-              </div>
-
-              {showLifecycleModal ? (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-                  <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
-                    <div className="mb-4 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setShowLifecycleModal(false)}
-                        className="rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                      >
-                        Close
-                      </button>
-                    </div>
-                <h2 className="text-lg font-semibold">
-                  {resident.resident_status === "active" ? "Discharge Resident" : "Readmit Resident"}
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  {resident.resident_status === "active"
-                    ? "Complete required discharge documentation before moving this resident to discharged status."
-                    : "Readmit this resident and resume program fees from the readmission date."}
-                </p>
-
-                {resident.resident_status === "active" ? (
-                  <div className="mt-5 rounded-2xl bg-slate-50 p-4">
-                    <h3 className="text-sm font-semibold text-slate-950">Discharge Resident</h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Discharging this resident keeps all data, moves the resident to discharged status, and stops future program fees.
-                    </p>
-
-                    <div className="mt-4 grid gap-4 md:grid-cols-2">
-                      <label className="block">
-                        <span className="text-sm font-medium text-slate-700">Discharge date</span>
-                        <input
-                          type="date"
-                          value={dischargeDate}
-                          onChange={(event) => setDischargeDate(event.target.value)}
-                          className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                        />
-                      </label>
-
-                      <label className="block">
-                        <span className="text-sm font-medium text-slate-700">Discharge reason</span>
-                        <select
-                          value={dischargeReason}
-                          onChange={(event) => setDischargeReason(event.target.value)}
-                          className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                        >
-                          <option value="">Select reason</option>
-                          <option value="Completion">Completion</option>
-                          <option value="Admin">Admin</option>
-                          <option value="Abandonment">Abandonment</option>
-                          <option value="Relapse">Relapse</option>
-                        </select>
-                      </label>
-
-                      <div className="md:col-span-2">
-                        <span className="text-sm font-medium text-slate-700">
-                          Emergency contacts called or attempted
-                        </span>
-
-                        <div className="mt-2 grid gap-3 rounded-2xl border bg-white p-4 md:grid-cols-2">
-                          {emergencyContacts.filter((contact) => contact.status === "active").length === 0 ? (
-                            <p className="text-sm text-slate-500">
-                              No active emergency contacts saved. Add an emergency contact before discharging.
-                            </p>
-                          ) : (
-                            emergencyContacts
-                              .filter((contact) => contact.status === "active")
-                              .map((contact) => (
-                                <label key={contact.id} className="flex items-start gap-3 rounded-xl bg-slate-50 p-3">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedDischargeContactIds.includes(contact.id)}
-                                    onChange={() => toggleDischargeContact(contact.id)}
-                                    className="mt-1 h-4 w-4"
-                                  />
-                                  <span>
-                                    <span className="block text-sm font-medium text-slate-800">
-                                      {contact.contact_name}
-                                      {contact.is_primary ? " • Primary" : ""}
-                                    </span>
-                                    <span className="block text-xs text-slate-500">
-                                      {[contact.contact_role, contact.relationship, contact.phone].filter(Boolean).join(" • ")}
-                                    </span>
-                                  </span>
-                                </label>
-                              ))
-                          )}
-                        </div>
-                      </div>
-
-                      <label className="block md:col-span-2">
-                        <span className="text-sm font-medium text-slate-700">Detailed discharge note</span>
-                        <textarea
-                          value={dischargeNotes}
-                          onChange={(event) => setDischargeNotes(event.target.value)}
-                          placeholder="Optional discharge notes"
-                          className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                        />
-                      </label>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={dischargeResidentProfile}
-                      disabled={savingLifecycle}
-                      className="mt-4 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {savingLifecycle ? "Saving..." : "Discharge Resident"}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mt-5 rounded-2xl bg-slate-50 p-4">
-                    <h3 className="text-sm font-semibold text-slate-950">Readmit Resident</h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Readmission creates a new active admission episode. Program fees resume from the readmission date.
-                    </p>
-
-                    <div className="mt-4 grid gap-4 md:grid-cols-2">
-                      <label className="block">
-                        <span className="text-sm font-medium text-slate-700">Readmission date</span>
-                        <input
-                          type="date"
-                          value={readmissionDate}
-                          onChange={(event) => setReadmissionDate(event.target.value)}
-                          className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                        />
-                      </label>
-
-                      <label className="block">
-                        <span className="text-sm font-medium text-slate-700">House ID for readmission</span>
-                        <input
-                          type="text"
-                          value={readmissionHouseId || resident.house_id || ""}
-                          onChange={(event) => setReadmissionHouseId(event.target.value)}
-                          placeholder="Leave as current house or paste house ID"
-                          className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                        />
-                      </label>
-
-                      <label className="flex items-center gap-3 rounded-xl border bg-white p-4 md:col-span-2">
-                        <input
-                          type="checkbox"
-                          checked={chargeAdmissionFeeAgain}
-                          onChange={(event) => setChargeAdmissionFeeAgain(event.target.checked)}
-                          className="h-4 w-4"
-                        />
-                        <span className="text-sm font-medium text-slate-700">
-                          Charge admission fee again for this readmission
-                        </span>
-                      </label>
-
-                      <label className="block md:col-span-2">
-                        <span className="text-sm font-medium text-slate-700">Readmission notes</span>
-                        <textarea
-                          value={readmissionNotes}
-                          onChange={(event) => setReadmissionNotes(event.target.value)}
-                          placeholder="Optional readmission notes"
-                          className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                        />
-                      </label>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={readmitResidentProfile}
-                      disabled={savingLifecycle}
-                      className="mt-4 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {savingLifecycle ? "Saving..." : "Readmit Resident"}
-                    </button>
-                  </div>
-                )}
-                  </div>
-                </div>
-              ) : null}
-
-              <div className={activeTab === "fees" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
+                            <div className={activeTab === "rci" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-semibold">Fee Ledger</h2>
+                    <h2 className="text-lg font-semibold">RCI & Recovery Plan Records</h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      Review charges, balances, and payment history.
+                      Review completed RCI results and resident-created recovery goals.
                     </p>
                   </div>
 
                   <button
                     type="button"
-                    onClick={() => setShowPaymentModal(true)}
+                    onClick={() => setShowRciActionModal(true)}
                     className="rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
                   >
-                    Record Payment
+                    Generate RCI Link
                   </button>
-                </div>
-                <p className="mt-1 text-sm text-slate-500">
-                  Charges are generated from provider program fee settings. Staff can record resident payments here.
-                </p>
-
-                <div className="mt-5 grid gap-4 md:grid-cols-3">
-                  <div className="rounded-2xl bg-slate-50 p-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Current Balance</p>
-                    <p className="mt-1 text-2xl font-semibold text-slate-950">${currentBalance.toFixed(2)}</p>
-                  </div>
-
-                  <div className="rounded-2xl bg-slate-50 p-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Open Charges</p>
-                    <p className="mt-1 text-2xl font-semibold text-slate-950">{openFeeCharges.length}</p>
-                  </div>
-
-                  <div className="rounded-2xl bg-slate-50 p-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Payments Logged</p>
-                    <p className="mt-1 text-2xl font-semibold text-slate-950">${totalPayments.toFixed(2)}</p>
-                  </div>
-                </div>
-
-
-                <div className="mt-6 grid gap-6 lg:grid-cols-2">
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-950">Charges</h3>
-                    <div className="mt-3 space-y-3">
-                      {feeCharges.length === 0 ? (
-                        <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">No charges found.</p>
-                      ) : (
-                        feeCharges.map((charge) => (
-                          <div key={charge.id} className="rounded-2xl bg-slate-50 p-4">
-                            <p className="text-sm font-semibold text-slate-950">
-                              {charge.charge_type.replaceAll("_", " ")} • {charge.status}
-                            </p>
-                            <p className="mt-1 text-sm text-slate-600">
-                              Amount: ${Number(charge.amount || 0).toFixed(2)} • Paid: ${Number(charge.amount_paid || 0).toFixed(2)} • Balance: ${Number(charge.balance_due || 0).toFixed(2)}
-                            </p>
-                            <p className="mt-1 text-sm text-slate-500">
-                              Due: {formatDate(charge.due_date)}
-                            </p>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-950">Payment History</h3>
-                    <div className="mt-3 space-y-3">
-                      {residentPayments.length === 0 ? (
-                        <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">No payments logged yet.</p>
-                      ) : (
-                        residentPayments.map((payment) => (
-                          <div key={payment.id} className="rounded-2xl bg-slate-50 p-4">
-                            <p className="text-sm font-semibold text-slate-950">
-                              ${Number(payment.amount || 0).toFixed(2)} • {payment.payment_method.replaceAll("_", " ")}
-                            </p>
-                            <p className="mt-1 text-sm text-slate-500">
-                              Paid: {formatDate(payment.payment_date)}
-                            </p>
-                            {payment.notes ? (
-                              <p className="mt-2 text-sm text-slate-600">{payment.notes}</p>
-                            ) : null}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
                 </div>
               </div>
 
-              <div className={activeTab === "rci" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
+<div className={activeTab === "rci" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                 <h2 className="text-lg font-semibold">RCI Results Summary</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   Completed client assessments return a summary to the resident profile. Individual question responses remain stored in Supabase but are not displayed here.
@@ -3414,19 +3334,13 @@ Resident Signature Collected Electronically`;
 
             <div className="mt-5 grid gap-4">
               <label className="block">
-                <span className="text-sm font-medium text-slate-700">Open charge</span>
-                <select
-                  value={selectedFeeChargeId}
-                  onChange={(event) => setSelectedFeeChargeId(event.target.value)}
+                <span className="text-sm font-medium text-slate-700">Payment date</span>
+                <input
+                  type="date"
+                  value={paymentDate}
+                  onChange={(event) => setPaymentDate(event.target.value)}
                   className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                >
-                  <option value="">Select open charge</option>
-                  {openFeeCharges.map((charge) => (
-                    <option key={charge.id} value={charge.id}>
-                      {charge.charge_type.replace("_", " ")} • Balance ${Number(charge.balance_due || 0).toFixed(2)} • Due {formatDate(charge.due_date)}
-                    </option>
-                  ))}
-                </select>
+                />
               </label>
 
               <label className="block">
@@ -3653,6 +3567,307 @@ Resident Signature Collected Electronically`;
               >
                 {savingUaBaLog ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 {savingUaBaLog ? "Saving..." : "Save UA/BA Log"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showRciActionModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b pb-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">Generate Client RCI Link</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Create a resident-facing RCI assessment link for this client.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowRciActionModal(false)}
+                className="rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+              <p className="text-sm leading-6 text-slate-600">
+                Generate a link the resident can use to complete the RCI assessment and create recovery goals.
+              </p>
+
+              <button
+                type="button"
+                onClick={generateClientRciLink}
+                disabled={generatingRciLink}
+                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {generatingRciLink ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {generatingRciLink ? "Generating..." : "Generate Client RCI Link"}
+              </button>
+
+              {clientRciLink ? (
+                <div className="mt-4 rounded-2xl bg-white p-4">
+                  <p className="text-sm font-semibold text-slate-950">Client RCI Link</p>
+                  <p className="mt-2 break-all text-sm text-slate-600">{clientRciLink}</p>
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(clientRciLink)}
+                    className="mt-3 rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Copy Link
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showLifecycleModal && resident ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b pb-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">
+                  {resident.resident_status === "active" ? "Discharge Resident" : "Readmit Resident"}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {resident.resident_status === "active"
+                    ? "Complete required discharge documentation before moving this resident to discharged status."
+                    : "Readmit this resident and resume program fees from the readmission date."}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowLifecycleModal(false)}
+                className="rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            {resident.resident_status === "active" ? (
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">Discharge date</span>
+                  <input
+                    type="date"
+                    value={dischargeDate}
+                    onChange={(event) => setDischargeDate(event.target.value)}
+                    className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">Discharge reason</span>
+                  <select
+                    value={dischargeReason}
+                    onChange={(event) => setDischargeReason(event.target.value)}
+                    className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                  >
+                    <option value="">Select reason</option>
+                    <option value="Completion">Completion</option>
+                    <option value="Admin">Admin</option>
+                    <option value="Abandonment">Abandonment</option>
+                    <option value="Relapse">Relapse</option>
+                  </select>
+                </label>
+
+                <div className="md:col-span-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Emergency contacts called or attempted
+                  </span>
+
+                  <div className="mt-2 grid gap-3 rounded-2xl border bg-white p-4 md:grid-cols-2">
+                    {emergencyContacts.filter((contact) => contact.status === "active").length === 0 ? (
+                      <p className="text-sm text-slate-500">
+                        No active emergency contacts saved. Add an emergency contact before discharging.
+                      </p>
+                    ) : (
+                      emergencyContacts
+                        .filter((contact) => contact.status === "active")
+                        .map((contact) => (
+                          <label key={contact.id} className="flex items-start gap-3 rounded-xl bg-slate-50 p-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedDischargeContactIds.includes(contact.id)}
+                              onChange={() => toggleDischargeContact(contact.id)}
+                              className="mt-1 h-4 w-4"
+                            />
+                            <span>
+                              <span className="block text-sm font-medium text-slate-800">
+                                {contact.contact_name}
+                                {contact.is_primary ? " • Primary" : ""}
+                              </span>
+                              <span className="block text-xs text-slate-500">
+                                {[contact.contact_role, contact.relationship, contact.phone].filter(Boolean).join(" • ")}
+                              </span>
+                            </span>
+                          </label>
+                        ))
+                    )}
+                  </div>
+                </div>
+
+                <label className="block md:col-span-2">
+                  <span className="text-sm font-medium text-slate-700">Detailed discharge note</span>
+                  <textarea
+                    value={dischargeNotes}
+                    onChange={(event) => setDischargeNotes(event.target.value)}
+                    placeholder="Document what happened, who was contacted or attempted, resident status, belongings, safety concerns, and follow-up needs."
+                    className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={dischargeResidentProfile}
+                  disabled={savingLifecycle}
+                  className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingLifecycle ? "Saving..." : "Discharge Resident"}
+                </button>
+              </div>
+            ) : (
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">Readmission date</span>
+                  <input
+                    type="date"
+                    value={readmissionDate}
+                    onChange={(event) => setReadmissionDate(event.target.value)}
+                    className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">House assignment</span>
+                  <select
+                    value={readmissionHouseId}
+                    onChange={(event) => setReadmissionHouseId(event.target.value)}
+                    className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                  >
+                    <option value="">Keep current house</option>
+                    {houses.map((house) => (
+                      <option key={house.id} value={house.id}>
+                        {house.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="flex items-center gap-3 rounded-xl border bg-white p-4 md:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={chargeAdmissionFeeAgain}
+                    onChange={(event) => setChargeAdmissionFeeAgain(event.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm font-medium text-slate-700">
+                    Charge admission fee again
+                  </span>
+                </label>
+
+                <label className="block md:col-span-2">
+                  <span className="text-sm font-medium text-slate-700">Readmission notes</span>
+                  <textarea
+                    value={readmissionNotes}
+                    onChange={(event) => setReadmissionNotes(event.target.value)}
+                    placeholder="Document readmission details, house assignment, and fee decision."
+                    className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={readmitResidentProfile}
+                  disabled={savingLifecycle}
+                  className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingLifecycle ? "Saving..." : "Readmit Resident"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {showManualChargeModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b pb-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">Add Manual Charge</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Add one-time charges for extra fees, replacement items, supplies, damages, transportation, or other resident-specific costs.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowManualChargeModal(false)}
+                className="rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4">
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Charge description</span>
+                <input
+                  type="text"
+                  value={manualChargeDescription}
+                  onChange={(event) => setManualChargeDescription(event.target.value)}
+                  placeholder="Example: Replacement key, transportation fee, damaged item, supplies"
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Amount</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={manualChargeAmount}
+                  onChange={(event) => setManualChargeAmount(event.target.value)}
+                  placeholder="0.00"
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Due date</span>
+                <input
+                  type="date"
+                  value={manualChargeDueDate}
+                  onChange={(event) => setManualChargeDueDate(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Notes</span>
+                <textarea
+                  value={manualChargeNotes}
+                  onChange={(event) => setManualChargeNotes(event.target.value)}
+                  placeholder="Optional details about why this charge was added."
+                  className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={saveManualCharge}
+                disabled={savingManualCharge}
+                className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savingManualCharge ? "Saving..." : "Add Manual Charge"}
               </button>
             </div>
           </div>
