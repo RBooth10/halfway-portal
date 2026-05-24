@@ -169,6 +169,37 @@ type RciAssessmentRow = {
   created_at: string;
 };
 
+type ResidentFeeChargeRow = {
+  id: string;
+  provider_id: string;
+  resident_id: string;
+  house_id: string | null;
+  charge_type: string;
+  billing_frequency: string;
+  period_start: string | null;
+  period_end: string | null;
+  due_date: string | null;
+  amount: number;
+  amount_paid: number;
+  balance_due: number;
+  status: string;
+  notes: string | null;
+  created_at: string;
+};
+
+type ResidentPaymentRow = {
+  id: string;
+  provider_id: string;
+  resident_id: string;
+  fee_charge_id: string | null;
+  payment_date: string;
+  amount: number;
+  payment_method: string;
+  reference_number: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
 type RecoveryGoalRow = {
   id: string;
   provider_id: string;
@@ -328,6 +359,14 @@ export default function ResidentProfilePage() {
   const [medicationLogs, setMedicationLogs] = useState<MedicationLogRow[]>([]);
   const [rciAssessments, setRciAssessments] = useState<RciAssessmentRow[]>([]);
   const [recoveryGoals, setRecoveryGoals] = useState<RecoveryGoalRow[]>([]);
+  const [feeCharges, setFeeCharges] = useState<ResidentFeeChargeRow[]>([]);
+  const [residentPayments, setResidentPayments] = useState<ResidentPaymentRow[]>([]);
+  const [selectedFeeChargeId, setSelectedFeeChargeId] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paymentNotes, setPaymentNotes] = useState("");
+  const [savingPayment, setSavingPayment] = useState(false);
   const [clientRciLink, setClientRciLink] = useState("");
   const [generatingRciLink, setGeneratingRciLink] = useState(false);
   const [savingSnapshotStatus, setSavingSnapshotStatus] = useState(false);
@@ -505,6 +544,40 @@ export default function ResidentProfilePage() {
       }
 
       setRecoveryGoals((recoveryGoalsResult.data ?? []) as RecoveryGoalRow[]);
+
+      const ensureFeesResult = await supabase.rpc("ensure_current_resident_fees", {
+        p_resident_id: residentData.id,
+      });
+
+      if (ensureFeesResult.error) {
+        throw ensureFeesResult.error;
+      }
+
+      const feeChargesResult = await supabase
+        .from("resident_fee_charges")
+        .select("*")
+        .eq("resident_id", residentData.id)
+        .order("due_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (feeChargesResult.error) {
+        throw feeChargesResult.error;
+      }
+
+      setFeeCharges((feeChargesResult.data ?? []) as ResidentFeeChargeRow[]);
+
+      const paymentsResult = await supabase
+        .from("resident_payments")
+        .select("*")
+        .eq("resident_id", residentData.id)
+        .order("payment_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (paymentsResult.error) {
+        throw paymentsResult.error;
+      }
+
+      setResidentPayments((paymentsResult.data ?? []) as ResidentPaymentRow[]);
     } catch (err) {
       const profileError = err as { message?: unknown };
       setError(profileError?.message ? String(profileError.message) : "Could not load resident profile.");
@@ -914,10 +987,95 @@ export default function ResidentProfilePage() {
     }
   }
 
+  const currentBalance = feeCharges.reduce((sum, charge) => sum + Number(charge.balance_due || 0), 0);
+  const openFeeCharges = feeCharges.filter((charge) => Number(charge.balance_due || 0) > 0);
+  const totalPayments = residentPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+
   const latestCompletedRci = rciAssessments.find((assessment) => assessment.status === "completed");
   const rciCompletedLabel = latestCompletedRci
     ? daysSince(latestCompletedRci.client_completed_at || latestCompletedRci.assessment_date)
     : "Not completed";
+
+  async function saveResidentPayment() {
+    if (!resident) {
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    if (!selectedFeeChargeId) {
+      setError("Select an open charge before recording a payment.");
+      return;
+    }
+
+    const amount = Number(paymentAmount);
+
+    if (!amount || amount <= 0) {
+      setError("Enter a payment amount greater than zero.");
+      return;
+    }
+
+    setSavingPayment(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase.rpc("record_resident_payment", {
+        p_resident_id: resident.id,
+        p_fee_charge_id: selectedFeeChargeId,
+        p_amount: amount,
+        p_payment_method: paymentMethod,
+        p_reference_number: paymentReference,
+        p_notes: paymentNotes,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.ok) {
+        setError(data?.message ?? "Could not record payment.");
+        return;
+      }
+
+      const feeChargesResult = await supabase
+        .from("resident_fee_charges")
+        .select("*")
+        .eq("resident_id", resident.id)
+        .order("due_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (feeChargesResult.error) {
+        throw feeChargesResult.error;
+      }
+
+      setFeeCharges((feeChargesResult.data ?? []) as ResidentFeeChargeRow[]);
+
+      const paymentsResult = await supabase
+        .from("resident_payments")
+        .select("*")
+        .eq("resident_id", resident.id)
+        .order("payment_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (paymentsResult.error) {
+        throw paymentsResult.error;
+      }
+
+      setResidentPayments((paymentsResult.data ?? []) as ResidentPaymentRow[]);
+      setSelectedFeeChargeId("");
+      setPaymentAmount("");
+      setPaymentReference("");
+      setPaymentNotes("");
+      setMessage("Payment recorded.");
+    } catch (err) {
+      const paymentError = err as { message?: unknown };
+      setError(paymentError?.message ? String(paymentError.message) : "Could not record payment.");
+    } finally {
+      setSavingPayment(false);
+    }
+  }
 
   async function updateResidentSnapshotField(
     fieldName:
@@ -1082,6 +1240,7 @@ export default function ResidentProfilePage() {
               <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
                 <div className="flex flex-wrap border-b bg-white">
                   <TabButton active={activeTab === "snapshot"} label="Snapshot" status="Add or review" onClick={() => setActiveTab("snapshot")} />
+                  <TabButton active={activeTab === "fees"} label="Fees" status={`Balance $${currentBalance.toFixed(2)}`} onClick={() => setActiveTab("fees")} />
                   <TabButton active={activeTab === "notes"} label="Notes" status={`${progressNotes.length} saved`} onClick={() => setActiveTab("notes")} />
                   <TabButton active={activeTab === "ua"} label="UA/BA" status={uaBaLogs.length > 0 ? `${uaBaLogs.length} logged` : "Needs log"} onClick={() => setActiveTab("ua")} />
                   <TabButton active={activeTab === "medication"} label="Medication" status={medicationRecords.length > 0 ? "Complete" : "Needs meds"} onClick={() => setActiveTab("medication")} />
@@ -1117,6 +1276,10 @@ export default function ResidentProfilePage() {
                         <div className="flex items-center justify-between gap-4 p-3">
                           <span className="text-sm font-medium text-slate-600">RCI</span>
                           <span className="text-sm font-semibold text-slate-950">{latestCompletedRci ? rciCompletedLabel : resident.rci_status}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 p-3">
+                          <span className="text-sm font-medium text-slate-600">Current Balance</span>
+                          <span className="text-sm font-semibold text-slate-950">${currentBalance.toFixed(2)}</span>
                         </div>
                       </div>
                     </div>
@@ -1196,6 +1359,12 @@ export default function ResidentProfilePage() {
                             ))}
                           </div>
                         </div>
+
+                        <SnapshotAction
+                          title="Resident Fees"
+                          description={`Current balance: $${currentBalance.toFixed(2)}. Log payments and review charges.`}
+                          onClick={() => setActiveTab("fees")}
+                        />
 
                         <SnapshotAction
                           title="Complete UA/BA"
@@ -1851,6 +2020,158 @@ export default function ResidentProfilePage() {
 
                 <div className="mt-5 rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-800">
                   Client links now use the RCI-36 assessment. Completed results will return a summary to this resident profile.
+                </div>
+              </div>
+
+              <div className={activeTab === "fees" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
+                <h2 className="text-lg font-semibold">Resident Fees</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Charges are generated from provider program fee settings. Staff can record resident payments here.
+                </p>
+
+                <div className="mt-5 grid gap-4 md:grid-cols-3">
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Current Balance</p>
+                    <p className="mt-1 text-2xl font-semibold text-slate-950">${currentBalance.toFixed(2)}</p>
+                  </div>
+
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Open Charges</p>
+                    <p className="mt-1 text-2xl font-semibold text-slate-950">{openFeeCharges.length}</p>
+                  </div>
+
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Payments Logged</p>
+                    <p className="mt-1 text-2xl font-semibold text-slate-950">${totalPayments.toFixed(2)}</p>
+                  </div>
+                </div>
+
+                <div className="mt-6 rounded-2xl bg-slate-50 p-4">
+                  <h3 className="text-sm font-semibold text-slate-950">Record Payment</h3>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">Apply to charge</span>
+                      <select
+                        value={selectedFeeChargeId}
+                        onChange={(event) => setSelectedFeeChargeId(event.target.value)}
+                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                      >
+                        <option value="">Select open charge</option>
+                        {openFeeCharges.map((charge) => (
+                          <option key={charge.id} value={charge.id}>
+                            {charge.charge_type.replaceAll("_", " ")} • Due {formatDate(charge.due_date)} • Balance ${Number(charge.balance_due || 0).toFixed(2)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">Payment amount</span>
+                      <input
+                        type="number"
+                        value={paymentAmount}
+                        onChange={(event) => setPaymentAmount(event.target.value)}
+                        placeholder="$"
+                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">Payment method</span>
+                      <select
+                        value={paymentMethod}
+                        onChange={(event) => setPaymentMethod(event.target.value)}
+                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                      >
+                        <option value="cash">Cash</option>
+                        <option value="card">Card</option>
+                        <option value="ach">ACH</option>
+                        <option value="check">Check</option>
+                        <option value="zelle">Zelle</option>
+                        <option value="cash_app">Cash App</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">Reference number</span>
+                      <input
+                        type="text"
+                        value={paymentReference}
+                        onChange={(event) => setPaymentReference(event.target.value)}
+                        placeholder="Optional"
+                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                      />
+                    </label>
+
+                    <label className="block md:col-span-2">
+                      <span className="text-sm font-medium text-slate-700">Payment notes</span>
+                      <textarea
+                        value={paymentNotes}
+                        onChange={(event) => setPaymentNotes(event.target.value)}
+                        placeholder="Optional notes"
+                        className="mt-2 min-h-20 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                      />
+                    </label>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={saveResidentPayment}
+                    disabled={savingPayment}
+                    className="mt-4 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {savingPayment ? "Saving..." : "Record Payment"}
+                  </button>
+                </div>
+
+                <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-950">Charges</h3>
+                    <div className="mt-3 space-y-3">
+                      {feeCharges.length === 0 ? (
+                        <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">No charges found.</p>
+                      ) : (
+                        feeCharges.map((charge) => (
+                          <div key={charge.id} className="rounded-2xl bg-slate-50 p-4">
+                            <p className="text-sm font-semibold text-slate-950">
+                              {charge.charge_type.replaceAll("_", " ")} • {charge.status}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              Amount: ${Number(charge.amount || 0).toFixed(2)} • Paid: ${Number(charge.amount_paid || 0).toFixed(2)} • Balance: ${Number(charge.balance_due || 0).toFixed(2)}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              Due: {formatDate(charge.due_date)}
+                            </p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-950">Payment History</h3>
+                    <div className="mt-3 space-y-3">
+                      {residentPayments.length === 0 ? (
+                        <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">No payments logged yet.</p>
+                      ) : (
+                        residentPayments.map((payment) => (
+                          <div key={payment.id} className="rounded-2xl bg-slate-50 p-4">
+                            <p className="text-sm font-semibold text-slate-950">
+                              ${Number(payment.amount || 0).toFixed(2)} • {payment.payment_method.replaceAll("_", " ")}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              Paid: {formatDate(payment.payment_date)}
+                            </p>
+                            {payment.notes ? (
+                              <p className="mt-2 text-sm text-slate-600">{payment.notes}</p>
+                            ) : null}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 
