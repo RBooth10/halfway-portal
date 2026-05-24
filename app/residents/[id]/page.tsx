@@ -397,7 +397,7 @@ function SnapshotAction({
       type="button"
       onClick={onClick}
       title={description}
-      className="rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+      className="h-9 rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
     >
       {title}
     </button>
@@ -2161,6 +2161,15 @@ Resident Signature Collected Electronically`;
                           <span className="text-sm font-semibold text-slate-950">${currentBalance.toFixed(2)}</span>
                         </div>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowLifecycleModal(true)}
+                        className="mt-4 w-full rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50"
+                        title="Snapshot status discharge action"
+                      >
+                        {resident.resident_status === "active" ? "Discharge Resident" : "Readmit Resident"}
+                      </button>
                     </div>
 
                     <div className="rounded-2xl border bg-white p-6 shadow-sm">
@@ -2174,7 +2183,7 @@ Resident Signature Collected Electronically`;
                       </div>
 
                       <div className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-                        <div className="rounded-2xl border bg-slate-50 p-4 md:col-span-2">
+                        <div className="rounded-2xl border bg-slate-50 p-4 md:col-span-2 2xl:col-span-3">
                           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                             <div>
                               <p className="text-sm font-semibold text-slate-950">Phase Level</p>
@@ -2199,7 +2208,7 @@ Resident Signature Collected Electronically`;
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border bg-slate-50 p-4 md:col-span-2">
+                        <div className="rounded-2xl border bg-slate-50 p-4 md:col-span-2 2xl:col-span-3">
                           <p className="text-sm font-semibold text-slate-950">Program Requirements</p>
                           <p className="mt-1 text-sm text-slate-500">
                             Check items as they are confirmed for the resident.
@@ -2239,11 +2248,6 @@ Resident Signature Collected Electronically`;
                           </div>
                         </div>
 
-                        <SnapshotAction
-                          title={resident.resident_status === "active" ? "Discharge Resident" : "Readmit Resident"}
-                          description={resident.resident_status === "active" ? "Discharge resident and stop future program fees." : "Readmit resident and resume program fees."}
-                          onClick={() => setShowLifecycleModal(true)}
-                        />
 
                         <SnapshotAction
                           title="Record Payment"
