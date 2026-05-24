@@ -187,6 +187,64 @@ type ResidentFeeChargeRow = {
   created_at: string;
 };
 
+type ResidentEmergencyContactRow = {
+  id: string;
+  provider_id: string;
+  resident_id: string;
+  contact_name: string;
+  contact_role: string;
+  approved_for_roi: boolean;
+  relationship: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  is_primary: boolean;
+  emergency_contact_authorized: boolean;
+  roi_on_file: boolean;
+  roi_signed_date: string | null;
+  roi_expiration_date: string | null;
+  roi_allows_emergency_contact: boolean;
+  roi_allows_general_updates: boolean;
+  roi_allows_billing_discussion: boolean;
+  roi_allows_clinical_discussion: boolean;
+  roi_restrictions: string | null;
+  notes: string | null;
+  status: string;
+  created_at: string;
+};
+
+type ResidentRoiAuthorizationRow = {
+  id: string;
+  provider_id: string;
+  resident_id: string;
+  emergency_contact_id: string | null;
+  authorization_title: string;
+  approved_contacts_snapshot: Array<{
+    id: string;
+    contact_name: string;
+    contact_role: string;
+    relationship: string | null;
+    phone: string | null;
+    email: string | null;
+  }>;
+  allows_recovery_plans: boolean;
+  allows_status_updates: boolean;
+  allows_progress_notes: boolean;
+  allows_discharge_planning: boolean;
+  allows_financial_status: boolean;
+  effective_date: string;
+  expiration_date: string;
+  revoked_at: string | null;
+  revocation_notes: string | null;
+  signature_text: string;
+  signed_by_name: string;
+  signed_at: string;
+  signature_method: string;
+  authorization_text: string;
+  status: string;
+  created_at: string;
+};
+
 type ResidentPaymentRow = {
   id: string;
   provider_id: string;
@@ -362,6 +420,33 @@ export default function ResidentProfilePage() {
   const [recoveryGoals, setRecoveryGoals] = useState<RecoveryGoalRow[]>([]);
   const [feeCharges, setFeeCharges] = useState<ResidentFeeChargeRow[]>([]);
   const [residentPayments, setResidentPayments] = useState<ResidentPaymentRow[]>([]);
+  const [emergencyContacts, setEmergencyContacts] = useState<ResidentEmergencyContactRow[]>([]);
+  const [roiAuthorizations, setRoiAuthorizations] = useState<ResidentRoiAuthorizationRow[]>([]);
+  const [showRoiSignatureModal, setShowRoiSignatureModal] = useState(false);
+  const [roiSignatureName, setRoiSignatureName] = useState("");
+  const [roiSignatureAgreement, setRoiSignatureAgreement] = useState(false);
+  const [savingRoiAuthorization, setSavingRoiAuthorization] = useState(false);
+  const [selectedRoiAuthorization, setSelectedRoiAuthorization] = useState<ResidentRoiAuthorizationRow | null>(null);
+  const [selectedRoiContact, setSelectedRoiContact] = useState<ResidentEmergencyContactRow | null>(null);
+  const [contactName, setContactName] = useState("");
+  const [contactRole, setContactRole] = useState("Emergency Contact");
+  const [contactRelationship, setContactRelationship] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactAddress, setContactAddress] = useState("");
+  const [contactIsPrimary, setContactIsPrimary] = useState(false);
+  const [emergencyContactAuthorized, setEmergencyContactAuthorized] = useState(true);
+  const [roiOnFile, setRoiOnFile] = useState(false);
+  const [roiSignedDate, setRoiSignedDate] = useState("");
+  const [roiExpirationDate, setRoiExpirationDate] = useState("");
+  const [roiAllowsEmergencyContact, setRoiAllowsEmergencyContact] = useState(true);
+  const [roiAllowsGeneralUpdates, setRoiAllowsGeneralUpdates] = useState(false);
+  const [roiAllowsBillingDiscussion, setRoiAllowsBillingDiscussion] = useState(false);
+  const [roiAllowsClinicalDiscussion, setRoiAllowsClinicalDiscussion] = useState(false);
+  const [roiRestrictions, setRoiRestrictions] = useState("");
+  const [contactNotes, setContactNotes] = useState("");
+  const [contactStatus, setContactStatus] = useState("active");
+  const [savingEmergencyContact, setSavingEmergencyContact] = useState(false);
   const [selectedFeeChargeId, setSelectedFeeChargeId] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
@@ -596,6 +681,31 @@ export default function ResidentProfilePage() {
       }
 
       setResidentPayments((paymentsResult.data ?? []) as ResidentPaymentRow[]);
+
+      const emergencyContactsResult = await supabase
+        .from("resident_emergency_contacts")
+        .select("*")
+        .eq("resident_id", residentData.id)
+        .order("is_primary", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (emergencyContactsResult.error) {
+        throw emergencyContactsResult.error;
+      }
+
+      setEmergencyContacts((emergencyContactsResult.data ?? []) as ResidentEmergencyContactRow[]);
+
+      const roiAuthorizationsResult = await supabase
+        .from("resident_roi_authorizations")
+        .select("*")
+        .eq("resident_id", residentData.id)
+        .order("signed_at", { ascending: false });
+
+      if (roiAuthorizationsResult.error) {
+        throw roiAuthorizationsResult.error;
+      }
+
+      setRoiAuthorizations((roiAuthorizationsResult.data ?? []) as ResidentRoiAuthorizationRow[]);
     } catch (err) {
       const profileError = err as { message?: unknown };
       setError(profileError?.message ? String(profileError.message) : "Could not load resident profile.");
@@ -1014,6 +1124,387 @@ export default function ResidentProfilePage() {
     ? daysSince(latestCompletedRci.client_completed_at || latestCompletedRci.assessment_date)
     : "Not completed";
 
+  function getSignedRoiForContact(contactId: string) {
+    return roiAuthorizations.find((authorization) =>
+      authorization.status === "active" &&
+      !authorization.revoked_at &&
+      (
+        authorization.emergency_contact_id === contactId ||
+        authorization.approved_contacts_snapshot.some((contact) => contact.id === contactId)
+      )
+    ) ?? null;
+  }
+
+  function getRevokedRoiForContact(contactId: string) {
+    return roiAuthorizations.find((authorization) =>
+      authorization.status === "revoked" &&
+      (
+        authorization.emergency_contact_id === contactId ||
+        authorization.approved_contacts_snapshot.some((contact) => contact.id === contactId)
+      )
+    ) ?? null;
+  }
+
+  function contactHasSignedRoi(contactId: string) {
+    return Boolean(getSignedRoiForContact(contactId));
+  }
+
+  function buildRoiAuthorizationText(approvedContacts: ResidentEmergencyContactRow[]) {
+    const contactLines = approvedContacts
+      .map((contact) => `${contact.contact_name} — ${contact.contact_role}${contact.relationship ? ` (${contact.relationship})` : ""}`)
+      .join("\n");
+
+    return `Consent for Release of Information
+
+I, the undersigned resident, hereby authorize staff to disclose information to the individuals listed in my Approved Contacts List. This consent includes communication with my designated:
+• Emergency Contact (required for residency)
+• Referral Source
+• Probation Officer or Court Rep.
+• Chosen Sponsor
+• Prescribing Healthcare Provider
+
+Approved Contacts List:
+${contactLines || "No approved contacts listed."}
+
+Scope of Disclosure
+I authorize the disclosure of the following information to my approved contacts, as applicable to their role in supporting my recovery:
+☒ Recovery Plans
+☒ Status Updates or Progress Reports
+☒ Progress Notes
+☒ Discharge Planning and Summaries
+☒ Financial Status
+
+Information will only be shared with those listed in my approved contacts, as necessary for coordination of care, safety, legal compliance, or recovery support.
+
+Duration of Authorization
+This authorization is valid for twelve (12) months from the date of signature unless revoked earlier in writing.
+
+Revocation of Consent
+I understand I may revoke this consent at any time by submitting a signed, written request. Revocation will not apply to information already disclosed prior to the date of revocation.
+
+Emergency Contact: Maintaining one Emergency Contact is mandatory. Revocation of all contacts, including the emergency contact, may result in discharge.
+
+Other Contacts: I may revoke individual contacts by submitting a signed request, after which that individual will be removed from the Approved Contacts List.
+
+Confidentiality Protections
+All shared information is protected under:
+• 42 CFR Part 2 (Confidentiality of Substance Use Disorder Patient Records)
+• HIPAA (45 C.F.R. Parts 160 & 164)
+
+Disclosure without written consent may occur only as permitted or required by law, including:
+• In a medical emergency, to medical personnel to address an immediate threat to health or safety
+• In response to a valid court order meeting the requirements of 42 CFR §2.61–2.67
+• For audits or evaluations conducted by authorized oversight agencies
+• When mandatory reporting laws apply, including suspected child abuse or threats of harm to self or others
+• As required under state public health or criminal statutes
+• Re-disclosure of information is strictly prohibited without further written consent, except as specifically authorized by 42 CFR Part 2 and applicable law.
+
+Resident Acknowledgment
+By signing below, I confirm that I have read and understand this Release of Information. I consent voluntarily and acknowledge that this ROI is consistent with the program Confidentiality Policy.
+
+Resident Signature Collected Electronically`;
+  }
+
+  async function saveRoiAuthorization() {
+    if (!resident) {
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    if (!selectedRoiContact) {
+      setError("Select or save the contact before signing the ROI.");
+      return;
+    }
+
+    const approvedContacts = [selectedRoiContact];
+
+    if (!roiSignatureAgreement) {
+      setError("The resident must confirm they reviewed and agree to the ROI.");
+      return;
+    }
+
+    if (roiSignatureName.trim().length < 2) {
+      setError("Resident electronic signature is required.");
+      return;
+    }
+
+    setSavingRoiAuthorization(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const supabase = getSupabaseClient();
+      const today = new Date().toISOString().slice(0, 10);
+      const expirationDate = new Date();
+      expirationDate.setFullYear(expirationDate.getFullYear() + 1);
+
+      const approvedContactsSnapshot = approvedContacts.map((contact) => ({
+        id: contact.id,
+        contact_name: contact.contact_name,
+        contact_role: contact.contact_role,
+        relationship: contact.relationship,
+        phone: contact.phone,
+        email: contact.email,
+      }));
+
+      const authorizationText = buildRoiAuthorizationText(approvedContacts);
+
+      const { data, error } = await supabase
+        .from("resident_roi_authorizations")
+        .insert({
+          provider_id: resident.provider_id,
+          resident_id: resident.id,
+          emergency_contact_id: selectedRoiContact.id,
+          approved_contacts_snapshot: approvedContactsSnapshot,
+          allows_recovery_plans: true,
+          allows_status_updates: true,
+          allows_progress_notes: true,
+          allows_discharge_planning: true,
+          allows_financial_status: true,
+          effective_date: today,
+          expiration_date: expirationDate.toISOString().slice(0, 10),
+          signature_text: roiSignatureName.trim(),
+          signed_by_name: roiSignatureName.trim(),
+          signature_method: "electronic_typed_signature",
+          authorization_text: authorizationText,
+          status: "active",
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setRoiAuthorizations((current) => [data as ResidentRoiAuthorizationRow, ...current]);
+      setRoiSignatureName("");
+      setRoiSignatureAgreement(false);
+      setSelectedRoiContact(null);
+      setShowRoiSignatureModal(false);
+      setMessage("ROI authorization signed and saved for this contact.");
+    } catch (err) {
+      const roiError = err as { message?: unknown };
+      setError(roiError?.message ? String(roiError.message) : "Could not save ROI authorization.");
+    } finally {
+      setSavingRoiAuthorization(false);
+    }
+  }
+
+  async function saveContactAndOpenRoi() {
+    if (!resident) {
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    if (!contactName.trim()) {
+      setError("Enter the contact name before signing the ROI.");
+      return;
+    }
+
+    setSavingEmergencyContact(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const supabase = getSupabaseClient();
+
+      if (contactIsPrimary) {
+        const primaryUpdateResult = await supabase
+          .from("resident_emergency_contacts")
+          .update({ is_primary: false })
+          .eq("resident_id", resident.id);
+
+        if (primaryUpdateResult.error) {
+          throw primaryUpdateResult.error;
+        }
+      }
+
+      const { data, error } = await supabase
+        .from("resident_emergency_contacts")
+        .insert({
+          provider_id: resident.provider_id,
+          resident_id: resident.id,
+          contact_name: contactName.trim(),
+          contact_role: contactRole,
+          approved_for_roi: true,
+          relationship: contactRelationship.trim() || null,
+          phone: contactPhone.trim() || null,
+          email: contactEmail.trim() || null,
+          address: contactAddress.trim() || null,
+          is_primary: contactIsPrimary,
+          emergency_contact_authorized: emergencyContactAuthorized,
+          status: contactStatus,
+          notes: contactNotes.trim() || null,
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      const newContact = data as ResidentEmergencyContactRow;
+
+      setEmergencyContacts((current) => {
+        const cleaned = contactIsPrimary
+          ? current.map((contact) => ({ ...contact, is_primary: false }))
+          : current;
+
+        return [newContact, ...cleaned];
+      });
+
+      setSelectedRoiContact(newContact);
+      setRoiSignatureName("");
+      setRoiSignatureAgreement(false);
+      setShowRoiSignatureModal(true);
+      setMessage("Contact saved. Complete the ROI signature for this contact.");
+    } catch (err) {
+      const contactError = err as { message?: unknown };
+      setError(contactError?.message ? String(contactError.message) : "Could not save contact before ROI signature.");
+    } finally {
+      setSavingEmergencyContact(false);
+    }
+  }
+
+  async function revokeRoiAuthorization(authorization: ResidentRoiAuthorizationRow) {
+    const reason = window.prompt("Enter the reason this ROI is being revoked.");
+
+    if (!reason || !reason.trim()) {
+      setError("Revocation reason is required.");
+      return;
+    }
+
+    setError("");
+    setMessage("");
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase
+        .from("resident_roi_authorizations")
+        .update({
+          status: "revoked",
+          revoked_at: new Date().toISOString(),
+          revocation_notes: reason.trim(),
+        })
+        .eq("id", authorization.id)
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setRoiAuthorizations((current) =>
+        current.map((item) =>
+          item.id === authorization.id ? (data as ResidentRoiAuthorizationRow) : item
+        )
+      );
+
+      setMessage("ROI authorization revoked.");
+    } catch (err) {
+      const revokeError = err as { message?: unknown };
+      setError(revokeError?.message ? String(revokeError.message) : "Could not revoke ROI authorization.");
+    }
+  }
+
+  async function saveEmergencyContact() {
+    if (!resident) {
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    if (!contactName.trim()) {
+      setError("Emergency contact name is required.");
+      return;
+    }
+
+    setSavingEmergencyContact(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const supabase = getSupabaseClient();
+
+      if (contactIsPrimary) {
+        const primaryUpdateResult = await supabase
+          .from("resident_emergency_contacts")
+          .update({ is_primary: false })
+          .eq("resident_id", resident.id);
+
+        if (primaryUpdateResult.error) {
+          throw primaryUpdateResult.error;
+        }
+      }
+
+      const { data, error } = await supabase
+        .from("resident_emergency_contacts")
+        .insert({
+          provider_id: resident.provider_id,
+          resident_id: resident.id,
+          contact_name: contactName.trim(),
+          contact_role: contactRole,
+          approved_for_roi: true,
+          relationship: contactRelationship.trim() || null,
+          phone: contactPhone.trim() || null,
+          email: contactEmail.trim() || null,
+          address: contactAddress.trim() || null,
+          is_primary: contactIsPrimary,
+          emergency_contact_authorized: emergencyContactAuthorized,
+          roi_on_file: roiOnFile,
+          roi_signed_date: roiSignedDate || null,
+          roi_expiration_date: roiExpirationDate || null,
+          roi_allows_emergency_contact: roiAllowsEmergencyContact,
+          roi_allows_general_updates: roiAllowsGeneralUpdates,
+          roi_allows_billing_discussion: roiAllowsBillingDiscussion,
+          roi_allows_clinical_discussion: roiAllowsClinicalDiscussion,
+          roi_restrictions: roiRestrictions.trim() || null,
+          notes: contactNotes.trim() || null,
+          status: contactStatus,
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setEmergencyContacts((current) => {
+        const cleaned = contactIsPrimary
+          ? current.map((contact) => ({ ...contact, is_primary: false }))
+          : current;
+
+        return [data as ResidentEmergencyContactRow, ...cleaned];
+      });
+
+      setContactName("");
+      setContactRole("Emergency Contact");
+      setContactRelationship("");
+      setContactPhone("");
+      setContactEmail("");
+      setContactAddress("");
+      setContactIsPrimary(false);
+      setEmergencyContactAuthorized(true);
+      setRoiOnFile(false);
+      setRoiSignedDate("");
+      setRoiExpirationDate("");
+      setRoiAllowsEmergencyContact(true);
+      setRoiAllowsGeneralUpdates(false);
+      setRoiAllowsBillingDiscussion(false);
+      setRoiAllowsClinicalDiscussion(false);
+      setRoiRestrictions("");
+      setContactNotes("");
+      setContactStatus("active");
+
+      setMessage("Emergency contact and ROI information saved.");
+    } catch (err) {
+      const contactError = err as { message?: unknown };
+      setError(contactError?.message ? String(contactError.message) : "Could not save emergency contact.");
+    } finally {
+      setSavingEmergencyContact(false);
+    }
+  }
+
   async function saveResidentPayment() {
     if (!resident) {
       setError("Resident profile is not loaded yet.");
@@ -1385,13 +1876,234 @@ export default function ResidentProfilePage() {
             <div className="space-y-6">
               {/* Resident Profile Tabs */}
               <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-                <div className="flex flex-wrap border-b bg-white">
+                <div className={activeTab === "contacts" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
+                <h2 className="text-lg font-semibold">ROI & Emergency Contacts</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Manage the approved contacts list and collect the resident&apos;s signed Release of Information.
+                </p>
+
+                <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+                  <h3 className="text-sm font-semibold text-slate-950">Add Approved Contact</h3>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">Contact name</span>
+                      <input
+                        type="text"
+                        value={contactName}
+                        onChange={(event) => setContactName(event.target.value)}
+                        placeholder="Full name"
+                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">Contact role</span>
+                      <select
+                        value={contactRole}
+                        onChange={(event) => setContactRole(event.target.value)}
+                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                      >
+                        <option>Emergency Contact</option>
+                        <option>Referral Source</option>
+                        <option>Probation Officer / Court Rep.</option>
+                        <option>Chosen Sponsor</option>
+                        <option>Prescribing Healthcare Provider</option>
+                        <option>Other Approved Contact</option>
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">Relationship</span>
+                      <input
+                        type="text"
+                        value={contactRelationship}
+                        onChange={(event) => setContactRelationship(event.target.value)}
+                        placeholder="Mother, father, spouse, friend, sponsor, etc."
+                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">Phone</span>
+                      <input
+                        type="tel"
+                        value={contactPhone}
+                        onChange={(event) => setContactPhone(event.target.value)}
+                        placeholder="Phone number"
+                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">Email</span>
+                      <input
+                        type="email"
+                        value={contactEmail}
+                        onChange={(event) => setContactEmail(event.target.value)}
+                        placeholder="Email address"
+                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">Contact status</span>
+                      <select
+                        value={contactStatus}
+                        onChange={(event) => setContactStatus(event.target.value)}
+                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                      </select>
+                    </label>
+
+                    <label className="block md:col-span-2">
+                      <span className="text-sm font-medium text-slate-700">Address</span>
+                      <input
+                        type="text"
+                        value={contactAddress}
+                        onChange={(event) => setContactAddress(event.target.value)}
+                        placeholder="Mailing address"
+                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                      />
+                    </label>
+
+                    <label className="flex items-center gap-3 rounded-xl border bg-white p-4">
+                      <input
+                        type="checkbox"
+                        checked={contactIsPrimary}
+                        onChange={(event) => setContactIsPrimary(event.target.checked)}
+                        className="h-4 w-4"
+                      />
+                      <span className="text-sm font-medium text-slate-700">Primary emergency contact</span>
+                    </label>
+
+                    <label className="block md:col-span-2">
+                      <span className="text-sm font-medium text-slate-700">Notes</span>
+                      <textarea
+                        value={contactNotes}
+                        onChange={(event) => setContactNotes(event.target.value)}
+                        placeholder="Optional contact notes"
+                        className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={saveContactAndOpenRoi}
+                      disabled={savingEmergencyContact}
+                      className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Sign ROI for This Contact
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={saveEmergencyContact}
+                      disabled={savingEmergencyContact}
+                      className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {savingEmergencyContact ? "Saving..." : "Save Contact"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-950">Approved Contacts List</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Each contact has its own ROI. Sign or view the ROI from the contact card.
+                    </p>
+                  </div>
+
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {emergencyContacts.length === 0 ? (
+                    <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                      No emergency contacts or approved contacts saved yet.
+                    </p>
+                  ) : (
+                    emergencyContacts.map((contact) => (
+                      <div key={contact.id} className="rounded-2xl bg-slate-50 p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-950">
+                              {contact.contact_name}
+                              {contact.is_primary ? " • Primary" : ""}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              {[contact.contact_role, contact.relationship, contact.phone, contact.email].filter(Boolean).join(" • ") || "No contact details listed"}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                              {contactHasSignedRoi(contact.id)
+                                ? "Signed ROI on file"
+                                : getRevokedRoiForContact(contact.id)
+                                  ? "ROI revoked"
+                                  : "ROI not signed"}
+                            </span>
+
+                            {getSignedRoiForContact(contact.id) ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedRoiAuthorization(getSignedRoiForContact(contact.id))}
+                                  className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                                >
+                                  View Signed ROI
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const authorization = getSignedRoiForContact(contact.id);
+                                    if (authorization) void revokeRoiAuthorization(authorization);
+                                  }}
+                                  className="rounded-full bg-white px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50"
+                                >
+                                  Revoke ROI
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedRoiContact(contact);
+                                  setRoiSignatureName("");
+                                  setRoiSignatureAgreement(false);
+                                  setShowRoiSignatureModal(true);
+                                }}
+                                className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                              >
+                                Sign ROI
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {contact.notes ? (
+                          <p className="mt-2 text-sm text-slate-600">Notes: {contact.notes}</p>
+                        ) : null}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+              </div>
+
+              <div className="flex flex-wrap border-b bg-white">
                   <TabButton active={activeTab === "snapshot"} label="Snapshot" status="Add or review" onClick={() => setActiveTab("snapshot")} />
                   <TabButton active={activeTab === "fees"} label="Fees" status={`Balance $${currentBalance.toFixed(2)}`} onClick={() => setActiveTab("fees")} />
                   <TabButton active={activeTab === "notes"} label="Notes" status={`${progressNotes.length} saved`} onClick={() => setActiveTab("notes")} />
                   <TabButton active={activeTab === "ua"} label="UA/BA" status={uaBaLogs.length > 0 ? `${uaBaLogs.length} logged` : "Needs log"} onClick={() => setActiveTab("ua")} />
                   <TabButton active={activeTab === "medication"} label="Medication" status={medicationRecords.length > 0 ? "Complete" : "Needs meds"} onClick={() => setActiveTab("medication")} />
                   <TabButton active={activeTab === "rci"} label="RCI & Plan" status={latestCompletedRci ? `Complete • ${rciCompletedLabel}` : "Needs RCI"} onClick={() => setActiveTab("rci")} />
+                  <TabButton active={activeTab === "contacts"} label="ROI & Contacts" status={`${emergencyContacts.length} saved`} onClick={() => setActiveTab("contacts")} />
                   <TabButton active={activeTab === "documents"} label="Documents" status={`${documents.length} uploaded`} onClick={() => setActiveTab("documents")} />
                 </div>
               </div>
@@ -2664,6 +3376,163 @@ export default function ResidentProfilePage() {
           </section>
         </>
       ) : null}
+      {showRoiSignatureModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b pb-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">Consent for Release of Information</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Resident electronic signature applies only to the selected contact.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowRoiSignatureModal(false)}
+                className="rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4 text-sm leading-6 text-slate-700">
+              <p>
+                I, the undersigned resident, hereby authorize staff to disclose information to the selected approved contact listed below. This consent applies only to this contact and their designated role.
+              </p>
+
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <h3 className="text-sm font-semibold text-slate-950">Approved Contacts List</h3>
+                <div className="mt-3 space-y-2">
+                  {selectedRoiContact ? (
+                    <p>
+                      {selectedRoiContact.contact_name} — {selectedRoiContact.contact_role}
+                      {selectedRoiContact.relationship ? ` (${selectedRoiContact.relationship})` : ""}
+                    </p>
+                  ) : (
+                    <p>No contact selected.</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-slate-950">Scope of Disclosure</h3>
+                <p>I authorize the disclosure of the following information to my approved contacts, as applicable to their role in supporting my recovery:</p>
+                <ul className="mt-2 list-inside list-disc">
+                  <li>Recovery Plans</li>
+                  <li>Status Updates or Progress Reports</li>
+                  <li>Progress Notes</li>
+                  <li>Discharge Planning and Summaries</li>
+                  <li>Financial Status</li>
+                </ul>
+              </div>
+
+              <p>
+                Information will only be shared with those listed in my approved contacts, as necessary for coordination of care, safety, legal compliance, or recovery support.
+              </p>
+
+              <div>
+                <h3 className="font-semibold text-slate-950">Duration of Authorization</h3>
+                <p>This authorization is valid for twelve (12) months from the date of signature unless revoked earlier in writing.</p>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-slate-950">Revocation of Consent</h3>
+                <p>I understand I may revoke this consent at any time by submitting a signed, written request. Revocation will not apply to information already disclosed prior to the date of revocation.</p>
+                <p className="mt-2">Maintaining one Emergency Contact is mandatory. Revocation of all contacts, including the emergency contact, may result in discharge. Other contacts may be revoked individually by signed request.</p>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-slate-950">Confidentiality Protections</h3>
+                <p>All shared information is protected under 42 CFR Part 2 and HIPAA. Disclosure without written consent may occur only as permitted or required by law, including medical emergency, valid court order, audits/evaluations, mandatory reporting, public health or criminal statutes, or other legally required disclosures. Re-disclosure is prohibited without further written consent except as specifically authorized by law.</p>
+              </div>
+
+              <label className="flex items-center gap-3 rounded-xl border bg-white p-4">
+                <input
+                  type="checkbox"
+                  checked={roiSignatureAgreement}
+                  onChange={(event) => setRoiSignatureAgreement(event.target.checked)}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700">
+                  Resident confirms they have read, understand, and voluntarily consent to this Release of Information.
+                </span>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Resident electronic signature</span>
+                <input
+                  type="text"
+                  value={roiSignatureName}
+                  onChange={(event) => setRoiSignatureName(event.target.value)}
+                  placeholder="Type resident full legal name"
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={saveRoiAuthorization}
+                disabled={savingRoiAuthorization}
+                className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savingRoiAuthorization ? "Saving..." : "Sign and Save ROI"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {selectedRoiAuthorization ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b pb-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">
+                  Signed ROI Authorization
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Signed by {selectedRoiAuthorization.signed_by_name} on {formatDate(selectedRoiAuthorization.signed_at)}. Expires {formatDate(selectedRoiAuthorization.expiration_date)}.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedRoiAuthorization(null)}
+                className="rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+              <h3 className="text-sm font-semibold text-slate-950">Contact Included</h3>
+              <div className="mt-3 space-y-2 text-sm text-slate-600">
+                {selectedRoiAuthorization.approved_contacts_snapshot.map((contact) => (
+                  <p key={contact.id}>
+                    {contact.contact_name} — {contact.contact_role}
+                    {contact.relationship ? ` (${contact.relationship})` : ""}
+                  </p>
+                ))}
+              </div>
+            </div>
+
+            <pre className="mt-5 whitespace-pre-wrap rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+              {selectedRoiAuthorization.authorization_text}
+            </pre>
+
+            <div className="mt-5 rounded-2xl border bg-white p-4">
+              <p className="text-sm font-semibold text-slate-950">
+                Electronic Signature
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                {selectedRoiAuthorization.signature_text}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
     </PageShell>
   );
 }
