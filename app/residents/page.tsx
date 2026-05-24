@@ -75,17 +75,6 @@ const initialForm: ResidentForm = {
   notes: "",
 };
 
-const onboardingItems = [
-  "Resident demographic information",
-  "Admission date and assigned house",
-  "Emergency contact",
-  "Resident handbook acknowledgment",
-  "Fee agreement",
-  "Release of information",
-  "Medication / MAT-MAR disclosure",
-  "Recovery plan",
-  "RCI assessment",
-];
 
 function MetricCard({
   title,
@@ -158,6 +147,7 @@ export default function ResidentsPage() {
   const [providerId, setProviderId] = useState<string | null>(null);
   const [providerName, setProviderName] = useState("Current Provider");
   const [editingResidentId, setEditingResidentId] = useState<string | null>(null);
+  const [showResidentForm, setShowResidentForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -256,6 +246,7 @@ export default function ResidentsPage() {
     const residentName = `${resident.first_name} ${resident.last_name}`;
 
     setEditingResidentId(resident.id);
+    setShowResidentForm(true);
     setForm({
       first_name: resident.first_name ?? "",
       last_name: resident.last_name ?? "",
@@ -409,6 +400,7 @@ export default function ResidentsPage() {
       }
 
       setResidents((current) => [data as ResidentRow, ...current]);
+      setShowResidentForm(false);
       setForm(initialForm);
       setMessage(`${data.first_name} ${data.last_name} was saved successfully.`);
     } catch (err) {
@@ -471,10 +463,20 @@ export default function ResidentsPage() {
             </div>
           </div>
 
-          <button className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
-            <Plus className="h-4 w-4" />
-            Add Resident
-          </button>
+          {residents.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingResidentId(null);
+                setForm(initialForm);
+                setShowResidentForm((current) => !current);
+              }}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            >
+              <Plus className="h-4 w-4" />
+              {showResidentForm && !editingResidentId ? "Hide Add Resident" : "Add Resident"}
+            </button>
+          ) : null}
         </div>
       </section>
 
@@ -500,204 +502,228 @@ export default function ResidentsPage() {
         <MetricCard title="Recovery Support" value="Pending" subtitle="RCI, plan, and supports" icon={HeartHandshake} />
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[1fr_390px]">
-        <form className="rounded-2xl border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">{editingResidentId ? "Edit Resident" : "Add Resident"}</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {editingResidentId
-              ? "Update the selected resident profile."
-              : "This creates the resident profile and starts the onboarding checklist."}
-          </p>
+      <section className="space-y-6">
+        <div className="rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Saved Residents</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Existing residents are the primary workspace. Add a new resident only when needed.
+              </p>
+            </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <Field label="First name" placeholder="First name" icon={Users} value={form.first_name} onChange={(value) => updateField("first_name", value)} required />
-            <Field label="Last name" placeholder="Last name" icon={Users} value={form.last_name} onChange={(value) => updateField("last_name", value)} required />
-            <Field label="Email" placeholder="resident@example.com" icon={Mail} type="email" value={form.email} onChange={(value) => updateField("email", value)} />
-            <Field label="Phone" placeholder="(555) 000-0000" icon={Phone} value={form.phone} onChange={(value) => updateField("phone", value)} />
-            <Field label="Date of birth" placeholder="MM/DD/YYYY" icon={CalendarDays} type="date" value={form.date_of_birth} onChange={(value) => updateField("date_of_birth", value)} />
-            <Field label="Admission date" placeholder="MM/DD/YYYY" icon={CalendarDays} type="date" value={form.admission_date} onChange={(value) => updateField("admission_date", value)} />
-
-            <label className="block">
-              <span className="text-sm font-medium text-slate-700">Assigned house</span>
-              <select
-                value={form.house_id}
-                onChange={(event) => updateField("house_id", event.target.value)}
-                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+            {residents.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingResidentId(null);
+                  setForm(initialForm);
+                  setShowResidentForm((current) => !current);
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
               >
-                <option value="">No house assigned yet</option>
-                {houses.map((house) => (
-                  <option key={house.id} value={house.id}>
-                    {house.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="text-sm font-medium text-slate-700">Resident status</span>
-              <select
-                value={form.resident_status}
-                onChange={(event) => updateField("resident_status", event.target.value)}
-                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-              >
-                <option value="pending_admission">Pending admission</option>
-                <option value="active">Active</option>
-                <option value="discharged">Discharged</option>
-                <option value="archived">Archived</option>
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="text-sm font-medium text-slate-700">Medication / MAT-MAR disclosure</span>
-              <select
-                value={form.medication_status}
-                onChange={(event) => updateField("medication_status", event.target.value)}
-                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-              >
-                <option value="not_completed">Not completed yet</option>
-                <option value="no_medications_disclosed">No medications disclosed</option>
-                <option value="medication_disclosed">Medication disclosed</option>
-                <option value="mat_mar_disclosed">MAT/MAR disclosed</option>
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="text-sm font-medium text-slate-700">Initial file status</span>
-              <select
-                value={form.file_status}
-                onChange={(event) => updateField("file_status", event.target.value)}
-                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-              >
-                <option value="needs_onboarding_packet">Needs onboarding packet</option>
-                <option value="packet_sent">Packet sent</option>
-                <option value="partially_complete">Partially complete</option>
-                <option value="complete">Complete</option>
-              </select>
-            </label>
-
-            <label className="block md:col-span-2">
-              <span className="text-sm font-medium text-slate-700">Admission notes</span>
-              <textarea
-                value={form.notes}
-                onChange={(event) => updateField("notes", event.target.value)}
-                placeholder="Brief notes about admission, referral source, or immediate needs."
-                className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-              />
-            </label>
+                <Plus className="h-4 w-4" />
+                {showResidentForm && !editingResidentId ? "Hide Add Resident" : "Add Resident"}
+              </button>
+            ) : null}
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={saveResident}
-              disabled={saving || loading}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {saving ? "Saving..." : editingResidentId ? "Save Changes" : "Save Resident"}
-            </button>
+          {loading ? (
+            <p className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Loading residents...</p>
+          ) : residents.length === 0 ? (
+            <div className="mt-5 rounded-2xl bg-slate-50 p-5">
+              <p className="text-sm font-semibold text-slate-950">No residents saved yet.</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Add the first resident to begin tracking files, RCI, medication, phases, notes, and support needs.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {residents.map((resident) => {
+                const residentName = `${resident.first_name} ${resident.last_name}`;
+                const assignedHouse = houses.find((house) => house.id === resident.house_id);
 
-            <button
-              type="button"
-              onClick={() => {
-                setForm(initialForm);
-                setEditingResidentId(null);
-                setMessage("");
-                setError("");
-              }}
-              className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
-            >
-              {editingResidentId ? "Cancel Edit" : "Clear Form"}
-            </button>
+                return (
+                  <div key={resident.id} className="rounded-2xl bg-slate-50 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-slate-950">{residentName}</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          House: {assignedHouse?.name || "Not assigned"}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Status: {resident.resident_status}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Medication: {resident.medication_status}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          RCI: {resident.rci_status}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Admission: {resident.admission_date || "Not set"}
+                        </p>
+                      </div>
 
-            <Link
-              href="/documents"
-              className="inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
-            >
-              Continue to Documents
-            </Link>
-          </div>
-        </form>
+                      <div className="flex flex-col gap-2">
+                        <Link
+                          href={`/residents/${resident.id}`}
+                          className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                          View Profile
+                        </Link>
 
-        <aside className="space-y-4">
-          <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">Saved Residents</h2>
-            {loading ? (
-              <p className="mt-3 text-sm text-slate-500">Loading residents...</p>
-            ) : residents.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">No residents saved yet.</p>
-            ) : (
-              <div className="mt-4 space-y-3">
-                {residents.map((resident) => {
-                  const residentName = `${resident.first_name} ${resident.last_name}`;
+                        <button
+                          type="button"
+                          onClick={() => startEditingResident(resident)}
+                          className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </button>
 
-                  return (
-                    <div key={resident.id} className="rounded-2xl bg-slate-50 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-medium text-slate-950">
-                            {residentName}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-500">
-                            {resident.resident_status} • {resident.file_status}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-500">
-                            Medication: {resident.medication_status}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-500">
-                            RCI: {resident.rci_status}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-500">
-                            Admission: {resident.admission_date || "Not set"}
-                          </p>
-                        </div>
-
-                        <div className="flex flex-col gap-2">
-                          <Link
-                            href={`/residents/${resident.id}`}
-                            className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                          >
-                            View Profile
-                          </Link>
-
-                          <button
-                            type="button"
-                            onClick={() => startEditingResident(resident)}
-                            className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                            Edit
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => archiveResident(resident.id, residentName)}
-                            disabled={resident.resident_status === "archived"}
-                            className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <Archive className="h-3.5 w-3.5" />
-                            {resident.resident_status === "archived" ? "Archived" : "Archive"}
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => archiveResident(resident.id, residentName)}
+                          disabled={resident.resident_status === "archived"}
+                          className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Archive className="h-3.5 w-3.5" />
+                          {resident.resident_status === "archived" ? "Archived" : "Archive"}
+                        </button>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">Onboarding Checklist</h2>
-            <div className="mt-4 space-y-3">
-              {onboardingItems.map((item) => (
-                <div key={item} className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-                  {item}
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
-          </div>
-        </aside>
+          )}
+        </div>
+
+        {residents.length === 0 || showResidentForm || editingResidentId ? (
+          <form className="rounded-2xl border bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold">{editingResidentId ? "Edit Resident" : "Add Resident"}</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {editingResidentId
+                ? "Update the selected resident profile."
+                : residents.length === 0
+                  ? "Add the first resident for this provider."
+                  : "Add another resident under this provider."}
+            </p>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <Field label="First name" placeholder="First name" icon={Users} value={form.first_name} onChange={(value) => updateField("first_name", value)} required />
+              <Field label="Last name" placeholder="Last name" icon={Users} value={form.last_name} onChange={(value) => updateField("last_name", value)} required />
+              <Field label="Email" placeholder="resident@example.com" icon={Mail} type="email" value={form.email} onChange={(value) => updateField("email", value)} />
+              <Field label="Phone" placeholder="(555) 000-0000" icon={Phone} value={form.phone} onChange={(value) => updateField("phone", value)} />
+              <Field label="Date of birth" placeholder="MM/DD/YYYY" icon={CalendarDays} type="date" value={form.date_of_birth} onChange={(value) => updateField("date_of_birth", value)} />
+              <Field label="Admission date" placeholder="MM/DD/YYYY" icon={CalendarDays} type="date" value={form.admission_date} onChange={(value) => updateField("admission_date", value)} />
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Assigned house</span>
+                <select
+                  value={form.house_id}
+                  onChange={(event) => updateField("house_id", event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="">No house assigned yet</option>
+                  {houses.map((house) => (
+                    <option key={house.id} value={house.id}>
+                      {house.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Resident status</span>
+                <select
+                  value={form.resident_status}
+                  onChange={(event) => updateField("resident_status", event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="pending_admission">Pending admission</option>
+                  <option value="active">Active</option>
+                  <option value="discharged">Discharged</option>
+                  <option value="archived">Archived</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Medication / MAT-MAR disclosure</span>
+                <select
+                  value={form.medication_status}
+                  onChange={(event) => updateField("medication_status", event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="not_completed">Not completed yet</option>
+                  <option value="no_medications_disclosed">No medications disclosed</option>
+                  <option value="medication_disclosed">Medication disclosed</option>
+                  <option value="mat_mar_disclosed">MAT/MAR disclosed</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Initial file status</span>
+                <select
+                  value={form.file_status}
+                  onChange={(event) => updateField("file_status", event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="needs_onboarding_packet">Needs onboarding packet</option>
+                  <option value="packet_sent">Packet sent</option>
+                  <option value="partially_complete">Partially complete</option>
+                  <option value="complete">Complete</option>
+                </select>
+              </label>
+
+              <label className="block md:col-span-2 xl:col-span-3">
+                <span className="text-sm font-medium text-slate-700">Admission notes</span>
+                <textarea
+                  value={form.notes}
+                  onChange={(event) => updateField("notes", event.target.value)}
+                  placeholder="Brief notes about admission, referral source, or immediate needs."
+                  className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={saveResident}
+                disabled={saving || loading}
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {saving ? "Saving..." : editingResidentId ? "Save Changes" : "Save Resident"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setForm(initialForm);
+                  setEditingResidentId(null);
+                  setMessage("");
+                  setError("");
+                  if (residents.length > 0) {
+                    setShowResidentForm(false);
+                  }
+                }}
+                className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
+              >
+                {residents.length > 0 ? "Cancel" : "Clear Form"}
+              </button>
+
+              <Link
+                href="/documents"
+                className="inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
+              >
+                Continue to Documents
+              </Link>
+            </div>
+          </form>
+        ) : null}
       </section>
     </PageShell>
   );
