@@ -370,6 +370,14 @@ export default function ResidentProfilePage() {
   const [clientRciLink, setClientRciLink] = useState("");
   const [generatingRciLink, setGeneratingRciLink] = useState(false);
   const [savingSnapshotStatus, setSavingSnapshotStatus] = useState(false);
+  const [dischargeDate, setDischargeDate] = useState(new Date().toISOString().slice(0, 10));
+  const [dischargeReason, setDischargeReason] = useState("");
+  const [dischargeNotes, setDischargeNotes] = useState("");
+  const [readmissionDate, setReadmissionDate] = useState(new Date().toISOString().slice(0, 10));
+  const [readmissionHouseId, setReadmissionHouseId] = useState("");
+  const [chargeAdmissionFeeAgain, setChargeAdmissionFeeAgain] = useState(false);
+  const [readmissionNotes, setReadmissionNotes] = useState("");
+  const [savingLifecycle, setSavingLifecycle] = useState(false);
   const [providerName, setProviderName] = useState("Current Provider");
   const [providerPhaseLevels, setProviderPhaseLevels] = useState<ProviderPhaseRow[]>([]);
   const [activeTab, setActiveTab] = useState("snapshot");
@@ -1077,6 +1085,111 @@ export default function ResidentProfilePage() {
     }
   }
 
+  async function dischargeResidentProfile() {
+    if (!resident) {
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    setSavingLifecycle(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase.rpc("discharge_resident", {
+        p_resident_id: resident.id,
+        p_discharge_date: dischargeDate || new Date().toISOString().slice(0, 10),
+        p_discharge_reason: dischargeReason,
+        p_discharge_notes: dischargeNotes,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.ok) {
+        setError(data?.message ?? "Could not discharge resident.");
+        return;
+      }
+
+      setResident({
+        ...resident,
+        resident_status: "discharged",
+        discharge_date: dischargeDate || new Date().toISOString().slice(0, 10),
+        discharge_reason: dischargeReason,
+        discharge_notes: dischargeNotes,
+      });
+
+      setMessage("Resident discharged. Future program fees will stop.");
+    } catch (err) {
+      const lifecycleError = err as { message?: unknown };
+      setError(lifecycleError?.message ? String(lifecycleError.message) : "Could not discharge resident.");
+    } finally {
+      setSavingLifecycle(false);
+    }
+  }
+
+  async function readmitResidentProfile() {
+    if (!resident) {
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    setSavingLifecycle(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase.rpc("readmit_resident", {
+        p_resident_id: resident.id,
+        p_admission_date: readmissionDate || new Date().toISOString().slice(0, 10),
+        p_house_id: readmissionHouseId || resident.house_id || null,
+        p_charge_admission_fee: chargeAdmissionFeeAgain,
+        p_notes: readmissionNotes,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.ok) {
+        setError(data?.message ?? "Could not readmit resident.");
+        return;
+      }
+
+      await supabase.rpc("ensure_current_resident_fees", {
+        p_resident_id: resident.id,
+      });
+
+      setResident({
+        ...resident,
+        resident_status: "active",
+        admission_date: readmissionDate || new Date().toISOString().slice(0, 10),
+        discharge_date: null,
+        discharge_reason: null,
+        discharge_notes: null,
+        house_id: readmissionHouseId || resident.house_id,
+      });
+
+      setMessage(
+        chargeAdmissionFeeAgain
+          ? "Resident readmitted. Program fees resumed and admission fee was applied."
+          : "Resident readmitted. Program fees resumed without a new admission fee."
+      );
+
+      setActiveTab("fees");
+    } catch (err) {
+      const lifecycleError = err as { message?: unknown };
+      setError(lifecycleError?.message ? String(lifecycleError.message) : "Could not readmit resident.");
+    } finally {
+      setSavingLifecycle(false);
+    }
+  }
+
   async function updateResidentSnapshotField(
     fieldName:
       | "current_phase"
@@ -1240,6 +1353,7 @@ export default function ResidentProfilePage() {
               <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
                 <div className="flex flex-wrap border-b bg-white">
                   <TabButton active={activeTab === "snapshot"} label="Snapshot" status="Add or review" onClick={() => setActiveTab("snapshot")} />
+                  <TabButton active={activeTab === "lifecycle"} label="Lifecycle" status={resident.resident_status === "active" ? "Active" : "Discharged"} onClick={() => setActiveTab("lifecycle")} />
                   <TabButton active={activeTab === "fees"} label="Fees" status={`Balance $${currentBalance.toFixed(2)}`} onClick={() => setActiveTab("fees")} />
                   <TabButton active={activeTab === "notes"} label="Notes" status={`${progressNotes.length} saved`} onClick={() => setActiveTab("notes")} />
                   <TabButton active={activeTab === "ua"} label="UA/BA" status={uaBaLogs.length > 0 ? `${uaBaLogs.length} logged` : "Needs log"} onClick={() => setActiveTab("ua")} />
@@ -1359,6 +1473,12 @@ export default function ResidentProfilePage() {
                             ))}
                           </div>
                         </div>
+
+                        <SnapshotAction
+                          title="Discharge / Readmit"
+                          description={resident.resident_status === "active" ? "Discharge resident and stop future program fees." : "Readmit resident and resume program fees."}
+                          onClick={() => setActiveTab("lifecycle")}
+                        />
 
                         <SnapshotAction
                           title="Resident Fees"
@@ -2021,6 +2141,125 @@ export default function ResidentProfilePage() {
                 <div className="mt-5 rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-800">
                   Client links now use the RCI-36 assessment. Completed results will return a summary to this resident profile.
                 </div>
+              </div>
+
+              <div className={activeTab === "lifecycle" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
+                <h2 className="text-lg font-semibold">Resident Lifecycle</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Manage discharge and readmission without deleting resident history.
+                </p>
+
+                {resident.resident_status === "active" ? (
+                  <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+                    <h3 className="text-sm font-semibold text-slate-950">Discharge Resident</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Discharging this resident keeps all data, moves the resident to discharged status, and stops future program fees.
+                    </p>
+
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">Discharge date</span>
+                        <input
+                          type="date"
+                          value={dischargeDate}
+                          onChange={(event) => setDischargeDate(event.target.value)}
+                          className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">Discharge reason</span>
+                        <input
+                          type="text"
+                          value={dischargeReason}
+                          onChange={(event) => setDischargeReason(event.target.value)}
+                          placeholder="Completed program, left voluntarily, transferred, etc."
+                          className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                        />
+                      </label>
+
+                      <label className="block md:col-span-2">
+                        <span className="text-sm font-medium text-slate-700">Discharge notes</span>
+                        <textarea
+                          value={dischargeNotes}
+                          onChange={(event) => setDischargeNotes(event.target.value)}
+                          placeholder="Optional discharge notes"
+                          className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                        />
+                      </label>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={dischargeResidentProfile}
+                      disabled={savingLifecycle}
+                      className="mt-4 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {savingLifecycle ? "Saving..." : "Discharge Resident"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+                    <h3 className="text-sm font-semibold text-slate-950">Readmit Resident</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Readmission creates a new active admission episode. Program fees resume from the readmission date.
+                    </p>
+
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">Readmission date</span>
+                        <input
+                          type="date"
+                          value={readmissionDate}
+                          onChange={(event) => setReadmissionDate(event.target.value)}
+                          className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">House ID for readmission</span>
+                        <input
+                          type="text"
+                          value={readmissionHouseId || resident.house_id || ""}
+                          onChange={(event) => setReadmissionHouseId(event.target.value)}
+                          placeholder="Leave as current house or paste house ID"
+                          className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                        />
+                      </label>
+
+                      <label className="flex items-center gap-3 rounded-xl border bg-white p-4 md:col-span-2">
+                        <input
+                          type="checkbox"
+                          checked={chargeAdmissionFeeAgain}
+                          onChange={(event) => setChargeAdmissionFeeAgain(event.target.checked)}
+                          className="h-4 w-4"
+                        />
+                        <span className="text-sm font-medium text-slate-700">
+                          Charge admission fee again for this readmission
+                        </span>
+                      </label>
+
+                      <label className="block md:col-span-2">
+                        <span className="text-sm font-medium text-slate-700">Readmission notes</span>
+                        <textarea
+                          value={readmissionNotes}
+                          onChange={(event) => setReadmissionNotes(event.target.value)}
+                          placeholder="Optional readmission notes"
+                          className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                        />
+                      </label>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={readmitResidentProfile}
+                      disabled={savingLifecycle}
+                      className="mt-4 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {savingLifecycle ? "Saving..." : "Readmit Resident"}
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className={activeTab === "fees" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
