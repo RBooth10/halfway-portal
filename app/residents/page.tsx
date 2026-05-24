@@ -68,7 +68,7 @@ const initialForm: ResidentForm = {
   date_of_birth: "",
   admission_date: "",
   house_id: "",
-  resident_status: "pending_admission",
+  resident_status: "active",
   file_status: "needs_onboarding_packet",
   medication_status: "not_completed",
   rci_status: "not_started",
@@ -147,6 +147,8 @@ export default function ResidentsPage() {
   const [providerId, setProviderId] = useState<string | null>(null);
   const [providerName, setProviderName] = useState("Current Provider");
   const [editingResidentId, setEditingResidentId] = useState<string | null>(null);
+  const [residentListTab, setResidentListTab] = useState<"active" | "discharged">("active");
+  const [residentSearch, setResidentSearch] = useState("");
   const [showResidentForm, setShowResidentForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -268,8 +270,10 @@ export default function ResidentsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  async function archiveResident(residentId: string, residentName: string) {
-    const confirmed = window.confirm(`Archive ${residentName}? This keeps the resident record but marks it archived.`);
+  async function dischargeResident(residentId: string, residentName: string) {
+    const confirmed = window.confirm(
+      `Discharge ${residentName}? This keeps all resident data but moves the resident to the discharged tab and stops future auto-charges.`
+    );
 
     if (!confirmed) return;
 
@@ -278,42 +282,48 @@ export default function ResidentsPage() {
 
     try {
       const supabase = getSupabaseClient();
+      const today = new Date().toISOString().slice(0, 10);
+      const previousResident = residents.find((resident) => resident.id === residentId) ?? null;
 
-      const { data, error } = await supabase
-        .from("residents")
-        .update({ resident_status: "archived" })
-        .eq("id", residentId)
-        .select("*")
-        .single();
+      const { data, error } = await supabase.rpc("discharge_resident", {
+        p_resident_id: residentId,
+        p_discharge_date: today,
+        p_discharge_reason: "Discharged from residents list.",
+        p_discharge_notes: "",
+      });
 
       if (error) {
         throw error;
       }
 
-      const previousResident = residents.find((resident) => resident.id === residentId) ?? null;
+      if (!data?.ok) {
+        setError(data?.message ?? "Could not discharge resident.");
+        return;
+      }
 
       setResidents((current) =>
         current.map((resident) =>
-          resident.id === residentId ? (data as ResidentRow) : resident
+          resident.id === residentId ? { ...resident, resident_status: "discharged" } : resident
         )
       );
 
       if (providerId) {
         await createAuditLog({
           providerId,
-          action: "resident_archived",
+          action: "resident_discharged",
           tableName: "residents",
           recordId: residentId,
           oldValues: previousResident as unknown as Record<string, unknown> | null,
-          newValues: data as Record<string, unknown>,
-          reason: "Resident archived from portal.",
+          newValues: { resident_status: "discharged", discharge_date: today },
+          reason: "Resident discharged from portal.",
         });
       }
 
-      setMessage(`${residentName} was archived successfully.`);
+      setResidentListTab("discharged");
+      setMessage(`${residentName} was discharged.`);
     } catch (err) {
-      const residentError = err as { message?: unknown };
-      setError(residentError?.message ? String(residentError.message) : "Could not archive resident.");
+      const message = err instanceof Error ? err.message : "Could not discharge resident.";
+      setError(message);
     }
   }
 
@@ -399,6 +409,28 @@ export default function ResidentsPage() {
         throw error;
       }
 
+      const episodeResult = await supabase
+        .from("resident_admission_episodes")
+        .insert({
+          provider_id: providerId,
+          resident_id: data.id,
+          house_id: form.house_id || null,
+          admission_date: form.admission_date || new Date().toISOString().slice(0, 10),
+          status: "active",
+          charge_admission_fee: true,
+          notes: "Initial admission episode created from resident onboarding.",
+        })
+        .select("id")
+        .single();
+
+      if (episodeResult.error) {
+        throw episodeResult.error;
+      }
+
+      await supabase.rpc("ensure_current_resident_fees", {
+        p_resident_id: data.id,
+      });
+
       setResidents((current) => [data as ResidentRow, ...current]);
       setShowResidentForm(false);
       setForm(initialForm);
@@ -424,8 +456,22 @@ export default function ResidentsPage() {
     }
   }
 
-  const activeResidents = residents.filter((resident) => resident.resident_status !== "discharged").length;
+  const activeResidents = residents.filter((resident) => resident.resident_status === "active").length;
+  const dischargedResidents = residents.filter((resident) => resident.resident_status === "discharged").length;
   const residentsWithHouse = residents.filter((resident) => resident.house_id).length;
+  const normalizedResidentSearch = residentSearch.trim().toLowerCase();
+
+  const displayedResidents = residents.filter((resident) => {
+    const residentName = `${resident.first_name} ${resident.last_name}`.toLowerCase();
+    const matchesTab = resident.resident_status === residentListTab;
+    const matchesSearch =
+      !normalizedResidentSearch ||
+      residentName.includes(normalizedResidentSearch) ||
+      (resident.email ?? "").toLowerCase().includes(normalizedResidentSearch) ||
+      (resident.phone ?? "").toLowerCase().includes(normalizedResidentSearch);
+
+    return matchesTab && matchesSearch;
+  });
 
   return (
     <PageShell>
@@ -496,7 +542,7 @@ export default function ResidentsPage() {
       )}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="Residents" value={String(activeResidents)} subtitle="Saved to Supabase" icon={Users} />
+        <MetricCard title="Active Residents" value={String(activeResidents)} subtitle={`${dischargedResidents} discharged`} icon={Users} />
         <MetricCard title="Assigned Houses" value={`${residentsWithHouse}/${residents.length}`} subtitle="Residents assigned to houses" icon={Home} />
         <MetricCard title="File Checklist" value="Required" subtitle="Documents and signatures" icon={FileSignature} />
         <MetricCard title="Recovery Support" value="Pending" subtitle="RCI, plan, and supports" icon={HeartHandshake} />
@@ -508,7 +554,7 @@ export default function ResidentsPage() {
             <div>
               <h2 className="text-lg font-semibold">Saved Residents</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Existing residents are the primary workspace. Add a new resident only when needed.
+                Active and discharged residents remain searchable, with all resident data maintained.
               </p>
             </div>
 
@@ -528,6 +574,42 @@ export default function ResidentsPage() {
             ) : null}
           </div>
 
+          <div className="mt-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setResidentListTab("active")}
+                className={
+                  residentListTab === "active"
+                    ? "rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white"
+                    : "rounded-xl border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                }
+              >
+                Active Residents ({activeResidents})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setResidentListTab("discharged")}
+                className={
+                  residentListTab === "discharged"
+                    ? "rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white"
+                    : "rounded-xl border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                }
+              >
+                Discharged Residents ({dischargedResidents})
+              </button>
+            </div>
+
+            <input
+              type="search"
+              value={residentSearch}
+              onChange={(event) => setResidentSearch(event.target.value)}
+              placeholder="Search residents..."
+              className="h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4 md:max-w-xs"
+            />
+          </div>
+
           {loading ? (
             <p className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Loading residents...</p>
           ) : residents.length === 0 ? (
@@ -537,9 +619,18 @@ export default function ResidentsPage() {
                 Add the first resident to begin tracking files, RCI, medication, phases, notes, and support needs.
               </p>
             </div>
+          ) : displayedResidents.length === 0 ? (
+            <div className="mt-5 rounded-2xl bg-slate-50 p-5">
+              <p className="text-sm font-semibold text-slate-950">
+                No {residentListTab} residents found.
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Try a different search term or switch tabs.
+              </p>
+            </div>
           ) : (
             <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {residents.map((resident) => {
+              {displayedResidents.map((resident) => {
                 const residentName = `${resident.first_name} ${resident.last_name}`;
                 const assignedHouse = houses.find((house) => house.id === resident.house_id);
 
@@ -584,12 +675,12 @@ export default function ResidentsPage() {
 
                         <button
                           type="button"
-                          onClick={() => archiveResident(resident.id, residentName)}
-                          disabled={resident.resident_status === "archived"}
+                          onClick={() => dischargeResident(resident.id, residentName)}
+                          disabled={resident.resident_status === "discharged"}
                           className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <Archive className="h-3.5 w-3.5" />
-                          {resident.resident_status === "archived" ? "Archived" : "Archive"}
+                          {resident.resident_status === "discharged" ? "Discharged" : "Discharge"}
                         </button>
                       </div>
                     </div>
@@ -642,10 +733,8 @@ export default function ResidentsPage() {
                   onChange={(event) => updateField("resident_status", event.target.value)}
                   className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                 >
-                  <option value="pending_admission">Pending admission</option>
                   <option value="active">Active</option>
                   <option value="discharged">Discharged</option>
-                  <option value="archived">Archived</option>
                 </select>
               </label>
 
