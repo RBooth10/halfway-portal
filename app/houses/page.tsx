@@ -58,15 +58,6 @@ const initialForm: HouseForm = {
   status: "pending_setup",
 };
 
-const setupItems = [
-  "House name",
-  "Physical address",
-  "Gender/population served",
-  "Total bed count",
-  "House manager assignment",
-  "Emergency/safety documents",
-  "House-specific compliance binder",
-];
 
 function MetricCard({
   title,
@@ -138,6 +129,7 @@ export default function HousesPage() {
   const [providerId, setProviderId] = useState<string | null>(null);
   const [providerName, setProviderName] = useState("Current Provider");
   const [editingHouseId, setEditingHouseId] = useState<string | null>(null);
+  const [showHouseForm, setShowHouseForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -201,6 +193,7 @@ export default function HousesPage() {
 
   function startEditingHouse(house: HouseRow) {
     setEditingHouseId(house.id);
+    setShowHouseForm(true);
     setForm({
       name: house.name ?? "",
       street_address: house.street_address ?? "",
@@ -355,6 +348,7 @@ export default function HousesPage() {
       }
 
       setHouses((current) => [data as HouseRow, ...current]);
+      setShowHouseForm(false);
       setForm(initialForm);
       setMessage(`${data.name} was saved successfully.`);
     } catch (err) {
@@ -437,200 +431,225 @@ export default function HousesPage() {
         <MetricCard title="Readiness" value={houses.length ? "In Progress" : "Setup"} subtitle="Waiting for house documents" icon={ShieldCheck} />
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[1fr_380px]">
-        <form className="rounded-2xl border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">{editingHouseId ? "Edit House" : "Add House"}</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {editingHouseId
-              ? "Update the selected house record."
-              : "This creates a house record under the selected provider."}
-          </p>
+      <section className="space-y-6">
+        <div className="rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Saved Houses</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Existing houses are the primary workspace. Add a new house only when needed.
+              </p>
+            </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <Field
-              label="House name"
-              placeholder="Example: Oak House"
-              icon={Home}
-              value={form.name}
-              onChange={(value) => updateField("name", value)}
-              required
-            />
-
-            <Field
-              label="Total beds"
-              placeholder="0"
-              icon={BedDouble}
-              type="number"
-              value={form.total_beds}
-              onChange={(value) => updateField("total_beds", value)}
-            />
-
-            <Field
-              label="Street address"
-              placeholder="123 Main Street"
-              icon={MapPin}
-              value={form.street_address}
-              onChange={(value) => updateField("street_address", value)}
-            />
-
-            <Field
-              label="City"
-              placeholder="City"
-              icon={MapPin}
-              value={form.city}
-              onChange={(value) => updateField("city", value)}
-            />
-
-            <Field
-              label="State"
-              placeholder="FL"
-              icon={MapPin}
-              value={form.state}
-              onChange={(value) => updateField("state", value)}
-            />
-
-            <Field
-              label="ZIP code"
-              placeholder="00000"
-              icon={MapPin}
-              value={form.zip}
-              onChange={(value) => updateField("zip", value)}
-            />
-
-            <label className="block">
-              <span className="text-sm font-medium text-slate-700">Gender / population served</span>
-              <select
-                value={form.gender_served}
-                onChange={(event) => updateField("gender_served", event.target.value)}
-                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+            {houses.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingHouseId(null);
+                  setForm(initialForm);
+                  setShowHouseForm((current) => !current);
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
               >
-                <option>Male</option>
-                <option>Female</option>
-                <option>All Gender</option>
-                <option>Other / Specialized Population</option>
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="text-sm font-medium text-slate-700">FARR/NARR level</span>
-              <select
-                value={form.farr_level}
-                onChange={(event) => updateField("farr_level", event.target.value)}
-                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-              >
-                <option>Level 1</option>
-                <option>Level 2</option>
-                <option>Level 3</option>
-                <option>Level 4</option>
-                <option>Not sure yet</option>
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="text-sm font-medium text-slate-700">House status</span>
-              <select
-                value={form.status}
-                onChange={(event) => updateField("status", event.target.value)}
-                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-              >
-                <option value="active">Active</option>
-                <option value="pending_setup">Pending setup</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </label>
+                <Plus className="h-4 w-4" />
+                {showHouseForm && !editingHouseId ? "Hide Add House" : "Add House"}
+              </button>
+            ) : null}
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={saveHouse}
-              disabled={saving || loading}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {saving ? "Saving..." : editingHouseId ? "Save Changes" : "Save House"}
-            </button>
+          {loading ? (
+            <p className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Loading houses...</p>
+          ) : houses.length === 0 ? (
+            <div className="mt-5 rounded-2xl bg-slate-50 p-5">
+              <p className="text-sm font-semibold text-slate-950">No houses saved yet.</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Add the first house to begin tracking beds, residents, documents, and house-level compliance.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {houses.map((house) => (
+                <div key={house.id} className="rounded-2xl bg-slate-50 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-slate-950">{house.name}</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {house.total_beds} beds • {house.gender_served || "Population not set"}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {[house.city, house.state].filter(Boolean).join(", ") || "Address not complete"}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Status: {house.status}
+                      </p>
+                    </div>
 
-            <button
-              type="button"
-              onClick={() => setForm(initialForm)}
-              className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
-            >
-              Clear Form
-            </button>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEditingHouse(house)}
+                        className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </button>
 
-            <Link
-              href="/staff"
-              className="inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
-            >
-              Continue to Staff Setup
-            </Link>
-          </div>
-        </form>
-
-        <aside className="space-y-4">
-          <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">House setup checklist</h2>
-            <div className="mt-4 space-y-3">
-              {setupItems.map((item) => (
-                <div key={item} className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-                  {item}
+                      <button
+                        type="button"
+                        onClick={() => archiveHouse(house.id, house.name)}
+                        disabled={house.status === "inactive"}
+                        className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Archive className="h-3.5 w-3.5" />
+                        {house.status === "inactive" ? "Archived" : "Archive"}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
-          </div>
+          )}
+        </div>
 
-          <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">Saved Houses</h2>
-            {loading ? (
-              <p className="mt-3 text-sm text-slate-500">Loading houses...</p>
-            ) : houses.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">No houses saved yet.</p>
-            ) : (
-              <div className="mt-4 space-y-3">
-                {houses.map((house) => (
-                  <div key={house.id} className="rounded-2xl bg-slate-50 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-slate-950">{house.name}</p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {house.total_beds} beds • {house.gender_served || "Population not set"}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {[house.city, house.state].filter(Boolean).join(", ") || "Address not complete"}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          Status: {house.status}
-                        </p>
-                      </div>
+        {houses.length === 0 || showHouseForm || editingHouseId ? (
+          <form className="rounded-2xl border bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold">{editingHouseId ? "Edit House" : "Add House"}</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {editingHouseId
+                ? "Update the selected house record."
+                : houses.length === 0
+                  ? "Add the first house for this provider."
+                  : "Add another house under this provider."}
+            </p>
 
-                      <div className="flex flex-col gap-2">
-                        <button
-                          type="button"
-                          onClick={() => startEditingHouse(house)}
-                          className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          Edit
-                        </button>
+            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <Field
+                label="House name"
+                placeholder="Example: Oak House"
+                icon={Home}
+                value={form.name}
+                onChange={(value) => updateField("name", value)}
+                required
+              />
 
-                        <button
-                          type="button"
-                          onClick={() => archiveHouse(house.id, house.name)}
-                          disabled={house.status === "inactive"}
-                          className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <Archive className="h-3.5 w-3.5" />
-                          {house.status === "inactive" ? "Archived" : "Archive"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </aside>
+              <Field
+                label="Total beds"
+                placeholder="0"
+                icon={BedDouble}
+                type="number"
+                value={form.total_beds}
+                onChange={(value) => updateField("total_beds", value)}
+              />
+
+              <Field
+                label="Street address"
+                placeholder="123 Main Street"
+                icon={MapPin}
+                value={form.street_address}
+                onChange={(value) => updateField("street_address", value)}
+              />
+
+              <Field
+                label="City"
+                placeholder="City"
+                icon={MapPin}
+                value={form.city}
+                onChange={(value) => updateField("city", value)}
+              />
+
+              <Field
+                label="State"
+                placeholder="FL"
+                icon={MapPin}
+                value={form.state}
+                onChange={(value) => updateField("state", value)}
+              />
+
+              <Field
+                label="ZIP code"
+                placeholder="00000"
+                icon={MapPin}
+                value={form.zip}
+                onChange={(value) => updateField("zip", value)}
+              />
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Gender / population served</span>
+                <select
+                  value={form.gender_served}
+                  onChange={(event) => updateField("gender_served", event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option>Male</option>
+                  <option>Female</option>
+                  <option>All Gender</option>
+                  <option>Other / Specialized Population</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">FARR/NARR level</span>
+                <select
+                  value={form.farr_level}
+                  onChange={(event) => updateField("farr_level", event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option>Level 1</option>
+                  <option>Level 2</option>
+                  <option>Level 3</option>
+                  <option>Level 4</option>
+                  <option>Not sure yet</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">House status</span>
+                <select
+                  value={form.status}
+                  onChange={(event) => updateField("status", event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="active">Active</option>
+                  <option value="pending_setup">Pending setup</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={saveHouse}
+                disabled={saving || loading}
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {saving ? "Saving..." : editingHouseId ? "Save Changes" : "Save House"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setForm(initialForm);
+                  setEditingHouseId(null);
+                  if (houses.length > 0) {
+                    setShowHouseForm(false);
+                  }
+                }}
+                className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
+              >
+                {houses.length > 0 ? "Cancel" : "Clear Form"}
+              </button>
+
+              <Link
+                href="/staff"
+                className="inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
+              >
+                Continue to Staff Setup
+              </Link>
+            </div>
+          </form>
+        ) : null}
       </section>
     </PageShell>
   );
