@@ -185,6 +185,7 @@ export default function StaffPage() {
   const [providerId, setProviderId] = useState<string | null>(null);
   const [providerName, setProviderName] = useState("Current Provider");
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
+  const [showStaffForm, setShowStaffForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -248,6 +249,7 @@ export default function StaffPage() {
 
   function startEditingStaff(person: StaffRow) {
     setEditingStaffId(person.id);
+    setShowStaffForm(true);
     setForm({
       first_name: person.first_name ?? "",
       last_name: person.last_name ?? "",
@@ -406,6 +408,8 @@ export default function StaffPage() {
 
       setStaff((current) => [data as StaffRow, ...current]);
       setForm(initialForm);
+      setEditingStaffId(null);
+      setShowStaffForm(false);
       setMessage(`${data.email} was saved successfully as a pending staff profile.`);
     } catch (err) {
       const supabaseError = err as {
@@ -428,7 +432,10 @@ export default function StaffPage() {
     }
   }
 
-  const activeStaff = staff.filter((person) => person.status !== "inactive").length;
+  const visibleStaff = staff.filter(
+    (person) => String(person.status ?? "active").toLowerCase() !== "inactive"
+  );
+  const activeStaff = visibleStaff.length;
 
   return (
     <PageShell>
@@ -466,9 +473,19 @@ export default function StaffPage() {
             </div>
           </div>
 
-          <button className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+          <button
+            type="button"
+            onClick={() => {
+              setForm(initialForm);
+              setEditingStaffId(null);
+              setShowStaffForm(true);
+              setMessage("");
+              setError("");
+            }}
+            className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
             <UserPlus className="h-4 w-4" />
-            Invite Staff
+            Invite Staff Member
           </button>
         </div>
       </section>
@@ -495,8 +512,10 @@ export default function StaffPage() {
         <MetricCard title="Security" value="Required" subtitle="Role-based controls" icon={LockKeyhole} />
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[1fr_420px]">
-        <form className="rounded-2xl border bg-white p-6 shadow-sm">
+      <section className="space-y-6">
+        {showStaffForm ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+            <form className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border bg-white p-6 shadow-xl">
           <h2 className="text-lg font-semibold">{editingStaffId ? "Edit Staff Member" : "Invite Staff Member"}</h2>
           <p className="mt-1 text-sm text-slate-500">
             {editingStaffId
@@ -576,18 +595,33 @@ export default function StaffPage() {
               Continue to Resident Setup
             </Link>
           </div>
-        </form>
+            <button
+              type="button"
+              onClick={() => {
+                setShowStaffForm(false);
+                setEditingStaffId(null);
+                setForm(initialForm);
+                setMessage("");
+                setError("");
+              }}
+              className="mt-3 rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
+            >
+              Close
+            </button>
+            </form>
+          </div>
+        ) : null}
 
         <aside className="space-y-4">
           <div className="rounded-2xl border bg-white p-6 shadow-sm">
             <h2 className="text-lg font-semibold">Saved Staff</h2>
             {loading ? (
               <p className="mt-3 text-sm text-slate-500">Loading staff...</p>
-            ) : staff.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">No staff saved yet.</p>
+            ) : visibleStaff.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-500">No active staff saved yet.</p>
             ) : (
               <div className="mt-4 space-y-3">
-                {staff.map((person) => (
+                {visibleStaff.map((person) => (
                   <div key={person.id} className="rounded-2xl bg-slate-50 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -601,6 +635,13 @@ export default function StaffPage() {
                       </div>
 
                       <div className="flex flex-col gap-2">
+                        <Link
+                          href={`/staff/${person.id}`}
+                          className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                          Profile
+                        </Link>
+
                         <button
                           type="button"
                           onClick={() => startEditingStaff(person)}
