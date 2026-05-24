@@ -23,6 +23,7 @@ declare
   existing_program_fee_count integer := 0;
   should_prorate boolean := false;
   inserted_count integer := 0;
+  selected_day_offset integer;
   charge_note text := 'Auto-generated from provider program fee settings.';
 begin
   select *
@@ -79,11 +80,37 @@ begin
   elsif provider_record.program_fee_frequency = 'weekly' then
     period_start_date := date_trunc('week', current_date)::date;
     period_end_date := period_start_date + 6;
-    due_date_value := current_date;
+
+    selected_day_offset := case provider_record.program_fee_charge_day_of_week
+      when 'Monday' then 0
+      when 'Tuesday' then 1
+      when 'Wednesday' then 2
+      when 'Thursday' then 3
+      when 'Friday' then 4
+      when 'Saturday' then 5
+      when 'Sunday' then 6
+      else extract(isodow from current_date)::integer - 1
+    end;
+
+    due_date_value := period_start_date + selected_day_offset;
+
   elsif provider_record.program_fee_frequency = 'biweekly' then
     period_start_date := date_trunc('week', current_date)::date;
     period_end_date := period_start_date + 13;
-    due_date_value := current_date;
+
+    selected_day_offset := case provider_record.program_fee_charge_day_of_week
+      when 'Monday' then 0
+      when 'Tuesday' then 1
+      when 'Wednesday' then 2
+      when 'Thursday' then 3
+      when 'Friday' then 4
+      when 'Saturday' then 5
+      when 'Sunday' then 6
+      else extract(isodow from current_date)::integer - 1
+    end;
+
+    due_date_value := period_start_date + selected_day_offset;
+
   else
     period_start_date := current_date;
     period_end_date := current_date;
