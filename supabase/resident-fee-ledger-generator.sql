@@ -64,7 +64,11 @@ begin
     return jsonb_build_object('ok', false, 'message', 'Resident not found.');
   end if;
 
-  if not public.current_user_has_provider_access(resident_record.provider_id) then
+  -- App users must have provider access.
+  -- Supabase SQL Editor/admin runs may have auth.uid() as null, so allow those for migrations/backfills.
+  if auth.uid() is not null
+    and not public.current_user_has_provider_access(resident_record.provider_id)
+  then
     return jsonb_build_object('ok', false, 'message', 'Not authorized for this provider.');
   end if;
 
