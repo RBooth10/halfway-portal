@@ -459,8 +459,7 @@ export default function ResidentProfilePage() {
   const [dischargeDate, setDischargeDate] = useState(new Date().toISOString().slice(0, 10));
   const [dischargeReason, setDischargeReason] = useState("");
   const [dischargeNotes, setDischargeNotes] = useState("");
-  const [dischargeEmergencyContactStatus, setDischargeEmergencyContactStatus] = useState("");
-  const [dischargeEmergencyContactNotes, setDischargeEmergencyContactNotes] = useState("");
+  const [selectedDischargeContactIds, setSelectedDischargeContactIds] = useState<string[]>([]);
   const [readmissionDate, setReadmissionDate] = useState(new Date().toISOString().slice(0, 10));
   const [readmissionHouseId, setReadmissionHouseId] = useState("");
   const [chargeAdmissionFeeAgain, setChargeAdmissionFeeAgain] = useState(false);
@@ -1586,6 +1585,14 @@ Resident Signature Collected Electronically`;
     }
   }
 
+  function toggleDischargeContact(contactId: string) {
+    setSelectedDischargeContactIds((current) =>
+      current.includes(contactId)
+        ? current.filter((id) => id !== contactId)
+        : [...current, contactId]
+    );
+  }
+
   async function dischargeResidentProfile() {
     if (!resident) {
       setError("Resident profile is not loaded yet.");
@@ -1604,8 +1611,8 @@ Resident Signature Collected Electronically`;
         return;
       }
 
-      if (!dischargeEmergencyContactStatus) {
-        setError("Select the emergency contact call status.");
+      if (selectedDischargeContactIds.length === 0) {
+        setError("Select at least one emergency contact that was called or attempted.");
         return;
       }
 
@@ -1614,18 +1621,12 @@ Resident Signature Collected Electronically`;
         return;
       }
 
-      if (dischargeEmergencyContactNotes.trim().length < 10) {
-        setError("Document the emergency contact call or attempted call before discharging the resident.");
-        return;
-      }
-
       const { data, error } = await supabase.rpc("discharge_resident", {
         p_resident_id: resident.id,
         p_discharge_date: dischargeDate || new Date().toISOString().slice(0, 10),
         p_discharge_reason: dischargeReason,
         p_discharge_notes: dischargeNotes,
-        p_emergency_contact_status: dischargeEmergencyContactStatus,
-        p_emergency_contact_notes: dischargeEmergencyContactNotes,
+        p_emergency_contact_ids: selectedDischargeContactIds,
       });
 
       if (error) {
@@ -1645,6 +1646,7 @@ Resident Signature Collected Electronically`;
         discharge_notes: dischargeNotes,
       });
 
+      setSelectedDischargeContactIds([]);
       setShowLifecycleModal(false);
       setMessage("Resident discharged. Future program fees will stop.");
     } catch (err) {
@@ -2942,30 +2944,41 @@ Resident Signature Collected Electronically`;
                         </select>
                       </label>
 
-                      <label className="block">
-                        <span className="text-sm font-medium text-slate-700">Emergency contact call status</span>
-                        <select
-                          value={dischargeEmergencyContactStatus}
-                          onChange={(event) => setDischargeEmergencyContactStatus(event.target.value)}
-                          className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                        >
-                          <option value="">Select status</option>
-                          <option value="Called and reached">Called and reached</option>
-                          <option value="Called and left voicemail">Called and left voicemail</option>
-                          <option value="Called with no answer">Called with no answer</option>
-                          <option value="No emergency contact on file">No emergency contact on file</option>
-                        </select>
-                      </label>
+                      <div className="md:col-span-2">
+                        <span className="text-sm font-medium text-slate-700">
+                          Emergency contacts called or attempted
+                        </span>
 
-                      <label className="block">
-                        <span className="text-sm font-medium text-slate-700">Emergency contact call notes</span>
-                        <textarea
-                          value={dischargeEmergencyContactNotes}
-                          onChange={(event) => setDischargeEmergencyContactNotes(event.target.value)}
-                          placeholder="Who was called, when, outcome, and any follow-up needed."
-                          className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                        />
-                      </label>
+                        <div className="mt-2 grid gap-3 rounded-2xl border bg-white p-4 md:grid-cols-2">
+                          {emergencyContacts.filter((contact) => contact.status === "active").length === 0 ? (
+                            <p className="text-sm text-slate-500">
+                              No active emergency contacts saved. Add an emergency contact before discharging.
+                            </p>
+                          ) : (
+                            emergencyContacts
+                              .filter((contact) => contact.status === "active")
+                              .map((contact) => (
+                                <label key={contact.id} className="flex items-start gap-3 rounded-xl bg-slate-50 p-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedDischargeContactIds.includes(contact.id)}
+                                    onChange={() => toggleDischargeContact(contact.id)}
+                                    className="mt-1 h-4 w-4"
+                                  />
+                                  <span>
+                                    <span className="block text-sm font-medium text-slate-800">
+                                      {contact.contact_name}
+                                      {contact.is_primary ? " • Primary" : ""}
+                                    </span>
+                                    <span className="block text-xs text-slate-500">
+                                      {[contact.contact_role, contact.relationship, contact.phone].filter(Boolean).join(" • ")}
+                                    </span>
+                                  </span>
+                                </label>
+                              ))
+                          )}
+                        </div>
+                      </div>
 
                       <label className="block md:col-span-2">
                         <span className="text-sm font-medium text-slate-700">Detailed discharge note</span>
