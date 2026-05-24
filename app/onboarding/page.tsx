@@ -406,7 +406,7 @@ export default function ProviderOnboardingPage() {
           <div>
             <p className="text-sm font-medium text-slate-500">Provider Onboarding</p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-              Add a Recovery Residence Provider
+              Organization Information
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
               Use this setup page to create the organization profile before adding houses,
@@ -435,26 +435,30 @@ export default function ProviderOnboardingPage() {
         <form className="rounded-2xl border bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold">Organization Information</h2>
           <p className="mt-1 text-sm text-slate-500">
-            This information creates the provider profile in Supabase.
+            Review and update the provider organization profile.
           </p>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <Field
-              label="Legal business name"
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="xl:col-span-2">
+              <Field
+                label="Legal business name"
               placeholder="Example Recovery Housing LLC"
               icon={Building2}
               value={form.legal_name}
               onChange={(value) => updateField("legal_name", value)}
-              required
-            />
+                required
+              />
+            </div>
 
-            <Field
-              label="DBA / program name"
+            <div className="xl:col-span-2">
+              <Field
+                label="DBA / program name"
               placeholder="Example Recovery Homes"
               icon={Home}
               value={form.dba_name}
-              onChange={(value) => updateField("dba_name", value)}
-            />
+                onChange={(value) => updateField("dba_name", value)}
+              />
+            </div>
 
             <Field
               label="Primary contact name"
@@ -519,7 +523,7 @@ export default function ProviderOnboardingPage() {
             </label>
           </div>
 
-          <div className="mt-8 rounded-2xl border bg-slate-50 p-5 md:col-span-2">
+          <div className="mt-8 rounded-2xl border bg-slate-50 p-5 md:col-span-2 xl:col-span-3">
             <h2 className="text-lg font-semibold text-slate-950">Program Fees</h2>
             <p className="mt-1 text-sm leading-6 text-slate-500">
               Set the provider-level fee structure. House-specific billing can be connected later.
@@ -529,7 +533,7 @@ export default function ProviderOnboardingPage() {
               <label className="block">
                 <span className="text-sm font-medium text-slate-700">Fee model</span>
                 <select
-                  value={form.program_fee_model}
+                  value={form.program_fee_model || "cost_per_client"}
                   onChange={(event) => updateField("program_fee_model", event.target.value)}
                   className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                 >
@@ -542,7 +546,7 @@ export default function ProviderOnboardingPage() {
                 <span className="text-sm font-medium text-slate-700">Cost per client</span>
                 <input
                   type="number"
-                  value={form.cost_per_client}
+                  value={form.cost_per_client || ""}
                   onChange={(event) => updateField("cost_per_client", event.target.value)}
                   placeholder="$"
                   className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
@@ -553,7 +557,7 @@ export default function ProviderOnboardingPage() {
                 <span className="text-sm font-medium text-slate-700">Split rent total amount</span>
                 <input
                   type="number"
-                  value={form.split_rent_total_amount}
+                  value={form.split_rent_total_amount || ""}
                   onChange={(event) => updateField("split_rent_total_amount", event.target.value)}
                   placeholder="$"
                   className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
@@ -564,7 +568,7 @@ export default function ProviderOnboardingPage() {
                 <span className="text-sm font-medium text-slate-700">Split among number of clients</span>
                 <input
                   type="number"
-                  value={form.split_rent_client_count}
+                  value={form.split_rent_client_count || ""}
                   onChange={(event) => updateField("split_rent_client_count", event.target.value)}
                   placeholder="# of clients"
                   className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
@@ -574,7 +578,7 @@ export default function ProviderOnboardingPage() {
               <label className="block">
                 <span className="text-sm font-medium text-slate-700">Paid</span>
                 <select
-                  value={form.program_fee_frequency}
+                  value={form.program_fee_frequency || "monthly"}
                   onChange={(event) => updateField("program_fee_frequency", event.target.value)}
                   className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                 >
@@ -591,7 +595,7 @@ export default function ProviderOnboardingPage() {
                   type="number"
                   min="1"
                   max="31"
-                  value={form.program_fee_charge_day_of_month}
+                  value={form.program_fee_charge_day_of_month || ""}
                   onChange={(event) => updateField("program_fee_charge_day_of_month", event.target.value)}
                   placeholder="1-31"
                   className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
@@ -601,7 +605,7 @@ export default function ProviderOnboardingPage() {
               <label className="block">
                 <span className="text-sm font-medium text-slate-700">Selected day of week</span>
                 <select
-                  value={form.program_fee_charge_day_of_week}
+                  value={form.program_fee_charge_day_of_week || ""}
                   onChange={(event) => updateField("program_fee_charge_day_of_week", event.target.value)}
                   className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                 >
@@ -620,7 +624,7 @@ export default function ProviderOnboardingPage() {
                 <span className="text-sm font-medium text-slate-700">One-time admission fee</span>
                 <input
                   type="number"
-                  value={form.admission_fee_amount}
+                  value={form.admission_fee_amount || ""}
                   onChange={(event) => updateField("admission_fee_amount", event.target.value)}
                   placeholder="$"
                   className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
@@ -630,7 +634,7 @@ export default function ProviderOnboardingPage() {
               <label className="flex items-center gap-3 rounded-xl border bg-white p-4">
                 <input
                   type="checkbox"
-                  checked={form.admission_fee_refundable}
+                  checked={Boolean(form.admission_fee_refundable)}
                   onChange={(event) => updateField("admission_fee_refundable", event.target.checked)}
                   className="h-4 w-4"
                 />
