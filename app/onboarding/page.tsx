@@ -398,7 +398,7 @@ export default function ProviderOnboardingPage() {
         Back to dashboard
       </Link>
 
-      <section className="rounded-3xl border bg-white p-6 shadow-sm">
+      <section className="col-span-full w-full rounded-3xl border bg-white p-6 shadow-sm">
         <div className="flex gap-4">
           <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-slate-100">
             <Building2 className="h-10 w-10 text-slate-700" />
@@ -431,14 +431,14 @@ export default function ProviderOnboardingPage() {
         </div>
       )}
 
-      <section className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <form className="rounded-2xl border bg-white p-6 shadow-sm">
+      <section className="space-y-6">
+        <form className="w-full rounded-2xl border bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold">Organization Information</h2>
           <p className="mt-1 text-sm text-slate-500">
             Review and update the provider organization profile.
           </p>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-6 grid w-full gap-4 md:grid-cols-2 xl:grid-cols-3">
             <div className="xl:col-span-2">
               <Field
                 label="Legal business name"
@@ -675,7 +675,7 @@ export default function ProviderOnboardingPage() {
       </section>
 
       {savedProviderId ? (
-        <section className="rounded-3xl border bg-white p-6 shadow-sm">
+        <section className="col-span-full w-full rounded-3xl border bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
             <div>
               <h2 className="text-xl font-semibold text-slate-950">Provider Phase Levels</h2>
