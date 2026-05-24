@@ -396,10 +396,10 @@ function SnapshotAction({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-2xl border bg-white p-4 text-left shadow-sm hover:bg-slate-50"
+      title={description}
+      className="rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
     >
-      <p className="text-sm font-semibold text-slate-950">{title}</p>
-      <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+      {title}
     </button>
   );
 }
@@ -2100,10 +2100,10 @@ Resident Signature Collected Electronically`;
 
               <div className="flex flex-wrap border-b bg-white">
                   <TabButton active={activeTab === "snapshot"} label="Snapshot" status="Add or review" onClick={() => setActiveTab("snapshot")} />
-                  <TabButton active={activeTab === "fees"} label="Fees" status={`Balance $${currentBalance.toFixed(2)}`} onClick={() => setActiveTab("fees")} />
-                  <TabButton active={activeTab === "notes"} label="Notes" status={`${progressNotes.length} saved`} onClick={() => setActiveTab("notes")} />
-                  <TabButton active={activeTab === "ua"} label="UA/BA" status={uaBaLogs.length > 0 ? `${uaBaLogs.length} logged` : "Needs log"} onClick={() => setActiveTab("ua")} />
-                  <TabButton active={activeTab === "medication"} label="Medication" status={medicationRecords.length > 0 ? "Complete" : "Needs meds"} onClick={() => setActiveTab("medication")} />
+                  <TabButton active={activeTab === "fees"} label="Fee Ledger" status={`Balance $${currentBalance.toFixed(2)}`} onClick={() => setActiveTab("fees")} />
+                  <TabButton active={activeTab === "notes"} label="Progress Notes" status={`${progressNotes.length} saved`} onClick={() => setActiveTab("notes")} />
+                  <TabButton active={activeTab === "ua"} label="UA/BA Records" status={uaBaLogs.length > 0 ? `${uaBaLogs.length} logged` : "Needs log"} onClick={() => setActiveTab("ua")} />
+                  <TabButton active={activeTab === "medication"} label="Medication Records" status={medicationRecords.length > 0 ? "Complete" : "Needs meds"} onClick={() => setActiveTab("medication")} />
                   <TabButton active={activeTab === "rci"} label="RCI & Plan" status={latestCompletedRci ? `Complete • ${rciCompletedLabel}` : "Needs RCI"} onClick={() => setActiveTab("rci")} />
                   <TabButton active={activeTab === "contacts"} label="ROI & Contacts" status={`${emergencyContacts.length} saved`} onClick={() => setActiveTab("contacts")} />
                   <TabButton active={activeTab === "documents"} label="Documents" status={`${documents.length} uploaded`} onClick={() => setActiveTab("documents")} />
