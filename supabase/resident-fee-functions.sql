@@ -39,6 +39,14 @@ begin
     return jsonb_build_object('ok', false, 'message', 'Not authorized for this provider.');
   end if;
 
+  if coalesce(resident_record.resident_status, '') <> 'active' then
+    return jsonb_build_object(
+      'ok', true,
+      'message', 'Resident is not active. No fee charges generated.',
+      'resident_status', resident_record.resident_status
+    );
+  end if;
+
   select *
   into provider_record
   from public.providers
