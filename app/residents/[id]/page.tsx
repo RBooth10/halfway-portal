@@ -461,6 +461,7 @@ export default function ResidentProfilePage() {
   const [medFollowUpNeeded, setMedFollowUpNeeded] = useState(false);
   const [medFollowUpNotes, setMedFollowUpNotes] = useState("");
   const [savingMedicationLog, setSavingMedicationLog] = useState(false);
+  const [showMedicationLogModal, setShowMedicationLogModal] = useState(false);
   const [medicationName, setMedicationName] = useState("");
   const [medicationType, setMedicationType] = useState("prescription");
   const [dosage, setDosage] = useState("");
@@ -469,10 +470,12 @@ export default function ResidentProfilePage() {
   const [medicationStartDate, setMedicationStartDate] = useState("");
   const [medicationEndDate, setMedicationEndDate] = useState("");
   const [medicationStatus, setMedicationStatus] = useState("active");
-  const [matMarRelated, setMatMarRelated] = useState(false);
   const [storageNotes, setStorageNotes] = useState("");
   const [medicationNotes, setMedicationNotes] = useState("");
   const [savingMedication, setSavingMedication] = useState(false);
+  const [showMedicationModal, setShowMedicationModal] = useState(false);
+  const [editingMedicationId, setEditingMedicationId] = useState<string | null>(null);
+  const [medicationSubTab, setMedicationSubTab] = useState<"records" | "log">("records");
   const [collectionDate, setCollectionDate] = useState("");
   const [testType, setTestType] = useState("UA");
   const [testResult, setTestResult] = useState("pending");
@@ -936,6 +939,7 @@ export default function ResidentProfilePage() {
       setMedLogSelfAdministered(true);
       setMedFollowUpNeeded(false);
       setMedFollowUpNotes("");
+      setShowMedicationLogModal(false);
       setMessage("Medication log saved successfully.");
 
       await createAuditLog({
@@ -955,46 +959,58 @@ export default function ResidentProfilePage() {
     }
   }
 
-  async function saveMedicationRecord() {
-    setSavingMedication(true);
-    setMessage("");
+  function resetMedicationForm() {
+    setEditingMedicationId(null);
+    setMedicationName("");
+    setMedicationType("prescription");
+    setDosage("");
+    setMedicationStatus("active");
+    setPrescribingProvider("");
+    setPharmacy("");
+    setMedicationStartDate("");
+    setMedicationEndDate("");
+    setStorageNotes("");
+    setMedicationNotes("");
+  }
+
+  function openMedicationModal() {
+    resetMedicationForm();
+    setShowMedicationModal(true);
+  }
+
+  function openEditMedicationModal(medication: MedicationRecordRow) {
+    setEditingMedicationId(medication.id);
+    setMedicationName(medication.medication_name || "");
+    setMedicationType(medication.medication_type || "prescription");
+    setDosage(medication.dosage || "");
+    setMedicationStatus(medication.status || "active");
+    setPrescribingProvider(medication.prescribing_provider || "");
+    setPharmacy(medication.pharmacy || "");
+    setMedicationStartDate(medication.start_date || "");
+    setMedicationEndDate(medication.end_date || "");
+    setStorageNotes(medication.storage_notes || "");
+    setMedicationNotes(medication.notes || "");
+    setShowMedicationModal(true);
+  }
+
+  async function discontinueMedicationRecord(medication: MedicationRecordRow) {
+    const confirmed = window.confirm(`Discontinue ${medication.medication_name}? This keeps the record but moves it to the discontinued list.`);
+
+    if (!confirmed) return;
+
     setError("");
-
-    if (!resident) {
-      setSavingMedication(false);
-      setError("Resident profile is not loaded yet.");
-      return;
-    }
-
-    if (!medicationName.trim()) {
-      setSavingMedication(false);
-      setError("Medication name is required.");
-      return;
-    }
+    setMessage("");
 
     try {
       const supabase = getSupabaseClient();
 
-      const { data: userData } = await supabase.auth.getUser();
-
       const { data, error } = await supabase
         .from("medication_records")
-        .insert({
-          provider_id: resident.provider_id,
-          resident_id: resident.id,
-          created_by_auth_user_id: userData.user?.id ?? null,
-          medication_name: medicationName.trim(),
-          medication_type: medicationType,
-          dosage: dosage.trim() || null,
-          prescribing_provider: prescribingProvider.trim() || null,
-          pharmacy: pharmacy.trim() || null,
-          start_date: medicationStartDate || null,
-          end_date: medicationEndDate || null,
-          status: medicationStatus,
-          mat_mar_related: matMarRelated,
-          storage_notes: storageNotes.trim() || null,
-          notes: medicationNotes.trim() || null,
+        .update({
+          status: "discontinued",
+          end_date: new Date().toISOString().slice(0, 10),
         })
+        .eq("id", medication.id)
         .select("*")
         .single();
 
@@ -1002,29 +1018,116 @@ export default function ResidentProfilePage() {
         throw error;
       }
 
-      setMedicationRecords((current) => [data as MedicationRecordRow, ...current]);
-      setMedicationName("");
-      setMedicationType("prescription");
-      setDosage("");
-      setPrescribingProvider("");
-      setPharmacy("");
-      setMedicationStartDate("");
-      setMedicationEndDate("");
-      setMedicationStatus("active");
-      setMatMarRelated(false);
-      setStorageNotes("");
-      setMedicationNotes("");
-      setMessage("Medication record saved successfully.");
+      setMedicationRecords((current) =>
+        current.map((item) =>
+          item.id === medication.id ? (data as MedicationRecordRow) : item
+        )
+      );
 
-      await createAuditLog({
-        providerId: resident.provider_id,
-        action: "medication_record_created",
-        tableName: "medication_records",
-        recordId: data.id,
-        oldValues: null,
-        newValues: data as Record<string, unknown>,
-        reason: "Medication / MAT-MAR record created from resident profile.",
-      });
+      setMessage("Medication discontinued.");
+    } catch (err) {
+      const medicationError = err as { message?: unknown };
+      setError(medicationError?.message ? String(medicationError.message) : "Could not discontinue medication.");
+    }
+  }
+
+  async function saveMedicationRecord() {
+    if (!resident) {
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    if (!medicationName.trim()) {
+      setError("Medication name is required.");
+      return;
+    }
+
+    setSavingMedication(true);
+    setError("");
+    setMessage("");
+
+    const medicationPayload = {
+      provider_id: resident.provider_id,
+      resident_id: resident.id,
+      medication_name: medicationName.trim(),
+      medication_type: medicationType,
+      dosage: dosage.trim() || null,
+      prescribing_provider: prescribingProvider.trim() || null,
+      pharmacy: pharmacy.trim() || null,
+      start_date: medicationStartDate || null,
+      end_date: medicationEndDate || null,
+      mat_mar_related: medicationType === "mat_mar",
+      storage_notes: storageNotes.trim() || null,
+      notes: medicationNotes.trim() || null,
+      status: medicationStatus,
+    };
+
+    try {
+      const supabase = getSupabaseClient();
+
+      if (editingMedicationId) {
+        const previousMedication = medicationRecords.find((medication) => medication.id === editingMedicationId) ?? null;
+
+        const { data, error } = await supabase
+          .from("medication_records")
+          .update(medicationPayload)
+          .eq("id", editingMedicationId)
+          .select("*")
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        setMedicationRecords((current) =>
+          current.map((medication) =>
+            medication.id === editingMedicationId ? (data as MedicationRecordRow) : medication
+          )
+        );
+
+        if (resident.provider_id) {
+          await createAuditLog({
+            providerId: resident.provider_id,
+            action: "medication_record_updated",
+            tableName: "medication_records",
+            recordId: editingMedicationId,
+            oldValues: previousMedication as unknown as Record<string, unknown> | null,
+            newValues: data as Record<string, unknown>,
+            reason: "Medication / MAT-MAR record updated from resident profile.",
+          });
+        }
+
+        setMessage("Medication record updated.");
+      } else {
+        const { data, error } = await supabase
+          .from("medication_records")
+          .insert(medicationPayload)
+          .select("*")
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        setMedicationRecords((current) => [data as MedicationRecordRow, ...current]);
+
+        if (resident.provider_id) {
+          await createAuditLog({
+            providerId: resident.provider_id,
+            action: "medication_record_created",
+            tableName: "medication_records",
+            recordId: (data as MedicationRecordRow).id,
+            oldValues: null,
+            newValues: data as Record<string, unknown>,
+            reason: "Medication / MAT-MAR record created from resident profile.",
+          });
+        }
+
+        setMessage("Medication record saved.");
+      }
+
+      resetMedicationForm();
+      setShowMedicationModal(false);
     } catch (err) {
       const medicationError = err as { message?: unknown };
       setError(medicationError?.message ? String(medicationError.message) : "Could not save medication record.");
@@ -1032,6 +1135,7 @@ export default function ResidentProfilePage() {
       setSavingMedication(false);
     }
   }
+
 
   async function generateClientRciLink() {
     setGeneratingRciLink(true);
@@ -1107,6 +1211,25 @@ export default function ResidentProfilePage() {
   const totalCharges = feeCharges.reduce((sum, charge) => sum + Number(charge.amount || 0), 0);
   const totalPayments = residentPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
   const currentBalance = totalCharges - totalPayments;
+
+  const sortedMedicationRecords = [...medicationRecords].sort((firstMedication, secondMedication) => {
+    const firstIsDiscontinued = firstMedication.status === "discontinued";
+    const secondIsDiscontinued = secondMedication.status === "discontinued";
+
+    if (firstIsDiscontinued !== secondIsDiscontinued) {
+      return firstIsDiscontinued ? 1 : -1;
+    }
+
+    return firstMedication.medication_name.localeCompare(secondMedication.medication_name);
+  });
+
+  const activeMedicationRecords = sortedMedicationRecords.filter(
+    (medication) => medication.status !== "discontinued"
+  );
+
+  const discontinuedMedicationRecords = sortedMedicationRecords.filter(
+    (medication) => medication.status === "discontinued"
+  );
 
   const openFeeCharges = feeCharges.filter((charge) => Number(charge.balance_due || 0) > 0);
 
@@ -2212,9 +2335,9 @@ Resident Signature Collected Electronically`;
                           onClick={() => setShowProgressNoteModal(true)}
                         />
                         <SnapshotAction
-                          title="Add or Review Medication"
+                          title="Add Medication"
                           description={medicationRecords.length > 0 ? "Medication records are started." : "No medication records yet. Add medication or MAT/MAR information."}
-                          onClick={() => setActiveTab("medication")}
+                          onClick={() => { setMedicationSubTab("records"); openMedicationModal(); }}
                         />
                         <SnapshotAction
                           title="RCI Action"
@@ -2447,340 +2570,200 @@ Resident Signature Collected Electronically`;
                 </div>
               </div>
 
-              <div className={activeTab === "medication" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
-                <h2 className="text-lg font-semibold">Medication / MAT-MAR Tracking</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Track medications disclosed by the resident, including MAT/MAR-related medications.
-                </p>
-
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Medication name</span>
-                    <input
-                      type="text"
-                      value={medicationName}
-                      onChange={(event) => setMedicationName(event.target.value)}
-                      placeholder="Example: Buprenorphine, Suboxone, Sertraline"
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Medication type</span>
-                    <select
-                      value={medicationType}
-                      onChange={(event) => setMedicationType(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+              {activeTab === "medication" ? (
+                <div className="rounded-2xl border bg-white p-3 shadow-sm">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMedicationSubTab("records")}
+                      className={`rounded-xl px-3 py-2 text-xs font-medium ${
+                        medicationSubTab === "records"
+                          ? "bg-slate-950 text-white"
+                          : "border bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
                     >
-                      <option value="prescription">Prescription</option>
-                      <option value="otc">OTC</option>
-                      <option value="mat_mar">MAT/MAR</option>
-                      <option value="supplement">Supplement</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </label>
+                      Medication List
+                    </button>
 
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Dosage / instructions</span>
-                    <input
-                      type="text"
-                      value={dosage}
-                      onChange={(event) => setDosage(event.target.value)}
-                      placeholder="Example: 8mg daily"
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Status</span>
-                    <select
-                      value={medicationStatus}
-                      onChange={(event) => setMedicationStatus(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    <button
+                      type="button"
+                      onClick={() => setMedicationSubTab("log")}
+                      className={`rounded-xl px-3 py-2 text-xs font-medium ${
+                        medicationSubTab === "log"
+                          ? "bg-slate-950 text-white"
+                          : "border bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
                     >
-                      <option value="active">Active</option>
-                      <option value="discontinued">Discontinued</option>
-                      <option value="pending_verification">Pending Verification</option>
-                      <option value="historical">Historical</option>
-                    </select>
-                  </label>
+                      Medication Log
+                    </button>
+                  </div>
+                </div>
+              ) : null}
 
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Prescribing provider</span>
-                    <input
-                      type="text"
-                      value={prescribingProvider}
-                      onChange={(event) => setPrescribingProvider(event.target.value)}
-                      placeholder="Provider or clinic name"
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
+              <div className={activeTab === "medication" && medicationSubTab === "records" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold">Medication Records</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Review the resident medication list. Add medications once, then edit or discontinue them as needed.
+                    </p>
+                  </div>
 
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Pharmacy</span>
-                    <input
-                      type="text"
-                      value={pharmacy}
-                      onChange={(event) => setPharmacy(event.target.value)}
-                      placeholder="Pharmacy name"
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Start date</span>
-                    <input
-                      type="date"
-                      value={medicationStartDate}
-                      onChange={(event) => setMedicationStartDate(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">End date</span>
-                    <input
-                      type="date"
-                      value={medicationEndDate}
-                      onChange={(event) => setMedicationEndDate(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4 text-sm font-medium text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={matMarRelated}
-                      onChange={(event) => setMatMarRelated(event.target.checked)}
-                      className="h-4 w-4"
-                    />
-                    MAT/MAR-related medication
-                  </label>
-
-                  <label className="block md:col-span-2">
-                    <span className="text-sm font-medium text-slate-700">Storage notes</span>
-                    <input
-                      type="text"
-                      value={storageNotes}
-                      onChange={(event) => setStorageNotes(event.target.value)}
-                      placeholder="Example: Stored in resident lockbox, resident-managed, office safe, etc."
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block md:col-span-2">
-                    <span className="text-sm font-medium text-slate-700">Medication notes</span>
-                    <textarea
-                      value={medicationNotes}
-                      onChange={(event) => setMedicationNotes(event.target.value)}
-                      placeholder="Add medication verification notes, refill concerns, MAT/MAR access notes, or follow-up needs."
-                      className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
+                  <button
+                    type="button"
+                    onClick={openMedicationModal}
+                    className="rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Add Medication
+                  </button>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={saveMedicationRecord}
-                  disabled={savingMedication}
-                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {savingMedication ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  {savingMedication ? "Saving..." : "Save Medication Record"}
-                </button>
-
-                <div className="mt-6 space-y-3">
+                <div className="mt-5 space-y-5">
                   {medicationRecords.length === 0 ? (
                     <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
                       No medication records saved yet.
                     </p>
                   ) : (
-                    medicationRecords.map((medication) => (
-                      <div key={medication.id} className="rounded-2xl bg-slate-50 p-4">
-                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-950">
-                              {medication.medication_name}
-                            </p>
-                            <p className="mt-1 text-sm text-slate-600">
-                              {medication.medication_type} • {medication.status} • {medication.dosage || "No dosage entered"}
-                            </p>
-                          </div>
-                          <p className="text-xs font-medium text-slate-500">
-                            {medication.mat_mar_related ? "MAT/MAR" : "Non-MAT/MAR"}
+                    <>
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-950">Active Medications</h3>
+
+                        {activeMedicationRecords.length === 0 ? (
+                          <p className="mt-3 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                            No active medications listed.
                           </p>
-                        </div>
-                        <p className="mt-2 text-sm text-slate-600">
-                          Prescriber: {medication.prescribing_provider || "Not entered"} • Pharmacy: {medication.pharmacy || "Not entered"}
-                        </p>
-                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
-                          {medication.notes || "No medication notes entered."}
-                        </p>
+                        ) : (
+                          <div className="mt-3 grid gap-3 xl:grid-cols-2">
+                            {activeMedicationRecords.map((medication) => (
+                              <div key={medication.id} className="rounded-2xl bg-slate-50 p-3">
+                                <div className="flex flex-col gap-3">
+                                  <div>
+                                    <p className="text-sm font-semibold text-slate-950">
+                                      {medication.medication_name}
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-600">
+                                      {medication.medication_type} • {medication.status} • {medication.dosage || "No dosage entered"}
+                                    </p>
+                                  </div>
+
+                                  <div className="flex flex-wrap gap-2">
+                                    <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                                      {medication.mat_mar_related ? "MAT/MAR" : "Non-MAT/MAR"}
+                                    </span>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditMedicationModal(medication)}
+                                      className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                                    >
+                                      Edit
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => void discontinueMedicationRecord(medication)}
+                                      className="rounded-full bg-white px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50"
+                                    >
+                                      Discontinue
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="mt-2 space-y-1 text-xs leading-5 text-slate-600">
+                                  {medication.prescribing_provider ? (
+                                    <p>Prescriber: {medication.prescribing_provider}</p>
+                                  ) : null}
+
+                                  {medication.pharmacy ? (
+                                    <p>Pharmacy: {medication.pharmacy}</p>
+                                  ) : null}
+
+                                  {medication.storage_notes ? (
+                                    <p>Storage: {medication.storage_notes}</p>
+                                  ) : null}
+
+                                  {medication.notes ? (
+                                    <p className="whitespace-pre-wrap">Notes: {medication.notes}</p>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    ))
+
+                      {discontinuedMedicationRecords.length > 0 ? (
+                        <div>
+                          <h3 className="text-sm font-semibold text-slate-950">Discontinued Medications</h3>
+
+                          <div className="mt-3 grid gap-3 xl:grid-cols-2">
+                            {discontinuedMedicationRecords.map((medication) => (
+                              <div key={medication.id} className="rounded-2xl bg-slate-50 p-3 opacity-75">
+                                <div className="flex flex-col gap-3">
+                                  <div>
+                                    <p className="text-sm font-semibold text-slate-950">
+                                      {medication.medication_name}
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-600">
+                                      {medication.medication_type} • discontinued • {medication.dosage || "No dosage entered"}
+                                    </p>
+                                  </div>
+
+                                  <div className="flex flex-wrap gap-2">
+                                    <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                                      {medication.mat_mar_related ? "MAT/MAR" : "Non-MAT/MAR"}
+                                    </span>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditMedicationModal(medication)}
+                                      className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                                    >
+                                      Edit
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="mt-2 space-y-1 text-xs leading-5 text-slate-600">
+                                  {medication.end_date ? (
+                                    <p>Ended: {formatDate(medication.end_date)}</p>
+                                  ) : null}
+
+                                  {medication.prescribing_provider ? (
+                                    <p>Prescriber: {medication.prescribing_provider}</p>
+                                  ) : null}
+
+                                  {medication.notes ? (
+                                    <p className="whitespace-pre-wrap">Notes: {medication.notes}</p>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </>
                   )}
                 </div>
               </div>
 
-              <div className={activeTab === "medication" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
-                <h2 className="text-lg font-semibold">Medication Log</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Document medication activity such as med box checks, refills, discontinuations, new medications, and discrepancies.
-                </p>
-
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Log date</span>
-                    <input
-                      type="date"
-                      value={medLogDate}
-                      onChange={(event) => setMedLogDate(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Log type</span>
-                    <select
-                      value={medLogType}
-                      onChange={(event) => setMedLogType(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    >
-                      <option value="med_box_check">All meds added to med box / med box check</option>
-                      <option value="new_med_added">New medication added</option>
-                      <option value="med_refilled">Medication refilled</option>
-                      <option value="med_discontinued">Medication discontinued</option>
-                      <option value="med_count_check">Medication count checked</option>
-                      <option value="med_discrepancy">Medication discrepancy noted</option>
-                      <option value="storage_update">Medication storage updated</option>
-                      <option value="other">Other medication note</option>
-                    </select>
-                  </label>
-
-                  <label className="block md:col-span-2">
-                    <span className="text-sm font-medium text-slate-700">Medication involved, if specific</span>
-                    <select
-                      value={selectedMedicationRecordId}
-                      onChange={(event) => setSelectedMedicationRecordId(event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    >
-                      <option value="">No single medication selected</option>
-                      {medicationRecords.map((medication) => (
-                        <option key={medication.id} value={medication.id}>
-                          {medication.medication_name} — {medication.status}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <div className="md:col-span-2 rounded-2xl border bg-slate-50 p-4">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-950">Medication checklist</p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          Check off medications included in this log, such as meds added to the med box or counted.
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={checkAllCurrentMedications}
-                          className="rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                        >
-                          Check all active meds
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={clearCheckedMedications}
-                          className="rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                        >
-                          Clear checks
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid gap-2 md:grid-cols-2">
-                      {medicationRecords.length === 0 ? (
-                        <p className="rounded-xl bg-white p-3 text-sm text-slate-500">
-                          No medication records available yet.
-                        </p>
-                      ) : (
-                        medicationRecords.map((medication) => (
-                          <label
-                            key={medication.id}
-                            className="flex items-start gap-3 rounded-xl bg-white p-3 text-sm text-slate-700"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checkedMedicationIds.includes(medication.id)}
-                              onChange={() => toggleCheckedMedication(medication.id)}
-                              className="mt-1 h-4 w-4"
-                            />
-                            <span>
-                              <span className="font-medium text-slate-950">{medication.medication_name}</span>
-                              <br />
-                              {medication.dosage || "No dosage entered"} • {medication.status}
-                              {medication.mat_mar_related ? " • MAT/MAR" : ""}
-                            </span>
-                          </label>
-                        ))
-                      )}
-                    </div>
+              <div className={activeTab === "medication" && medicationSubTab === "log" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold">Medication Log</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Review medication activity logs, med box checks, refills, discontinuations, and discrepancies.
+                    </p>
                   </div>
 
-                  <label className="block md:col-span-2">
-                    <span className="text-sm font-medium text-slate-700">Medication log note</span>
-                    <textarea
-                      value={medLogNote}
-                      onChange={(event) => setMedLogNote(event.target.value)}
-                      placeholder="Example: All current medications were added to the resident medication box. Count verified. No discrepancies noted."
-                      className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
-
-                  <label className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4 text-sm font-medium text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={medLogSelfAdministered}
-                      onChange={(event) => setMedLogSelfAdministered(event.target.checked)}
-                      className="h-4 w-4"
-                    />
-                    Medication was self-administered by resident during this log event
-                  </label>
-
-                  <label className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4 text-sm font-medium text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={medFollowUpNeeded}
-                      onChange={(event) => setMedFollowUpNeeded(event.target.checked)}
-                      className="h-4 w-4"
-                    />
-                    Follow-up needed
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Follow-up notes</span>
-                    <input
-                      type="text"
-                      value={medFollowUpNotes}
-                      onChange={(event) => setMedFollowUpNotes(event.target.value)}
-                      placeholder="Example: Need refill verification"
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowMedicationLogModal(true)}
+                    className="rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Add Medication Log
+                  </button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={saveMedicationLog}
-                  disabled={savingMedicationLog}
-                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {savingMedicationLog ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  {savingMedicationLog ? "Saving..." : "Save Medication Log"}
-                </button>
 
                 <div className="mt-6 space-y-3">
                   {medicationLogs.length === 0 ? (
@@ -3889,6 +3872,339 @@ Resident Signature Collected Electronically`;
                 </button>
               </div>
             </div>
+
+
+          </div>
+        </div>
+      ) : null}
+
+      {showMedicationModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b pb-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">
+                  {editingMedicationId ? "Edit Medication" : "Add Medication"}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Add the medication once, then update or discontinue the record as needed.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  resetMedicationForm();
+                  setShowMedicationModal(false);
+                }}
+                className="rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Medication name</span>
+                <input
+              type="text"
+              value={medicationName}
+              onChange={(event) => setMedicationName(event.target.value)}
+              placeholder="Example: Buprenorphine, Suboxone, Sertraline"
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Medication type</span>
+                <select
+              value={medicationType}
+              onChange={(event) => setMedicationType(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+              <option value="prescription">Prescription</option>
+              <option value="otc">OTC</option>
+              <option value="mat_mar">MAT/MAR</option>
+              <option value="supplement">Supplement</option>
+              <option value="other">Other</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Dosage / instructions</span>
+                <input
+              type="text"
+              value={dosage}
+              onChange={(event) => setDosage(event.target.value)}
+              placeholder="Example: 8mg daily"
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Status</span>
+                <select
+              value={medicationStatus}
+              onChange={(event) => setMedicationStatus(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+              <option value="active">Active</option>
+              <option value="discontinued">Discontinued</option>
+              <option value="pending_verification">Pending Verification</option>
+              <option value="historical">Historical</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Prescribing provider</span>
+                <input
+              type="text"
+              value={prescribingProvider}
+              onChange={(event) => setPrescribingProvider(event.target.value)}
+              placeholder="Provider or clinic name"
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Pharmacy</span>
+                <input
+              type="text"
+              value={pharmacy}
+              onChange={(event) => setPharmacy(event.target.value)}
+              placeholder="Pharmacy name"
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Start date</span>
+                <input
+              type="date"
+              value={medicationStartDate}
+              onChange={(event) => setMedicationStartDate(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">End date</span>
+                <input
+              type="date"
+              value={medicationEndDate}
+              onChange={(event) => setMedicationEndDate(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block md:col-span-2">
+                <span className="text-sm font-medium text-slate-700">Storage notes</span>
+                <input
+              type="text"
+              value={storageNotes}
+              onChange={(event) => setStorageNotes(event.target.value)}
+              placeholder="Example: Stored in resident lockbox, resident-managed, office safe, etc."
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block md:col-span-2">
+                <span className="text-sm font-medium text-slate-700">Medication notes</span>
+                <textarea
+              value={medicationNotes}
+              onChange={(event) => setMedicationNotes(event.target.value)}
+              placeholder="Add medication verification notes, refill concerns, MAT/MAR access notes, or follow-up needs."
+              className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+            </div>
+
+
+            <button
+              type="button"
+              onClick={saveMedicationRecord}
+              disabled={savingMedication}
+              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {savingMedication ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              {savingMedication ? "Saving..." : editingMedicationId ? "Update Medication Record" : "Save Medication Record"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {showMedicationLogModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b pb-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">Add Medication Log</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Document a medication activity event, med box check, refill, discontinuation, or discrepancy.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowMedicationLogModal(false)}
+                className="rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Log date</span>
+                <input
+              type="date"
+              value={medLogDate}
+              onChange={(event) => setMedLogDate(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Log type</span>
+                <select
+              value={medLogType}
+              onChange={(event) => setMedLogType(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+              <option value="med_box_check">Med Box</option>
+              <option value="new_med_added">New medication added</option>
+              <option value="med_refilled">Medication refilled</option>
+              <option value="med_discontinued">Medication discontinued</option>
+              <option value="med_count_check">Medication count checked</option>
+              <option value="med_discrepancy">Medication discrepancy noted</option>
+              <option value="storage_update">Medication storage updated</option>
+              <option value="other">Other medication note</option>
+                </select>
+              </label>
+
+              <label className="block md:col-span-2">
+                <span className="text-sm font-medium text-slate-700">Medication involved, if specific</span>
+                <select
+              value={selectedMedicationRecordId}
+              onChange={(event) => setSelectedMedicationRecordId(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+              <option value="">No single medication selected</option>
+              {medicationRecords.map((medication) => (
+                <option key={medication.id} value={medication.id}>
+                  {medication.medication_name} — {medication.status}
+                </option>
+              ))}
+                </select>
+              </label>
+
+              <div className="md:col-span-2 rounded-2xl border bg-slate-50 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-950">Medication checklist</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Check off medications included in this log, such as meds added to the med box or counted.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={checkAllCurrentMedications}
+                  className="rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Check all active meds
+                </button>
+
+                <button
+                  type="button"
+                  onClick={clearCheckedMedications}
+                  className="rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Clear checks
+                </button>
+              </div>
+                </div>
+
+                <div className="mt-4 grid gap-2 md:grid-cols-2">
+              {medicationRecords.length === 0 ? (
+                <p className="rounded-xl bg-white p-3 text-sm text-slate-500">
+                  No medication records available yet.
+                </p>
+              ) : (
+                medicationRecords.map((medication) => (
+                  <label
+                key={medication.id}
+                className="flex items-start gap-3 rounded-xl bg-white p-3 text-sm text-slate-700"
+                  >
+                <input
+                  type="checkbox"
+                  checked={checkedMedicationIds.includes(medication.id)}
+                  onChange={() => toggleCheckedMedication(medication.id)}
+                  className="mt-1 h-4 w-4"
+                />
+                <span>
+                  <span className="font-medium text-slate-950">{medication.medication_name}</span>
+                  <br />
+                  {medication.dosage || "No dosage entered"} • {medication.status}
+                  {medication.mat_mar_related ? " • MAT/MAR" : ""}
+                </span>
+                  </label>
+                ))
+              )}
+                </div>
+              </div>
+
+              <label className="block md:col-span-2">
+                <span className="text-sm font-medium text-slate-700">Medication log note</span>
+                <textarea
+              value={medLogNote}
+              onChange={(event) => setMedLogNote(event.target.value)}
+              placeholder="Example: All current medications were added to the resident medication box. Count verified. No discrepancies noted."
+              className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4 text-sm font-medium text-slate-700">
+                <input
+              type="checkbox"
+              checked={medLogSelfAdministered}
+              onChange={(event) => setMedLogSelfAdministered(event.target.checked)}
+              className="h-4 w-4"
+                />
+                Medication was self-administered by resident during this log event
+              </label>
+
+              <label className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4 text-sm font-medium text-slate-700">
+                <input
+              type="checkbox"
+              checked={medFollowUpNeeded}
+              onChange={(event) => setMedFollowUpNeeded(event.target.checked)}
+              className="h-4 w-4"
+                />
+                Follow-up needed
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Follow-up notes</span>
+                <input
+              type="text"
+              value={medFollowUpNotes}
+              onChange={(event) => setMedFollowUpNotes(event.target.value)}
+              placeholder="Example: Need refill verification"
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+            </div>
+
+            <button
+              type="button"
+              onClick={saveMedicationLog}
+              disabled={savingMedicationLog}
+              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {savingMedicationLog ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              {savingMedicationLog ? "Saving..." : "Save Medication Log"}
+            </button>
 
 
           </div>
