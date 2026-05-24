@@ -262,19 +262,37 @@ export default function StaffProfilePage() {
 
       {staff ? (
         <>
-          <section className="rounded-3xl border bg-white p-6 shadow-sm">
+          <section className="rounded-2xl border bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div className="flex gap-4">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-slate-100">
-                  <UserCog className="h-8 w-8 text-slate-700" />
+              <div className="flex min-w-0 gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-100">
+                  <UserCog className="h-6 w-6 text-slate-700" />
                 </div>
 
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Staff Profile</p>
-                  <h1 className="mt-1 text-3xl font-semibold tracking-tight">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Staff Profile</p>
+                  <h1 className="mt-1 truncate text-2xl font-semibold tracking-tight">
                     {staffDisplayName(staff)}
                   </h1>
-                  <p className="mt-2 text-sm text-slate-500">{staff.email}</p>
+                  <p className="mt-1 text-xs text-slate-500">{staff.email}</p>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                      Role: {staff.role.replaceAll("_", " ")}
+                    </span>
+
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                      Access: {staff.house_access.replaceAll("_", " ")}
+                    </span>
+
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                      Phone: {staff.phone || "Not entered"}
+                    </span>
+
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                      Files: {employeeFiles.length}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -283,30 +301,8 @@ export default function StaffProfilePage() {
               </span>
             </div>
 
-            <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Role</p>
-                <p className="mt-1 text-sm font-semibold text-slate-950">{staff.role}</p>
-              </div>
-
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">House Access</p>
-                <p className="mt-1 text-sm font-semibold text-slate-950">{staff.house_access}</p>
-              </div>
-
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Phone</p>
-                <p className="mt-1 text-sm font-semibold text-slate-950">{staff.phone || "Not entered"}</p>
-              </div>
-
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Employee Files</p>
-                <p className="mt-1 text-sm font-semibold text-slate-950">{employeeFiles.length}</p>
-              </div>
-            </div>
-
             {staff.role === "custom" ? (
-              <div className="mt-6 rounded-2xl bg-slate-50 p-4">
+              <div className="mt-4 rounded-2xl bg-slate-50 p-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Custom Permissions</p>
                 {staff.custom_permissions && staff.custom_permissions.length > 0 ? (
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -323,12 +319,12 @@ export default function StaffProfilePage() {
             ) : null}
           </section>
 
-          <section className="rounded-3xl border bg-white p-6 shadow-sm">
+          <section className="rounded-2xl border bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold">Employee Files</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Store staff applications, background screenings, credentials, training certificates, and evaluations.
+                <p className="mt-1 text-xs text-slate-500">
+                  Applications, screenings, credentials, trainings, and evaluations.
                 </p>
               </div>
 
@@ -342,14 +338,14 @@ export default function StaffProfilePage() {
               </button>
             </div>
 
-            <div className="mt-5 space-y-3">
+            <div className="mt-4 grid gap-3 xl:grid-cols-2">
               {employeeFiles.length === 0 ? (
                 <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
                   No employee files saved yet.
                 </p>
               ) : (
                 employeeFiles.map((file) => (
-                  <div key={file.id} className="rounded-2xl bg-slate-50 p-4">
+                  <div key={file.id} className="rounded-2xl bg-slate-50 p-3">
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
                         <p className="font-medium text-slate-950">{file.document_name}</p>
