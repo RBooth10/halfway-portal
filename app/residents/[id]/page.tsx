@@ -377,6 +377,7 @@ export default function ResidentProfilePage() {
 
   const [resident, setResident] = useState<ResidentDetail | null>(null);
   const [house, setHouse] = useState<HouseRow | null>(null);
+  const [houseOptions, setHouseOptions] = useState<HouseRow[]>([]);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [progressNotes, setProgressNotes] = useState<ProgressNoteRow[]>([]);
   const [uaBaLogs, setUaBaLogs] = useState<UaBaLogRow[]>([]);
@@ -502,6 +503,18 @@ export default function ResidentProfilePage() {
 
       const residentData = residentResult.data as ResidentDetail;
       setResident(residentData);
+
+      const houseOptionsResult = await supabase
+        .from("houses")
+        .select("*")
+        .eq("provider_id", residentData.provider_id)
+        .order("name", { ascending: true });
+
+      if (houseOptionsResult.error) {
+        throw houseOptionsResult.error;
+      }
+
+      setHouseOptions((houseOptionsResult.data ?? []) as HouseRow[]);
       localStorage.setItem("current_provider_id", residentData.provider_id);
 
       const providerResult = await supabase
@@ -3606,9 +3619,9 @@ Resident Signature Collected Electronically`;
                     className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                   >
                     <option value="">Keep current house</option>
-                    {houses.map((house) => (
-                      <option key={house.id} value={house.id}>
-                        {house.name}
+                    {houseOptions.map((houseOption) => (
+                      <option key={houseOption.id} value={houseOption.id}>
+                        {houseOption.name}
                       </option>
                     ))}
                   </select>
