@@ -56,6 +56,32 @@ type ProviderPhaseRow = {
   created_at: string;
 };
 
+function providerToForm(provider: Record<string, unknown>): ProviderForm {
+  return {
+    legal_name: String(provider.legal_name ?? ""),
+    dba_name: String(provider.dba_name ?? ""),
+    primary_contact_name: String(provider.primary_contact_name ?? ""),
+    primary_contact_email: String(provider.primary_contact_email ?? ""),
+    primary_contact_phone: String(provider.primary_contact_phone ?? ""),
+    website: String(provider.website ?? ""),
+    certification_status: String(provider.certification_status ?? "Not certified"),
+    farr_level: String(provider.farr_level ?? ""),
+    mat_mar_statement: String(provider.mat_mar_statement ?? ""),
+    program_fee_model: String(provider.program_fee_model ?? "cost_per_client"),
+    cost_per_client: provider.cost_per_client === null || provider.cost_per_client === undefined ? "" : String(provider.cost_per_client),
+    split_rent_total_amount: provider.split_rent_total_amount === null || provider.split_rent_total_amount === undefined ? "" : String(provider.split_rent_total_amount),
+    split_rent_client_count: provider.split_rent_client_count === null || provider.split_rent_client_count === undefined ? "" : String(provider.split_rent_client_count),
+    program_fee_frequency: String(provider.program_fee_frequency ?? "monthly"),
+    program_fee_charge_day_of_month:
+      provider.program_fee_charge_day_of_month === null || provider.program_fee_charge_day_of_month === undefined
+        ? ""
+        : String(provider.program_fee_charge_day_of_month),
+    program_fee_charge_day_of_week: String(provider.program_fee_charge_day_of_week ?? ""),
+    admission_fee_amount: provider.admission_fee_amount === null || provider.admission_fee_amount === undefined ? "" : String(provider.admission_fee_amount),
+    admission_fee_refundable: Boolean(provider.admission_fee_refundable),
+  };
+}
+
 const initialForm: ProviderForm = {
   legal_name: "",
   dba_name: "",
@@ -87,12 +113,34 @@ export default function ProviderOnboardingPage() {
     const activeProviderId = localStorage.getItem("current_provider_id");
 
     if (activeProviderId) {
-      void Promise.resolve().then(() => {
-        setSavedProviderId(activeProviderId);
-        void loadProviderPhases(activeProviderId);
+      void Promise.resolve().then(async () => {
+        await loadProviderProfile(activeProviderId);
+        await loadProviderPhases(activeProviderId);
       });
     }
   }, []);
+
+  async function loadProviderProfile(providerId: string) {
+    try {
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase
+        .from("providers")
+        .select("*")
+        .eq("id", providerId)
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setForm(providerToForm(data as Record<string, unknown>));
+      setSavedProviderId(providerId);
+    } catch (err) {
+      const providerError = err as { message?: unknown };
+      setError(providerError?.message ? String(providerError.message) : "Could not load provider profile.");
+    }
+  }
 
   async function loadProviderPhases(providerId: string) {
     try {
@@ -139,37 +187,67 @@ export default function ProviderOnboardingPage() {
       const { data: userData, error: userError } = await supabase.auth.getUser();
 
       if (userError || !userData.user) {
-        setError("You must be signed in before creating a provider profile. Go to Sign In first.");
+        setError("You must be signed in before saving a provider profile. Go to Sign In first.");
         setSaving(false);
         return;
       }
 
-      const { data, error } = await supabase
-        .from("providers")
-        .insert({
-          legal_name: form.legal_name.trim(),
-          created_by_auth_user_id: userData.user.id,
-          dba_name: form.dba_name.trim() || null,
-          primary_contact_name: form.primary_contact_name.trim() || null,
-          primary_contact_email: form.primary_contact_email.trim() || null,
-          primary_contact_phone: form.primary_contact_phone.trim() || null,
-          website: form.website.trim() || null,
-          certification_status: form.certification_status,
-          farr_level: form.farr_level,
-          mat_mar_statement: form.mat_mar_statement.trim() || null,
-          status: "setup",
-        })
-        .select("id, legal_name")
-        .single();
+      const providerPayload = {
+        legal_name: form.legal_name.trim(),
+        dba_name: form.dba_name.trim() || null,
+        primary_contact_name: form.primary_contact_name.trim() || null,
+        primary_contact_email: form.primary_contact_email.trim() || null,
+        primary_contact_phone: form.primary_contact_phone.trim() || null,
+        website: form.website.trim() || null,
+        certification_status: form.certification_status,
+        farr_level: form.farr_level || null,
+        mat_mar_statement: form.mat_mar_statement.trim() || null,
+        program_fee_model: form.program_fee_model,
+        cost_per_client: form.cost_per_client ? Number(form.cost_per_client) : null,
+        split_rent_total_amount: form.split_rent_total_amount ? Number(form.split_rent_total_amount) : null,
+        split_rent_client_count: form.split_rent_client_count ? Number(form.split_rent_client_count) : null,
+        program_fee_frequency: form.program_fee_frequency,
+        program_fee_charge_day_of_month: form.program_fee_charge_day_of_month ? Number(form.program_fee_charge_day_of_month) : null,
+        program_fee_charge_day_of_week: form.program_fee_charge_day_of_week || null,
+        admission_fee_amount: form.admission_fee_amount ? Number(form.admission_fee_amount) : null,
+        admission_fee_refundable: form.admission_fee_refundable,
+        status: "setup",
+      };
 
-      if (error) {
-        throw error;
+      if (savedProviderId) {
+        const { data, error } = await supabase
+          .from("providers")
+          .update(providerPayload)
+          .eq("id", savedProviderId)
+          .select("*")
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        setForm(providerToForm(data as Record<string, unknown>));
+        setMessage(`${data.legal_name} was updated successfully.`);
+      } else {
+        const { data, error } = await supabase
+          .from("providers")
+          .insert({
+            ...providerPayload,
+            created_by_auth_user_id: userData.user.id,
+          })
+          .select("*")
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        setSavedProviderId(data.id);
+        localStorage.setItem("current_provider_id", data.id);
+        setForm(providerToForm(data as Record<string, unknown>));
+        await loadProviderPhases(data.id);
+        setMessage(`${data.legal_name} was saved successfully.`);
       }
-
-      setSavedProviderId(data.id);
-      localStorage.setItem("current_provider_id", data.id);
-      await loadProviderPhases(data.id);
-      setMessage(`${data.legal_name} was saved successfully. You can continue to house setup.`);
     } catch (err) {
       if (err && typeof err === "object" && "message" in err) {
         setError(String((err as { message: unknown }).message));
@@ -571,21 +649,23 @@ export default function ProviderOnboardingPage() {
               className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {saving ? "Saving..." : "Save Provider Profile"}
+              {saving ? "Saving..." : savedProviderId ? "Update Provider Profile" : "Save Provider Profile"}
             </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setForm(initialForm);
-                setMessage("");
-                setError("");
-                setSavedProviderId(null);
-              }}
-              className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
-            >
-              Clear Form
-            </button>
+            {!savedProviderId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setForm(initialForm);
+                  setMessage("");
+                  setError("");
+                  setSavedProviderId(null);
+                }}
+                className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
+              >
+                Clear Form
+              </button>
+            ) : null}
           </div>
         </form>
       </section>
