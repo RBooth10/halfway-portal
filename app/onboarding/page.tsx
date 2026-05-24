@@ -42,6 +42,7 @@ type ProviderForm = {
   program_fee_charge_day_of_week: string;
   admission_fee_amount: string;
   admission_fee_refundable: boolean;
+  prorate_first_period: boolean;
 };
 
 type ProviderPhaseRow = {
@@ -79,6 +80,7 @@ function providerToForm(provider: Record<string, unknown>): ProviderForm {
     program_fee_charge_day_of_week: String(provider.program_fee_charge_day_of_week ?? ""),
     admission_fee_amount: provider.admission_fee_amount === null || provider.admission_fee_amount === undefined ? "" : String(provider.admission_fee_amount),
     admission_fee_refundable: Boolean(provider.admission_fee_refundable),
+    prorate_first_period: Boolean(provider.prorate_first_period ?? true),
   };
 }
 
@@ -211,6 +213,7 @@ export default function ProviderOnboardingPage() {
         program_fee_charge_day_of_week: form.program_fee_charge_day_of_week || null,
         admission_fee_amount: form.admission_fee_amount ? Number(form.admission_fee_amount) : null,
         admission_fee_refundable: form.admission_fee_refundable,
+        prorate_first_period: form.prorate_first_period,
         status: "setup",
       };
 
@@ -648,6 +651,18 @@ export default function ProviderOnboardingPage() {
                 />
                 <span className="text-sm font-medium text-slate-700">
                   Admission fee is refundable
+                </span>
+              </label>
+
+              <label className="flex items-center gap-3 rounded-xl border bg-white p-4">
+                <input
+                  type="checkbox"
+                  checked={Boolean(form.prorate_first_period)}
+                  onChange={(event) => updateField("prorate_first_period", event.target.checked)}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700">
+                  Prorate first billing period
                 </span>
               </label>
             </div>

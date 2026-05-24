@@ -1,4 +1,5 @@
 -- Auto-generate current resident charges and record payments.
+-- Includes first-period proration based on resident admission date.
 
 create or replace function public.ensure_current_resident_fees(p_resident_id uuid)
 returns jsonb
@@ -9,13 +10,20 @@ as $$
 declare
   resident_record public.residents%rowtype;
   provider_record public.providers%rowtype;
-  fee_amount numeric := 0;
+  full_fee_amount numeric := 0;
+  charge_amount numeric := 0;
   period_start_date date := current_date;
   period_end_date date := current_date;
+  charge_period_start date := current_date;
   due_date_value date := current_date;
   monthly_day integer;
   last_day_of_month date;
+  full_period_days integer := 1;
+  charge_days integer := 1;
+  existing_program_fee_count integer := 0;
+  should_prorate boolean := false;
   inserted_count integer := 0;
+  charge_note text := 'Auto-generated from provider program fee settings.';
 begin
   select *
   into resident_record
@@ -43,12 +51,12 @@ begin
 
   if provider_record.program_fee_model = 'split_rent' then
     if coalesce(provider_record.split_rent_client_count, 0) > 0 then
-      fee_amount := coalesce(provider_record.split_rent_total_amount, 0) / provider_record.split_rent_client_count;
+      full_fee_amount := coalesce(provider_record.split_rent_total_amount, 0) / provider_record.split_rent_client_count;
     else
-      fee_amount := 0;
+      full_fee_amount := 0;
     end if;
   else
-    fee_amount := coalesce(provider_record.cost_per_client, 0);
+    full_fee_amount := coalesce(provider_record.cost_per_client, 0);
   end if;
 
   if provider_record.program_fee_frequency = 'monthly' then
@@ -74,7 +82,37 @@ begin
     due_date_value := current_date;
   end if;
 
-  if fee_amount > 0 then
+  select count(*)
+  into existing_program_fee_count
+  from public.resident_fee_charges existing
+  where existing.resident_id = resident_record.id
+    and existing.charge_type = 'program_fee';
+
+  should_prorate :=
+    coalesce(provider_record.prorate_first_period, true)
+    and existing_program_fee_count = 0
+    and resident_record.admission_date is not null
+    and resident_record.admission_date > period_start_date
+    and resident_record.admission_date <= period_end_date
+    and provider_record.program_fee_frequency in ('monthly', 'weekly', 'biweekly');
+
+  charge_period_start := case
+    when should_prorate then resident_record.admission_date
+    else period_start_date
+  end;
+
+  full_period_days := greatest((period_end_date - period_start_date) + 1, 1);
+  charge_days := greatest((period_end_date - charge_period_start) + 1, 1);
+
+  if should_prorate then
+    charge_amount := round((full_fee_amount / full_period_days) * charge_days, 2);
+    charge_note := 'Prorated first program fee from admission date through the end of the first billing period.';
+    due_date_value := resident_record.admission_date;
+  else
+    charge_amount := round(full_fee_amount, 2);
+  end if;
+
+  if charge_amount > 0 then
     insert into public.resident_fee_charges (
       provider_id,
       resident_id,
@@ -96,20 +134,19 @@ begin
       resident_record.house_id,
       'program_fee',
       coalesce(provider_record.program_fee_frequency, 'monthly'),
-      period_start_date,
+      charge_period_start,
       period_end_date,
       due_date_value,
-      fee_amount,
+      charge_amount,
       0,
-      fee_amount,
+      charge_amount,
       'open',
-      'Auto-generated from provider program fee settings.'
+      charge_note
     where not exists (
       select 1
       from public.resident_fee_charges existing
       where existing.resident_id = resident_record.id
         and existing.charge_type = 'program_fee'
-        and existing.period_start = period_start_date
         and existing.period_end = period_end_date
     );
 
@@ -153,7 +190,12 @@ begin
     );
   end if;
 
-  return jsonb_build_object('ok', true, 'message', 'Resident fee charges checked.');
+  return jsonb_build_object(
+    'ok', true,
+    'message', 'Resident fee charges checked.',
+    'inserted_count', inserted_count,
+    'prorated', should_prorate
+  );
 end;
 $$;
 
