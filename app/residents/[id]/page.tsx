@@ -89,6 +89,17 @@ type UaBaLogRow = {
   created_at: string;
 };
 
+type ScheduledUaItemRow = {
+  id: string;
+  provider_id: string;
+  resident_id: string;
+  house_id: string | null;
+  scheduled_date: string;
+  status: string;
+  reason: string | null;
+  created_at: string;
+};
+
 type MedicationRecordRow = {
   id: string;
   provider_id: string;
@@ -381,6 +392,7 @@ export default function ResidentProfilePage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [progressNotes, setProgressNotes] = useState<ProgressNoteRow[]>([]);
   const [uaBaLogs, setUaBaLogs] = useState<UaBaLogRow[]>([]);
+  const [scheduledUaItems, setScheduledUaItems] = useState<ScheduledUaItemRow[]>([]);
   const [medicationRecords, setMedicationRecords] = useState<MedicationRecordRow[]>([]);
   const [medicationLogs, setMedicationLogs] = useState<MedicationLogRow[]>([]);
   const [rciAssessments, setRciAssessments] = useState<RciAssessmentRow[]>([]);
@@ -430,6 +442,7 @@ export default function ResidentProfilePage() {
   const [savingManualCharge, setSavingManualCharge] = useState(false);
   const [showProgressNoteModal, setShowProgressNoteModal] = useState(false);
   const [showUaBaModal, setShowUaBaModal] = useState(false);
+  const [selectedScheduledUaId, setSelectedScheduledUaId] = useState<string | null>(null);
   const [clientRciLink, setClientRciLink] = useState("");
   const [generatingRciLink, setGeneratingRciLink] = useState(false);
   const [showRciActionModal, setShowRciActionModal] = useState(false);
@@ -593,6 +606,18 @@ export default function ResidentProfilePage() {
       }
 
       setUaBaLogs((uaBaResult.data ?? []) as UaBaLogRow[]);
+
+      const scheduledUaItemsResult = await supabase
+        .from("ua_randomizer_schedule")
+        .select("id, provider_id, resident_id, house_id, scheduled_date, status, reason, created_at")
+        .eq("resident_id", residentData.id)
+        .eq("status", "scheduled")
+        .order("scheduled_date", { ascending: true });
+
+      if (!scheduledUaItemsResult.error) {
+        setScheduledUaItems((scheduledUaItemsResult.data ?? []) as ScheduledUaItemRow[]);
+      }
+
 
       const medicationResult = await supabase
         .from("medication_records")
@@ -776,6 +801,35 @@ export default function ResidentProfilePage() {
     }
   }
 
+  function cleanScheduledUaReason(reason: string | null) {
+    return (reason || "Rolling UA schedule")
+      .replace(/\s*Phase:\s*[^.]+\.?/i, "")
+      .trim()
+      .replace(/\.$/, "") || "Rolling UA schedule";
+  }
+
+  function openScheduledUaLog(scheduledUa: ScheduledUaItemRow) {
+    setSelectedScheduledUaId(scheduledUa.id);
+    setCollectionDate(scheduledUa.scheduled_date || new Date().toISOString().slice(0, 10));
+    setTestType("UA_BA");
+    setTestResult("pending");
+    setBreathalyzerResult("");
+    setTestReason("Random UA schedule");
+    setTestNotes(cleanScheduledUaReason(scheduledUa.reason));
+    setShowUaBaModal(true);
+  }
+
+  function openManualUaBaLog() {
+    setSelectedScheduledUaId(null);
+    setCollectionDate("");
+    setTestType("UA");
+    setTestResult("pending");
+    setBreathalyzerResult("");
+    setTestReason("");
+    setTestNotes("");
+    setShowUaBaModal(true);
+  }
+
   async function saveUaBaLog() {
     setSavingUaBaLog(true);
     setMessage("");
@@ -804,6 +858,7 @@ export default function ResidentProfilePage() {
           breathalyzer_result: breathalyzerResult.trim() || null,
           reason: testReason.trim() || null,
           notes: testNotes.trim() || null,
+          ua_randomizer_schedule_id: selectedScheduledUaId,
         })
         .select("*")
         .single();
@@ -813,12 +868,29 @@ export default function ResidentProfilePage() {
       }
 
       setUaBaLogs((current) => [data as UaBaLogRow, ...current]);
+
+      if (selectedScheduledUaId) {
+        const { error: scheduleUpdateError } = await supabase
+          .from("ua_randomizer_schedule")
+          .update({
+            status: "completed",
+            reason: testNotes.trim() || testReason.trim() || "Scheduled UA completed from resident profile.",
+          })
+          .eq("id", selectedScheduledUaId);
+
+        if (scheduleUpdateError) {
+          throw scheduleUpdateError;
+        }
+
+        setScheduledUaItems((current) => current.filter((item) => item.id !== selectedScheduledUaId));
+      }
       setCollectionDate("");
       setTestType("UA");
       setTestResult("pending");
       setBreathalyzerResult("");
       setTestReason("");
       setTestNotes("");
+      setSelectedScheduledUaId(null);
       setShowUaBaModal(false);
       setMessage("UA/BA log saved successfully.");
 
@@ -2332,7 +2404,7 @@ Resident Signature Collected Electronically`;
                         <SnapshotAction
                           title="Complete UA/BA"
                           description={uaBaLogs.length > 0 ? `${uaBaLogs.length} UA/BA log(s) saved.` : "No UA/BA logs yet. Add a screen or breathalyzer result."}
-                          onClick={() => setShowUaBaModal(true)}
+                          onClick={openManualUaBaLog}
                         />
                         <SnapshotAction
                           title="Create Progress Note"
@@ -2548,7 +2620,52 @@ Resident Signature Collected Electronically`;
                 </div>
 
                 <div className="mt-6 space-y-3">
-                  {uaBaLogs.length === 0 ? (
+                  <div className="mt-5 rounded-2xl border bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-950">Scheduled UA Items</h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Rolling UA schedule items assigned to this resident.
+                      </p>
+                    </div>                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {scheduledUaItems.length === 0 ? (
+                      <p className="rounded-xl bg-white p-3 text-sm text-slate-500">
+                        No scheduled UA items for this resident.
+                      </p>
+                    ) : (
+                      scheduledUaItems.map((scheduledUa) => (
+                        <div key={scheduledUa.id} className="rounded-xl bg-white p-3">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-950">
+                                Scheduled UA • {formatDate(scheduledUa.scheduled_date)}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {cleanScheduledUaReason(scheduledUa.reason)}
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => openScheduledUaLog(scheduledUa)}
+                              className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800"
+                            >
+                              Log Scheduled UA
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  <h3 className="text-sm font-semibold text-slate-950">Completed UA/BA History</h3>
+                </div>
+
+                {uaBaLogs.length === 0 ? (
                     <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
                       No UA/BA logs saved yet.
                     </p>
@@ -3328,15 +3445,22 @@ Resident Signature Collected Electronically`;
           <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
             <div className="flex items-start justify-between gap-4 border-b pb-4">
               <div>
-                <h2 className="text-xl font-semibold text-slate-950">Log UA/BA</h2>
+                <h2 className="text-xl font-semibold text-slate-950">
+                  {selectedScheduledUaId ? "Log Scheduled UA" : "Log UA/BA"}
+                </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Add a drug screen or breathalyzer record to this resident profile.
+                  {selectedScheduledUaId
+                    ? "Complete the scheduled UA assigned to this resident."
+                    : "Add a drug screen or breathalyzer record to this resident profile."}
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() => setShowUaBaModal(false)}
+                onClick={() => {
+                  setSelectedScheduledUaId(null);
+                  setShowUaBaModal(false);
+                }}
                 className="rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
               >
                 Close
