@@ -270,63 +270,6 @@ export default function ResidentsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  async function dischargeResident(residentId: string, residentName: string) {
-    const confirmed = window.confirm(
-      `Discharge ${residentName}? This keeps all resident data but moves the resident to the discharged tab and stops future auto-charges.`
-    );
-
-    if (!confirmed) return;
-
-    setMessage("");
-    setError("");
-
-    try {
-      const supabase = getSupabaseClient();
-      const today = new Date().toISOString().slice(0, 10);
-      const previousResident = residents.find((resident) => resident.id === residentId) ?? null;
-
-      const { data, error } = await supabase.rpc("discharge_resident", {
-        p_resident_id: residentId,
-        p_discharge_date: today,
-        p_discharge_reason: "Discharged from residents list.",
-        p_discharge_notes: "",
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      if (!data?.ok) {
-        setError(data?.message ?? "Could not discharge resident.");
-        return;
-      }
-
-      setResidents((current) =>
-        current.map((resident) =>
-          resident.id === residentId ? { ...resident, resident_status: "discharged" } : resident
-        )
-      );
-
-      if (providerId) {
-        await createAuditLog({
-          providerId,
-          action: "resident_discharged",
-          tableName: "residents",
-          recordId: residentId,
-          oldValues: previousResident as unknown as Record<string, unknown> | null,
-          newValues: { resident_status: "discharged", discharge_date: today },
-          reason: "Resident discharged from portal.",
-        });
-      }
-
-      setResidentListTab("discharged");
-      setMessage(`${residentName} was discharged.`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Could not discharge resident.";
-      setError(message);
-    }
-  }
-
   async function saveResident() {
     setSaving(true);
     setMessage("");
@@ -664,6 +607,15 @@ export default function ResidentsPage() {
                           View Profile
                         </Link>
 
+                        {resident.resident_status === "discharged" ? (
+                          <Link
+                            href={`/residents/${resident.id}?tab=lifecycle`}
+                            className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            Readmit
+                          </Link>
+                        ) : null}
+
                         <button
                           type="button"
                           onClick={() => startEditingResident(resident)}
@@ -673,15 +625,15 @@ export default function ResidentsPage() {
                           Edit
                         </button>
 
-                        <button
-                          type="button"
-                          onClick={() => dischargeResident(resident.id, residentName)}
-                          disabled={resident.resident_status === "discharged"}
-                          className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <Archive className="h-3.5 w-3.5" />
-                          {resident.resident_status === "discharged" ? "Discharged" : "Discharge"}
-                        </button>
+                        {resident.resident_status === "active" ? (
+                          <Link
+                            href={`/residents/${resident.id}?tab=lifecycle`}
+                            className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            <Archive className="h-3.5 w-3.5" />
+                            Discharge
+                          </Link>
+                        ) : null}
                       </div>
                     </div>
                   </div>

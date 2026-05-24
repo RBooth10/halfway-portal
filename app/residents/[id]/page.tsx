@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -348,6 +348,7 @@ function SnapshotAction({
 
 export default function ResidentProfilePage() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const residentId = params.id;
 
   const [resident, setResident] = useState<ResidentDetail | null>(null);
@@ -373,14 +374,23 @@ export default function ResidentProfilePage() {
   const [dischargeDate, setDischargeDate] = useState(new Date().toISOString().slice(0, 10));
   const [dischargeReason, setDischargeReason] = useState("");
   const [dischargeNotes, setDischargeNotes] = useState("");
+  const [dischargeEmergencyContactStatus, setDischargeEmergencyContactStatus] = useState("");
+  const [dischargeEmergencyContactNotes, setDischargeEmergencyContactNotes] = useState("");
   const [readmissionDate, setReadmissionDate] = useState(new Date().toISOString().slice(0, 10));
   const [readmissionHouseId, setReadmissionHouseId] = useState("");
   const [chargeAdmissionFeeAgain, setChargeAdmissionFeeAgain] = useState(false);
   const [readmissionNotes, setReadmissionNotes] = useState("");
   const [savingLifecycle, setSavingLifecycle] = useState(false);
+  const [showLifecycleModal, setShowLifecycleModal] = useState(() => {
+    const requestedAction = searchParams.get("action");
+    return requestedAction === "discharge" || requestedAction === "readmit" || searchParams.get("tab") === "lifecycle";
+  });
   const [providerName, setProviderName] = useState("Current Provider");
   const [providerPhaseLevels, setProviderPhaseLevels] = useState<ProviderPhaseRow[]>([]);
-  const [activeTab, setActiveTab] = useState("snapshot");
+  const [activeTab, setActiveTab] = useState(() => {
+    const requestedTab = searchParams.get("tab");
+    return requestedTab && requestedTab !== "lifecycle" ? requestedTab : "snapshot";
+  });
   const [medLogDate, setMedLogDate] = useState("");
   const [medLogType, setMedLogType] = useState("med_box_check");
   const [selectedMedicationRecordId, setSelectedMedicationRecordId] = useState("");
@@ -1098,11 +1108,33 @@ export default function ResidentProfilePage() {
     try {
       const supabase = getSupabaseClient();
 
+      if (!dischargeReason) {
+        setError("Select a discharge reason.");
+        return;
+      }
+
+      if (!dischargeEmergencyContactStatus) {
+        setError("Select the emergency contact call status.");
+        return;
+      }
+
+      if (dischargeNotes.trim().length < 20) {
+        setError("Enter a detailed discharge note before discharging the resident.");
+        return;
+      }
+
+      if (dischargeEmergencyContactNotes.trim().length < 10) {
+        setError("Document the emergency contact call or attempted call before discharging the resident.");
+        return;
+      }
+
       const { data, error } = await supabase.rpc("discharge_resident", {
         p_resident_id: resident.id,
         p_discharge_date: dischargeDate || new Date().toISOString().slice(0, 10),
         p_discharge_reason: dischargeReason,
         p_discharge_notes: dischargeNotes,
+        p_emergency_contact_status: dischargeEmergencyContactStatus,
+        p_emergency_contact_notes: dischargeEmergencyContactNotes,
       });
 
       if (error) {
@@ -1122,6 +1154,7 @@ export default function ResidentProfilePage() {
         discharge_notes: dischargeNotes,
       });
 
+      setShowLifecycleModal(false);
       setMessage("Resident discharged. Future program fees will stop.");
     } catch (err) {
       const lifecycleError = err as { message?: unknown };
@@ -1181,6 +1214,7 @@ export default function ResidentProfilePage() {
           : "Resident readmitted. Program fees resumed without a new admission fee."
       );
 
+      setShowLifecycleModal(false);
       setActiveTab("fees");
     } catch (err) {
       const lifecycleError = err as { message?: unknown };
@@ -1353,7 +1387,6 @@ export default function ResidentProfilePage() {
               <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
                 <div className="flex flex-wrap border-b bg-white">
                   <TabButton active={activeTab === "snapshot"} label="Snapshot" status="Add or review" onClick={() => setActiveTab("snapshot")} />
-                  <TabButton active={activeTab === "lifecycle"} label="Lifecycle" status={resident.resident_status === "active" ? "Active" : "Discharged"} onClick={() => setActiveTab("lifecycle")} />
                   <TabButton active={activeTab === "fees"} label="Fees" status={`Balance $${currentBalance.toFixed(2)}`} onClick={() => setActiveTab("fees")} />
                   <TabButton active={activeTab === "notes"} label="Notes" status={`${progressNotes.length} saved`} onClick={() => setActiveTab("notes")} />
                   <TabButton active={activeTab === "ua"} label="UA/BA" status={uaBaLogs.length > 0 ? `${uaBaLogs.length} logged` : "Needs log"} onClick={() => setActiveTab("ua")} />
@@ -1475,9 +1508,9 @@ export default function ResidentProfilePage() {
                         </div>
 
                         <SnapshotAction
-                          title="Discharge / Readmit"
+                          title={resident.resident_status === "active" ? "Discharge Resident" : "Readmit Resident"}
                           description={resident.resident_status === "active" ? "Discharge resident and stop future program fees." : "Readmit resident and resume program fees."}
-                          onClick={() => setActiveTab("lifecycle")}
+                          onClick={() => setShowLifecycleModal(true)}
                         />
 
                         <SnapshotAction
@@ -2143,10 +2176,25 @@ export default function ResidentProfilePage() {
                 </div>
               </div>
 
-              <div className={activeTab === "lifecycle" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
-                <h2 className="text-lg font-semibold">Resident Lifecycle</h2>
+              {showLifecycleModal ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+                  <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+                    <div className="mb-4 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setShowLifecycleModal(false)}
+                        className="rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        Close
+                      </button>
+                    </div>
+                <h2 className="text-lg font-semibold">
+                  {resident.resident_status === "active" ? "Discharge Resident" : "Readmit Resident"}
+                </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Manage discharge and readmission without deleting resident history.
+                  {resident.resident_status === "active"
+                    ? "Complete required discharge documentation before moving this resident to discharged status."
+                    : "Readmit this resident and resume program fees from the readmission date."}
                 </p>
 
                 {resident.resident_status === "active" ? (
@@ -2169,17 +2217,46 @@ export default function ResidentProfilePage() {
 
                       <label className="block">
                         <span className="text-sm font-medium text-slate-700">Discharge reason</span>
-                        <input
-                          type="text"
+                        <select
                           value={dischargeReason}
                           onChange={(event) => setDischargeReason(event.target.value)}
-                          placeholder="Completed program, left voluntarily, transferred, etc."
                           className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                        >
+                          <option value="">Select reason</option>
+                          <option value="Completion">Completion</option>
+                          <option value="Admin">Admin</option>
+                          <option value="Abandonment">Abandonment</option>
+                          <option value="Relapse">Relapse</option>
+                        </select>
+                      </label>
+
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">Emergency contact call status</span>
+                        <select
+                          value={dischargeEmergencyContactStatus}
+                          onChange={(event) => setDischargeEmergencyContactStatus(event.target.value)}
+                          className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                        >
+                          <option value="">Select status</option>
+                          <option value="Called and reached">Called and reached</option>
+                          <option value="Called and left voicemail">Called and left voicemail</option>
+                          <option value="Called with no answer">Called with no answer</option>
+                          <option value="No emergency contact on file">No emergency contact on file</option>
+                        </select>
+                      </label>
+
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">Emergency contact call notes</span>
+                        <textarea
+                          value={dischargeEmergencyContactNotes}
+                          onChange={(event) => setDischargeEmergencyContactNotes(event.target.value)}
+                          placeholder="Who was called, when, outcome, and any follow-up needed."
+                          className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                         />
                       </label>
 
                       <label className="block md:col-span-2">
-                        <span className="text-sm font-medium text-slate-700">Discharge notes</span>
+                        <span className="text-sm font-medium text-slate-700">Detailed discharge note</span>
                         <textarea
                           value={dischargeNotes}
                           onChange={(event) => setDischargeNotes(event.target.value)}
@@ -2260,7 +2337,9 @@ export default function ResidentProfilePage() {
                     </button>
                   </div>
                 )}
-              </div>
+                  </div>
+                </div>
+              ) : null}
 
               <div className={activeTab === "fees" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                 <h2 className="text-lg font-semibold">Resident Fees</h2>
