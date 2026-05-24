@@ -8,9 +8,7 @@ import {
   Building2,
   CheckCircle2,
   Home,
-  KeyRound,
   Loader2,
-  LockKeyhole,
   Mail,
   Pencil,
   Plus,
@@ -31,6 +29,7 @@ type StaffForm = {
   phone: string;
   role: string;
   house_access: string;
+  custom_permissions: string[];
 };
 
 type StaffRow = {
@@ -42,6 +41,7 @@ type StaffRow = {
   role: string;
   house_access: string;
   status: string;
+  custom_permissions?: string[] | null;
 };
 
 const roles = [
@@ -75,9 +75,15 @@ const roles = [
     access: "Read-only access",
     description: "Can review selected reports and compliance records without editing.",
   },
+  {
+    name: "Custom Permissions",
+    value: "custom",
+    access: "Selected permissions",
+    description: "Choose individual permission areas for this staff member.",
+  },
 ];
 
-const permissionGroups = [
+const permissionOptions = [
   "Provider profile",
   "Houses",
   "Residents",
@@ -98,34 +104,8 @@ const initialForm: StaffForm = {
   phone: "",
   role: "house_manager",
   house_access: "assigned_houses_only",
+  custom_permissions: [],
 };
-
-function MetricCard({
-  title,
-  value,
-  subtitle,
-  icon: Icon,
-}: {
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: React.ComponentType<{ className?: string }>;
-}) {
-  return (
-    <div className="rounded-2xl border bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-slate-500">{title}</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{value}</p>
-          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-        </div>
-        <div className="rounded-2xl bg-slate-100 p-3">
-          <Icon className="h-6 w-6 text-slate-700" />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function Field({
   label,
@@ -198,6 +178,15 @@ export default function StaffPage() {
     }));
   }
 
+  function toggleCustomPermission(permission: string) {
+    setForm((current) => ({
+      ...current,
+      custom_permissions: current.custom_permissions.includes(permission)
+        ? current.custom_permissions.filter((item) => item !== permission)
+        : [...current.custom_permissions, permission],
+    }));
+  }
+
   async function loadStaff(activeProviderId: string) {
     const supabase = getSupabaseClient();
 
@@ -257,6 +246,7 @@ export default function StaffPage() {
       phone: person.phone ?? "",
       role: person.role ?? "house_manager",
       house_access: person.house_access ?? "assigned_houses_only",
+      custom_permissions: person.custom_permissions ?? [],
     });
     setMessage(`Editing ${person.email}. Update the form and click Save Changes.`);
     setError("");
@@ -338,6 +328,7 @@ export default function StaffPage() {
       phone: form.phone.trim() || null,
       role: form.role,
       house_access: form.house_access,
+      custom_permissions: form.role === "custom" ? form.custom_permissions : [],
       status: editingStaffId ? undefined : "pending_approval",
     };
 
@@ -354,6 +345,7 @@ export default function StaffPage() {
             phone: staffPayload.phone,
             role: staffPayload.role,
             house_access: staffPayload.house_access,
+            custom_permissions: staffPayload.custom_permissions,
           })
           .eq("id", editingStaffId)
           .select("*")
@@ -435,7 +427,6 @@ export default function StaffPage() {
   const visibleStaff = staff.filter(
     (person) => String(person.status ?? "active").toLowerCase() !== "inactive"
   );
-  const activeStaff = visibleStaff.length;
 
   return (
     <PageShell>
@@ -505,13 +496,6 @@ export default function StaffPage() {
         </div>
       )}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="Staff" value={String(activeStaff)} subtitle="Saved to Supabase" icon={Users} />
-        <MetricCard title="Roles" value="5" subtitle="Default access levels" icon={KeyRound} />
-        <MetricCard title="House Access" value="Setup" subtitle="Assign by house later" icon={Home} />
-        <MetricCard title="Security" value="Required" subtitle="Role-based controls" icon={LockKeyhole} />
-      </section>
-
       <section className="space-y-6">
         {showStaffForm ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
@@ -541,6 +525,31 @@ export default function StaffPage() {
                 ))}
               </select>
             </label>
+
+            {form.role === "custom" ? (
+              <div className="rounded-2xl border bg-slate-50 p-4 md:col-span-2">
+                <div>
+                  <p className="text-sm font-semibold text-slate-950">Custom Permission Selection</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Select the areas this staff member should be able to access.
+                  </p>
+                </div>
+
+                <div className="mt-4 grid gap-2 md:grid-cols-2">
+                  {permissionOptions.map((permission) => (
+                    <label key={permission} className="flex items-center gap-3 rounded-xl bg-white p-3 text-sm font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={form.custom_permissions.includes(permission)}
+                        onChange={() => toggleCustomPermission(permission)}
+                        className="h-4 w-4"
+                      />
+                      {permission}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             <label className="block">
               <span className="text-sm font-medium text-slate-700">House access</span>
@@ -573,28 +582,7 @@ export default function StaffPage() {
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               {saving ? "Saving..." : editingStaffId ? "Save Changes" : "Save Staff Invite"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setForm(initialForm);
-                setEditingStaffId(null);
-                setMessage("");
-                setError("");
-              }}
-              className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
-            >
-              {editingStaffId ? "Cancel Edit" : "Clear Form"}
-            </button>
-
-            <Link
-              href="/residents"
-              className="inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
-            >
-              Continue to Resident Setup
-            </Link>
-          </div>
+            </button>          </div>
             <button
               type="button"
               onClick={() => {
@@ -667,23 +655,11 @@ export default function StaffPage() {
               </div>
             )}
           </div>
-
-          <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">Permission Groups</h2>
-            <div className="mt-4 space-y-2">
-              {permissionGroups.map((item) => (
-                <div key={item} className="flex items-center gap-2 rounded-2xl bg-slate-50 p-3 text-sm text-slate-600">
-                  <CheckCircle2 className="h-4 w-4 text-slate-700" />
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
         </aside>
       </section>
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold">Default Role Types</h2>
+        <h2 className="mb-4 text-lg font-semibold">Default Role Types & Custom Option</h2>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {roles.map((role) => (
             <RoleCard key={role.name} role={role} />

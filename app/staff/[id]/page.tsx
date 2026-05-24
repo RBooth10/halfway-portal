@@ -24,6 +24,7 @@ type StaffRow = {
   role: string;
   house_access: string;
   status: string;
+  custom_permissions?: string[] | null;
   created_at?: string | null;
 };
 
@@ -303,6 +304,23 @@ export default function StaffProfilePage() {
                 <p className="mt-1 text-sm font-semibold text-slate-950">{employeeFiles.length}</p>
               </div>
             </div>
+
+            {staff.role === "custom" ? (
+              <div className="mt-6 rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Custom Permissions</p>
+                {staff.custom_permissions && staff.custom_permissions.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {staff.custom_permissions.map((permission) => (
+                      <span key={permission} className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                        {permission}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-slate-500">No custom permissions selected.</p>
+                )}
+              </div>
+            ) : null}
           </section>
 
           <section className="rounded-3xl border bg-white p-6 shadow-sm">
