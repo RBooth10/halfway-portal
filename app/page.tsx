@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   UserCog,
   Users,
+  Dice5,
 } from "lucide-react";
 import Link from "next/link";
 import PageShell from "@/components/PageShell";
@@ -244,6 +245,13 @@ export default function DashboardPage() {
       description: "Add residents and assign them to houses.",
       href: "/residents",
       icon: Users,
+      complete: counts.residents > 0,
+    },
+    {
+      title: "UA Randomizer",
+      description: "Generate randomized UA schedules for active residents.",
+      href: "/ua-randomizer",
+      icon: Dice5,
       complete: counts.residents > 0,
     },
     {
