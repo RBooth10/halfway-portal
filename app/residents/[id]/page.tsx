@@ -1185,6 +1185,19 @@ export default function ResidentProfilePage() {
     ? daysSince(latestCompletedRci.client_completed_at || latestCompletedRci.assessment_date)
     : "Not completed";
 
+  const daysWithProviderLabel = resident?.admission_date
+    ? String(
+        Math.max(
+          0,
+          Math.floor(
+            (new Date(new Date().toDateString()).getTime() -
+              new Date(`${resident.admission_date}T00:00:00`).getTime()) /
+              (1000 * 60 * 60 * 24)
+          ) + 1
+        )
+      )
+    : "Not available";
+
   function getSignedRoiForContact(contactId: string) {
     return roiAuthorizations.find((authorization) =>
       authorization.status === "active" &&
@@ -2299,10 +2312,8 @@ Resident Signature Collected Electronically`;
                   <DetailBlock title="Phone" value={resident.phone} />
                   <DetailBlock title="Date of Birth" value={formatDate(resident.date_of_birth)} />
                   <DetailBlock title="Admission Date" value={formatDate(resident.admission_date)} />
-                  <DetailBlock title="Medication / MAT-MAR" value={resident.medication_status} />
                   <DetailBlock title="RCI Status" value={resident.rci_status} />
-                  <DetailBlock title="House" value={house?.name ?? "Not assigned"} />
-                  <DetailBlock title="Resident Status" value={resident.resident_status} />
+                  <DetailBlock title="Days with Provider" value={daysWithProviderLabel} />
                 </div>
               </div>
 
