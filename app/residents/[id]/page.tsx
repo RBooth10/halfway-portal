@@ -511,13 +511,18 @@ export default function ResidentProfilePage() {
         .from("houses")
         .select("*")
         .eq("provider_id", residentData.provider_id)
+        .or("status.is.null,status.neq.inactive")
         .order("name", { ascending: true });
 
       if (houseOptionsResult.error) {
         throw houseOptionsResult.error;
       }
 
-      setHouseOptions((houseOptionsResult.data ?? []) as HouseRow[]);
+      setHouseOptions(
+        ((houseOptionsResult.data ?? []) as HouseRow[]).filter(
+          (houseOption) => String(houseOption.status ?? "active").toLowerCase() !== "inactive"
+        )
+      );
       localStorage.setItem("current_provider_id", residentData.provider_id);
 
       const providerResult = await supabase

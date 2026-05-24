@@ -374,6 +374,11 @@ export default function HousesPage() {
 
   const totalBeds = houses.reduce((sum, house) => sum + Number(house.total_beds || 0), 0);
 
+  const visibleHouses = houses.filter(
+    (house) => String(house.status ?? "active").toLowerCase() !== "inactive"
+  );
+
+
   return (
     <PageShell>
       <div className="flex flex-wrap gap-3">
@@ -468,7 +473,7 @@ export default function HousesPage() {
             </div>
           ) : (
             <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {houses.map((house) => (
+              {visibleHouses.map((house) => (
                 <div key={house.id} className="rounded-2xl bg-slate-50 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>

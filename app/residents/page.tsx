@@ -185,7 +185,11 @@ export default function ResidentsPage() {
       throw housesResult.error;
     }
 
-    setHouses((housesResult.data ?? []) as HouseOption[]);
+    setHouses(
+      ((housesResult.data ?? []) as HouseOption[]).filter(
+        (house) => String(house.status ?? "active").toLowerCase() !== "inactive"
+      )
+    );
 
     const residentsResult = await supabase
       .from("residents")
