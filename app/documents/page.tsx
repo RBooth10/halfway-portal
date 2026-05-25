@@ -1,16 +1,17 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Archive,
   ArrowLeft,
+  ArrowRight,
   Building2,
   CheckCircle2,
   ClipboardCheck,
+  ExternalLink,
   FileSignature,
   FileText,
-  ExternalLink,
   FolderOpen,
   Home,
   Loader2,
@@ -48,6 +49,8 @@ type DocumentRow = {
   notes: string | null;
 };
 
+type IconComponent = React.ComponentType<{ className?: string }>;
+
 const initialForm: DocumentForm = {
   document_name: "",
   category: "Provider",
@@ -59,32 +62,47 @@ const initialForm: DocumentForm = {
   notes: "",
 };
 
-const documentCategories = [
+const documentAreas = [
   {
     title: "Provider Documents",
-    description: "Organization-level policies, certification documents, insurance, and operating procedures.",
+    category: "Provider",
+    description: "Organization-level policies, certification files, insurance, operating procedures, and provider-wide compliance records.",
     examples: ["Policies and procedures", "Resident handbook", "Certificate of insurance", "MAT/MAR policy", "Grievance procedure"],
+    emptyCta: "Add provider document",
     icon: Building2,
   },
   {
     title: "House Documents",
-    description: "House-specific evidence such as safety checks, fire drills, evacuation maps, and location documents.",
-    examples: ["Evacuation map", "Fire drill log", "Safety checklist", "Owner/lease letter", "House rules"],
+    category: "House",
+    description: "House-specific records for location, safety, fire drills, emergency planning, and physical environment compliance.",
+    examples: ["Evacuation map", "Fire drill log", "Safety checklist", "Owner or lease letter", "House rules"],
+    emptyCta: "Add house document",
     icon: Home,
   },
   {
     title: "Resident Packet",
-    description: "Documents assigned during admission and maintained in each resident file.",
+    category: "Resident",
+    description: "Admission, consent, agreement, recovery planning, and resident-facing documents assigned to individual resident files.",
     examples: ["Application", "Fee agreement", "Release of information", "Emergency contacts", "Recovery plan"],
+    emptyCta: "Add resident packet item",
     icon: Users,
   },
   {
-    title: "Staff Training",
-    description: "Training and acknowledgment records required for staff and peer leaders.",
-    examples: ["Ethics training", "Standards orientation", "Confidentiality", "Emergency response", "MAT/MAR awareness"],
-    icon: ShieldCheck,
+    title: "Documents",
+    category: "Other",
+    description: "General document storage for staff files, training acknowledgments, templates, reference materials, and other supporting records.",
+    examples: ["Staff training", "Acknowledgments", "Templates", "Reference documents", "Other support files"],
+    emptyCta: "Add document",
+    icon: FolderOpen,
   },
 ];
+
+function getAreaForDocument(document: DocumentRow) {
+  if (document.category === "Provider") return "Provider";
+  if (document.category === "House") return "House";
+  if (document.category === "Resident") return "Resident";
+  return "Other";
+}
 
 function MetricCard({
   title,
@@ -95,7 +113,7 @@ function MetricCard({
   title: string;
   value: string;
   subtitle: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: IconComponent;
 }) {
   return (
     <div className="rounded-2xl border bg-white p-5 shadow-sm">
@@ -110,6 +128,59 @@ function MetricCard({
         </div>
       </div>
     </div>
+  );
+}
+
+function DocumentAreaCard({
+  title,
+  description,
+  examples,
+  count,
+  uploadedCount,
+  emptyCta,
+  icon: Icon,
+  onClick,
+}: {
+  title: string;
+  description: string;
+  examples: string[];
+  count: number;
+  uploadedCount: number;
+  emptyCta: string;
+  icon: IconComponent;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex h-full flex-col rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="rounded-2xl bg-slate-100 p-3 transition group-hover:bg-slate-200">
+          <Icon className="h-6 w-6 text-slate-700" />
+        </div>
+        <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-1 group-hover:text-slate-700" />
+      </div>
+
+      <div className="mt-5 flex-1">
+        <h3 className="font-semibold text-slate-950">{title}</h3>
+        <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {examples.slice(0, 3).map((example) => (
+            <span key={example} className="rounded-full bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
+              {example}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-5 border-t pt-4">
+        <p className="text-2xl font-semibold tracking-tight text-slate-950">{count}</p>
+        <p className="mt-1 text-sm text-slate-500">{count ? `${uploadedCount} uploaded` : "No records yet"}</p>
+        <p className="mt-3 text-sm font-semibold text-slate-950">{count ? "View area" : emptyCta}</p>
+      </div>
+    </button>
   );
 }
 
@@ -150,7 +221,7 @@ function Field({
 }: {
   label: string;
   placeholder: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: IconComponent;
   value: string;
   onChange: (value: string) => void;
   type?: string;
@@ -201,6 +272,41 @@ export default function DocumentsPage() {
       ...current,
       [field]: value,
     }));
+  }
+
+  function startNewDocument(category: string) {
+    const areaDefaults: Record<string, Pick<DocumentForm, "category" | "compliance_domain" | "applies_to">> = {
+      Provider: {
+        category: "Provider",
+        compliance_domain: "Administrative Operations",
+        applies_to: "Provider-wide",
+      },
+      House: {
+        category: "House",
+        compliance_domain: "Physical Environment",
+        applies_to: "Specific house",
+      },
+      Resident: {
+        category: "Resident",
+        compliance_domain: "Recovery Support",
+        applies_to: "Resident packet",
+      },
+      Other: {
+        category: "Other",
+        compliance_domain: "Not sure yet",
+        applies_to: "General documents",
+      },
+    };
+
+    setForm({
+      ...initialForm,
+      ...areaDefaults[category],
+    });
+    setSelectedFile(null);
+    setEditingDocumentId(null);
+    setMessage("");
+    setError("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function loadDocuments(activeProviderId: string) {
@@ -335,8 +441,8 @@ export default function DocumentsPage() {
 
       setDocuments((current) =>
         current.map((document) =>
-          document.id === documentId ? (data as DocumentRow) : document
-        )
+          document.id === documentId ? (data as DocumentRow) : document,
+        ),
       );
 
       setMessage(`${documentName} was archived successfully.`);
@@ -414,8 +520,8 @@ export default function DocumentsPage() {
 
         setDocuments((current) =>
           current.map((document) =>
-            document.id === editingDocumentId ? (data as DocumentRow) : document
-          )
+            document.id === editingDocumentId ? (data as DocumentRow) : document,
+          ),
         );
 
         setForm(initialForm);
@@ -466,6 +572,21 @@ export default function DocumentsPage() {
 
   const uploadedCount = documents.filter((doc) => doc.status === "uploaded").length;
   const needsReviewCount = documents.filter((doc) => doc.status === "needs_review").length;
+  const archivedCount = documents.filter((doc) => doc.status === "archived").length;
+
+  const areaCounts = useMemo(() => {
+    return documentAreas.map((area) => {
+      const areaDocuments = documents.filter((document) => getAreaForDocument(document) === area.category);
+      return {
+        ...area,
+        count: areaDocuments.length,
+        uploadedCount: areaDocuments.filter((document) => document.status === "uploaded").length,
+      };
+    });
+  }, [documents]);
+
+  const activeDocuments = documents.filter((doc) => doc.status !== "archived");
+  const archivedDocuments = documents.filter((doc) => doc.status === "archived");
 
   return (
     <PageShell>
@@ -494,19 +615,22 @@ export default function DocumentsPage() {
               <FolderOpen className="h-10 w-10 text-slate-700" />
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-500">Compliance Document Setup</p>
+              <p className="text-sm font-medium text-slate-500">Compliance Documents</p>
               <h1 className="mt-1 text-3xl font-semibold tracking-tight">Documents</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                Upload and organize compliance document records for{" "}
+                Upload and organize provider, house, resident packet, and general document records for{" "}
                 <span className="font-medium text-slate-950">{providerName}</span>.
-                File storage will be connected later; this step saves the document tracking record.
               </p>
             </div>
           </div>
 
-          <button className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+          <button
+            type="button"
+            onClick={() => startNewDocument("Provider")}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          >
             <Upload className="h-4 w-4" />
-            Upload Document
+            Add Document
           </button>
         </div>
       </section>
@@ -527,10 +651,35 @@ export default function DocumentsPage() {
       )}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="Documents" value={String(documents.length)} subtitle="Saved to Supabase" icon={FileText} />
-        <MetricCard title="Uploaded" value={String(uploadedCount)} subtitle="Marked uploaded" icon={CheckCircle2} />
+        <MetricCard title="Documents" value={String(documents.length)} subtitle="Saved records" icon={FileText} />
+        <MetricCard title="Uploaded" value={String(uploadedCount)} subtitle="Stored file attached" icon={CheckCircle2} />
         <MetricCard title="Needs Review" value={String(needsReviewCount)} subtitle="Open review items" icon={ClipboardCheck} />
-        <MetricCard title="Compliance Binder" value={documents.length ? "In Progress" : "Pending"} subtitle="Document records" icon={ShieldCheck} />
+        <MetricCard title="Archived" value={String(archivedCount)} subtitle="Retained inactive records" icon={Archive} />
+      </section>
+
+      <section>
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-slate-950">Document Areas</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Choose an area to prefill the document form and keep the compliance binder organized.
+          </p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {areaCounts.map((area) => (
+            <DocumentAreaCard
+              key={area.title}
+              title={area.title}
+              description={area.description}
+              examples={area.examples}
+              count={area.count}
+              uploadedCount={area.uploadedCount}
+              emptyCta={area.emptyCta}
+              icon={area.icon}
+              onClick={() => startNewDocument(area.category)}
+            />
+          ))}
+        </div>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[1fr_390px]">
@@ -540,7 +689,7 @@ export default function DocumentsPage() {
             <p className="mt-1 text-sm text-slate-500">
               {editingDocumentId
                 ? "Update the selected document record. Attaching a new file will replace the stored file reference."
-                : "This creates a document record and can attach a file to private Supabase Storage."}
+                : "Create a document record and optionally attach a file to private Supabase Storage."}
             </p>
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -554,17 +703,17 @@ export default function DocumentsPage() {
               />
 
               <label className="block">
-                <span className="text-sm font-medium text-slate-700">Category</span>
+                <span className="text-sm font-medium text-slate-700">Document area</span>
                 <select
                   value={form.category}
                   onChange={(event) => updateField("category", event.target.value)}
                   className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                 >
-                  <option>Provider</option>
-                  <option>House</option>
-                  <option>Resident</option>
-                  <option>Staff</option>
-                  <option>Other</option>
+                  <option value="Provider">Provider Documents</option>
+                  <option value="House">House Documents</option>
+                  <option value="Resident">Resident Packet</option>
+                  <option value="Staff">Documents - Staff</option>
+                  <option value="Other">Documents - Other</option>
                 </select>
               </label>
 
@@ -579,6 +728,7 @@ export default function DocumentsPage() {
                   <option>Physical Environment</option>
                   <option>Recovery Support</option>
                   <option>Good Neighbor</option>
+                  <option>Staff Training</option>
                   <option>Not sure yet</option>
                 </select>
               </label>
@@ -593,7 +743,8 @@ export default function DocumentsPage() {
                   <option>Provider-wide</option>
                   <option>Specific house</option>
                   <option>Resident packet</option>
-                  <option>Staff training</option>
+                  <option>Staff file</option>
+                  <option>General documents</option>
                 </select>
               </label>
 
@@ -647,7 +798,7 @@ export default function DocumentsPage() {
                 <textarea
                   value={form.notes}
                   onChange={(event) => updateField("notes", event.target.value)}
-                  placeholder="Add document notes, review needs, or FARR/NARR references."
+                  placeholder="Add review needs, FARR/NARR references, signature instructions, or document notes."
                   className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                 />
               </label>
@@ -677,29 +828,29 @@ export default function DocumentsPage() {
               >
                 {editingDocumentId ? "Cancel Edit" : "Clear Form"}
               </button>
-
-              <Link
-                href="/reports"
-                className="inline-flex items-center justify-center rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
-              >
-                Continue to Reports
-              </Link>
             </div>
           </form>
 
           <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">Saved Documents</h2>
+            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Saved Documents</h2>
+                <p className="mt-1 text-sm text-slate-500">Active document records grouped into the new document areas.</p>
+              </div>
+              <p className="text-sm text-slate-500">{activeDocuments.length} active record(s)</p>
+            </div>
+
             {loading ? (
               <p className="mt-3 text-sm text-slate-500">Loading documents...</p>
-            ) : documents.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">No documents saved yet.</p>
+            ) : activeDocuments.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-500">No active documents saved yet.</p>
             ) : (
               <div className="mt-4 overflow-hidden rounded-2xl border">
                 <table className="w-full border-collapse text-left text-sm">
                   <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                     <tr>
                       <th className="px-4 py-3">Document</th>
-                      <th className="px-4 py-3">Category</th>
+                      <th className="px-4 py-3">Area</th>
                       <th className="px-4 py-3">Domain</th>
                       <th className="px-4 py-3">File</th>
                       <th className="px-4 py-3">Status</th>
@@ -707,7 +858,7 @@ export default function DocumentsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {documents.map((doc) => (
+                    {activeDocuments.map((doc) => (
                       <tr key={doc.id} className="hover:bg-slate-50">
                         <td className="px-4 py-4 font-medium text-slate-950">{doc.document_name}</td>
                         <td className="px-4 py-4 text-slate-600">{doc.category}</td>
@@ -743,11 +894,10 @@ export default function DocumentsPage() {
                             <button
                               type="button"
                               onClick={() => archiveDocument(doc.id, doc.document_name)}
-                              disabled={doc.status === "archived"}
-                              className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                             >
                               <Archive className="h-3.5 w-3.5" />
-                              {doc.status === "archived" ? "Archived" : "Archive"}
+                              Archive
                             </button>
                           </div>
                         </td>
@@ -760,28 +910,50 @@ export default function DocumentsPage() {
           </div>
         </div>
 
-        <aside className="space-y-4">
-          {documentCategories.map((category) => (
-            <div key={category.title} className="rounded-2xl border bg-white p-6 shadow-sm">
-              <div className="flex gap-3">
-                <div className="rounded-xl bg-slate-100 p-2">
-                  <category.icon className="h-5 w-5 text-slate-700" />
-                </div>
-                <div>
-                  <h2 className="font-semibold">{category.title}</h2>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">{category.description}</p>
-                </div>
-              </div>
+        <aside className="space-y-6">
+          <div className="rounded-2xl border bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold">E-Signature Workflow</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              This page is now organized for e-signable provider documents, house documents, resident packet items, and general documents. The next build step can add signature templates, signing status, signed file storage, and resident-facing signature access.
+            </p>
+            <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+              Current phase: document area cleanup using the existing documents table and private storage bucket.
+            </div>
+          </div>
 
-              <div className="mt-4 space-y-2">
-                {category.examples.map((example) => (
-                  <div key={example} className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
-                    {example}
+          <div className="rounded-2xl border bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold">Archived Documents</h2>
+            {archivedDocuments.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-500">No archived document records.</p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {archivedDocuments.map((doc) => (
+                  <div key={doc.id} className="rounded-2xl bg-slate-50 p-4 text-sm">
+                    <div className="font-medium text-slate-950">{doc.document_name}</div>
+                    <div className="mt-1 text-slate-500">{doc.category} · {doc.compliance_domain || "Not set"}</div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEditingDocument(doc)}
+                        className="rounded-xl border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
+                      >
+                        Edit
+                      </button>
+                      {doc.file_url ? (
+                        <button
+                          type="button"
+                          onClick={() => openStoredFile(doc.file_url)}
+                          className="rounded-xl border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
+                        >
+                          View File
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
               </div>
-            </div>
-          ))}
+            )}
+          </div>
         </aside>
       </section>
     </PageShell>
