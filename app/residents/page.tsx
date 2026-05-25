@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import {
   Archive,
@@ -22,6 +23,10 @@ import Link from "next/link";
 import PageShell from "@/components/PageShell";
 import { getSupabaseClient } from "@/lib/supabase";
 import { createAuditLog } from "@/lib/audit";
+
+function getResidentsSupabase() {
+  return getSupabaseClient() as unknown as SupabaseClient;
+}
 
 type ResidentForm = {
   first_name: string;
@@ -274,6 +279,68 @@ export default function ResidentsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  async function assignIntakeDocumentsToResident(activeProviderId: string, activeResidentId: string) {
+    const supabase = getResidentsSupabase();
+
+    const templatesResult = await supabase
+      .from("documents")
+      .select("id, signature_required_from, signature_instructions")
+      .eq("provider_id", activeProviderId)
+      .eq("category", "Resident")
+      .eq("is_signable", true)
+      .eq("signature_required_from", "resident")
+      .neq("status", "archived");
+
+    if (templatesResult.error) {
+      throw templatesResult.error;
+    }
+
+    const templates = templatesResult.data ?? [];
+
+    if (templates.length === 0) {
+      return 0;
+    }
+
+    const existingAssignmentsResult = await supabase
+      .from("resident_document_assignments")
+      .select("document_id")
+      .eq("resident_id", activeResidentId);
+
+    if (existingAssignmentsResult.error) {
+      throw existingAssignmentsResult.error;
+    }
+
+    const existingDocumentIds = new Set(
+      (existingAssignmentsResult.data ?? []).map((assignment) => assignment.document_id)
+    );
+
+    const newAssignments = templates
+      .filter((template) => !existingDocumentIds.has(template.id))
+      .map((template) => ({
+        provider_id: activeProviderId,
+        resident_id: activeResidentId,
+        document_id: template.id,
+        assignment_status: "assigned",
+        signature_status: "not_sent",
+        signature_required_from: template.signature_required_from ?? "resident",
+        signature_instructions: template.signature_instructions ?? null,
+      }));
+
+    if (newAssignments.length === 0) {
+      return 0;
+    }
+
+    const insertResult = await supabase
+      .from("resident_document_assignments")
+      .insert(newAssignments);
+
+    if (insertResult.error) {
+      throw insertResult.error;
+    }
+
+    return newAssignments.length;
+  }
+
   async function saveResident() {
     setSaving(true);
     setMessage("");
@@ -378,10 +445,16 @@ export default function ResidentsPage() {
         p_resident_id: data.id,
       });
 
+      const assignedIntakeCount = await assignIntakeDocumentsToResident(providerId, data.id);
+
       setResidents((current) => [data as ResidentRow, ...current]);
       setShowResidentForm(false);
       setForm(initialForm);
-      setMessage(`${data.first_name} ${data.last_name} was saved successfully.`);
+      setMessage(
+        assignedIntakeCount > 0
+          ? `${data.first_name} ${data.last_name} was saved successfully. ${assignedIntakeCount} intake document(s) were assigned.`
+          : `${data.first_name} ${data.last_name} was saved successfully.`
+      );
     } catch (err) {
       const supabaseError = err as {
         message?: unknown;
