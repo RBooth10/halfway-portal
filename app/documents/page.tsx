@@ -35,6 +35,10 @@ type DocumentForm = {
   version_label: string;
   effective_date: string;
   status: string;
+  is_signable: boolean;
+  signature_required_from: string;
+  signature_status: string;
+  signature_instructions: string;
   notes: string;
 };
 
@@ -48,6 +52,12 @@ type DocumentRow = {
   effective_date: string | null;
   status: string;
   file_url: string | null;
+  is_signable: boolean | null;
+  signature_required_from: string | null;
+  signature_status: string | null;
+  signature_instructions: string | null;
+  signed_file_url: string | null;
+  signed_at: string | null;
   notes: string | null;
 };
 
@@ -61,6 +71,10 @@ const initialForm: DocumentForm = {
   version_label: "",
   effective_date: "",
   status: "not_uploaded",
+  is_signable: false,
+  signature_required_from: "not_required",
+  signature_status: "not_required",
+  signature_instructions: "",
   notes: "",
 };
 
@@ -318,6 +332,16 @@ export default function DocumentsPage() {
     }));
   }
 
+  function updateSignatureRequirement(isSignable: boolean) {
+    setForm((current) => ({
+      ...current,
+      is_signable: isSignable,
+      signature_required_from: isSignable ? "resident" : "not_required",
+      signature_status: isSignable ? "not_sent" : "not_required",
+      signature_instructions: isSignable ? current.signature_instructions : "",
+    }));
+  }
+
   function openNewDocumentModal(category = "Provider") {
     setForm({
       ...initialForm,
@@ -436,6 +460,10 @@ export default function DocumentsPage() {
       version_label: document.version_label ?? "",
       effective_date: document.effective_date ?? "",
       status: document.status ?? "not_uploaded",
+      is_signable: Boolean(document.is_signable),
+      signature_required_from: document.signature_required_from ?? "not_required",
+      signature_status: document.signature_status ?? "not_required",
+      signature_instructions: document.signature_instructions ?? "",
       notes: document.notes ?? "",
     });
     setSelectedFile(null);
@@ -526,6 +554,10 @@ export default function DocumentsPage() {
         version_label: form.version_label.trim() || null,
         effective_date: form.effective_date || null,
         status: selectedFile ? "uploaded" : form.status,
+        is_signable: form.is_signable,
+        signature_required_from: form.is_signable ? form.signature_required_from : "not_required",
+        signature_status: form.is_signable ? form.signature_status : "not_required",
+        signature_instructions: form.is_signable ? form.signature_instructions.trim() || null : null,
         notes: form.notes.trim() || null,
       };
 
@@ -602,6 +634,7 @@ export default function DocumentsPage() {
   const uploadedCount = documents.filter((doc) => doc.status === "uploaded").length;
   const needsReviewCount = documents.filter((doc) => doc.status === "needs_review").length;
   const archivedCount = documents.filter((doc) => doc.status === "archived").length;
+  const signableCount = documents.filter((doc) => doc.is_signable).length;
 
   const areaCounts = useMemo(() => {
     return documentAreas.map((area) => {
@@ -691,7 +724,7 @@ export default function DocumentsPage() {
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard title="Documents" value={String(documents.length)} subtitle="Saved records" icon={FileText} />
         <MetricCard title="Uploaded" value={String(uploadedCount)} subtitle="Stored file attached" icon={CheckCircle2} />
-        <MetricCard title="Needs Review" value={String(needsReviewCount)} subtitle="Open review items" icon={ClipboardCheck} />
+        <MetricCard title="E-Signable" value={String(signableCount)} subtitle="Signature-enabled records" icon={FileSignature} />
         <MetricCard title="Archived" value={String(archivedCount)} subtitle="Retained inactive records" icon={Archive} />
       </section>
 
@@ -782,7 +815,14 @@ export default function DocumentsPage() {
                 <tbody className="divide-y">
                   {filteredActiveDocuments.map((doc) => (
                     <tr key={doc.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-4 font-medium text-slate-950">{doc.document_name}</td>
+                      <td className="px-4 py-4">
+                        <div className="font-medium text-slate-950">{doc.document_name}</div>
+                        {doc.is_signable ? (
+                          <div className="mt-1 text-xs text-slate-500">
+                            Signature: {doc.signature_status?.replaceAll("_", " ") ?? "not sent"}
+                          </div>
+                        ) : null}
+                      </td>
                       <td className="px-4 py-4 text-slate-600">{doc.category}</td>
                       <td className="px-4 py-4 text-slate-600">{doc.compliance_domain || "Not set"}</td>
                       <td className="px-4 py-4 text-slate-600">
@@ -997,6 +1037,65 @@ export default function DocumentsPage() {
                       <option value="archived">Archived</option>
                     </select>
                   </label>
+
+                  <div className="rounded-2xl border bg-slate-50 p-4 md:col-span-2">
+                    <label className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={form.is_signable}
+                        onChange={(event) => updateSignatureRequirement(event.target.checked)}
+                        className="mt-1 h-4 w-4 rounded border-slate-300"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-slate-700">Requires electronic signature</span>
+                        <span className="mt-1 block text-sm leading-5 text-slate-500">
+                          Use this for resident packet documents, acknowledgments, agreements, and other documents that need a signed record.
+                        </span>
+                      </span>
+                    </label>
+
+                    {form.is_signable ? (
+                      <div className="mt-4 grid gap-4 md:grid-cols-2">
+                        <label className="block">
+                          <span className="text-sm font-medium text-slate-700">Signature required from</span>
+                          <select
+                            value={form.signature_required_from}
+                            onChange={(event) => updateField("signature_required_from", event.target.value)}
+                            className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                          >
+                            <option value="resident">Resident</option>
+                            <option value="staff">Staff</option>
+                            <option value="provider">Provider</option>
+                            <option value="house_manager">House Manager</option>
+                          </select>
+                        </label>
+
+                        <label className="block">
+                          <span className="text-sm font-medium text-slate-700">Signature status</span>
+                          <select
+                            value={form.signature_status}
+                            onChange={(event) => updateField("signature_status", event.target.value)}
+                            className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                          >
+                            <option value="not_sent">Not Sent</option>
+                            <option value="pending">Pending</option>
+                            <option value="signed">Signed</option>
+                            <option value="declined">Declined</option>
+                          </select>
+                        </label>
+
+                        <label className="block md:col-span-2">
+                          <span className="text-sm font-medium text-slate-700">Signature instructions</span>
+                          <textarea
+                            value={form.signature_instructions}
+                            onChange={(event) => updateField("signature_instructions", event.target.value)}
+                            placeholder="Example: Resident must review and electronically sign during intake."
+                            className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                          />
+                        </label>
+                      </div>
+                    ) : null}
+                  </div>
 
                   <label className="block md:col-span-2">
                     <span className="text-sm font-medium text-slate-700">Attach file</span>
