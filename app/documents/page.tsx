@@ -986,7 +986,6 @@ export default function DocumentsPage() {
                       <option>Administrative Operations</option>
                       <option>Physical Environment</option>
                       <option>Recovery Support</option>
-                      <option>Good Neighbor</option>
                       <option>Staff Training</option>
                       <option>Not sure yet</option>
                     </select>
