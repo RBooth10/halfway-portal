@@ -5,10 +5,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import {
   Archive,
-  ArrowLeft,
   CalendarDays,
   CheckCircle2,
-  FileSignature,
+  Download,
   HeartHandshake,
   Home,
   Loader2,
@@ -184,6 +183,58 @@ export default function ResidentsPage() {
       ...current,
       [field]: value,
     }));
+  }
+
+  function exportResidentsCsv() {
+    const headers = [
+      "First Name",
+      "Last Name",
+      "Email",
+      "Phone",
+      "Date of Birth",
+      "Admission Date",
+      "Sobriety Date",
+      "Gender",
+      "Ethnicity",
+      "Drug of Choice",
+      "Referral Resource",
+      "Prior Address",
+      "Resident Status",
+    ];
+
+    const rows = residents.map((resident) => {
+      const record = resident as unknown as Record<string, string | null | undefined>;
+
+      return [
+        record.first_name,
+        record.last_name,
+        record.email,
+        record.phone,
+        record.date_of_birth,
+        record.admission_date,
+        record.sobriety_date,
+        record.gender,
+        record.ethnicity,
+        record.drug_of_choice,
+        record.referral_resource,
+        record.prior_address,
+        record.resident_status,
+      ].map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`);
+    });
+
+    const csv = [headers.map((header) => `"${header}"`), ...rows]
+      .map((row) => row.join(","))
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `residents-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+
+    URL.revokeObjectURL(url);
   }
 
   async function loadData(activeProviderId: string) {
@@ -526,24 +577,6 @@ export default function ResidentsPage() {
 
   return (
     <PageShell>
-      <div className="flex flex-wrap gap-3">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-slate-50"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to dashboard
-        </Link>
-
-        <Link
-          href="/staff"
-          className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-slate-50"
-        >
-          <Users className="h-4 w-4" />
-          Staff & Roles
-        </Link>
-      </div>
-
       <section className="rounded-3xl border bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex gap-4">
@@ -555,7 +588,7 @@ export default function ResidentsPage() {
               <h1 className="mt-1 text-3xl font-semibold tracking-tight">Residents</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
                 Add residents for <span className="font-medium text-slate-950">{providerName}</span>,
-                assign them to a house, and start their file, RCI, medication, and recovery-support workflows.
+                assign them to a house, and manage their resident record.
               </p>
             </div>
           </div>
@@ -563,15 +596,12 @@ export default function ResidentsPage() {
           {residents.length > 0 ? (
             <button
               type="button"
-              onClick={() => {
-                setEditingResidentId(null);
-                setForm(initialForm);
-                setShowResidentForm((current) => !current);
-              }}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              onClick={exportResidentsCsv}
+              disabled={residents.length === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Plus className="h-4 w-4" />
-              {showResidentForm && !editingResidentId ? "Hide Add Resident" : "Add Resident"}
+              <Download className="h-4 w-4" />
+              Export Residents
             </button>
           ) : null}
         </div>
@@ -595,15 +625,13 @@ export default function ResidentsPage() {
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard title="Active Residents" value={String(activeResidents)} subtitle={`${dischargedResidents} discharged`} icon={Users} />
         <MetricCard title="Assigned Houses" value={`${residentsWithHouse}/${residents.length}`} subtitle="Residents assigned to houses" icon={Home} />
-        <MetricCard title="File Checklist" value="Required" subtitle="Documents and signatures" icon={FileSignature} />
-        <MetricCard title="Recovery Support" value="Pending" subtitle="RCI, plan, and supports" icon={HeartHandshake} />
       </section>
 
       <section className="space-y-6">
         <div className="rounded-2xl border bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Saved Residents</h2>
+              <h2 className="text-lg font-semibold">Residents</h2>
               <p className="mt-1 text-sm text-slate-500">
                 Active and discharged residents remain searchable, with all resident data maintained.
               </p>
@@ -612,15 +640,12 @@ export default function ResidentsPage() {
             {residents.length > 0 ? (
               <button
                 type="button"
-                onClick={() => {
-                  setEditingResidentId(null);
-                  setForm(initialForm);
-                  setShowResidentForm((current) => !current);
-                }}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                onClick={exportResidentsCsv}
+                disabled={residents.length === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <Plus className="h-4 w-4" />
-                {showResidentForm && !editingResidentId ? "Hide Add Resident" : "Add Resident"}
+                <Download className="h-4 w-4" />
+                Export Residents
               </button>
             ) : null}
           </div>
@@ -667,7 +692,7 @@ export default function ResidentsPage() {
             <div className="mt-5 rounded-2xl bg-slate-50 p-5">
               <p className="text-sm font-semibold text-slate-950">No residents saved yet.</p>
               <p className="mt-1 text-sm text-slate-500">
-                Add the first resident to begin tracking files, RCI, medication, phases, notes, and support needs.
+                Add the first resident to begin managing this provider's resident list.
               </p>
             </div>
           ) : displayedResidents.length === 0 ? (
@@ -700,7 +725,6 @@ export default function ResidentsPage() {
                           Medication: {resident.medication_status}
                         </p>
                         <p className="mt-1 text-sm text-slate-500">
-                          RCI: {resident.rci_status}
                         </p>
                         <p className="mt-1 text-sm text-slate-500">
                           Admission: {resident.admission_date || "Not set"}
