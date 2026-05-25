@@ -1,17 +1,4 @@
--- Discharge contact selection.
--- Discharge now stores selected emergency contacts as IDs and a snapshot.
--- The detailed discharge note should document what happened and call outcomes.
-
-alter table public.residents
-add column if not exists discharge_emergency_contact_ids uuid[] not null default '{}',
-add column if not exists discharge_emergency_contacts_snapshot jsonb not null default '[]'::jsonb;
-
-alter table public.resident_admission_episodes
-add column if not exists discharge_emergency_contact_ids uuid[] not null default '{}',
-add column if not exists discharge_emergency_contacts_snapshot jsonb not null default '[]'::jsonb;
-
-drop function if exists public.discharge_resident(uuid, date, text, text);
-drop function if exists public.discharge_resident(uuid, date, text, text, text, text);
+drop function if exists public.discharge_resident(uuid, date, text, text, uuid[]);
 
 create or replace function public.discharge_resident(
   p_resident_id uuid,
@@ -23,8 +10,8 @@ create or replace function public.discharge_resident(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
-as $$
+set search_path to 'public'
+as $function$
 declare
   resident_record public.residents%rowtype;
   active_episode public.resident_admission_episodes%rowtype;
@@ -58,43 +45,37 @@ begin
     return jsonb_build_object('ok', false, 'message', 'Select a valid discharge reason.');
   end if;
 
-  if length(clean_notes) < 20 then
-    return jsonb_build_object('ok', false, 'message', 'A detailed discharge note is required.');
+  if coalesce(array_length(p_emergency_contact_ids, 1), 0) > 0 then
+    select count(*)
+    into selected_contact_count
+    from public.resident_emergency_contacts c
+    where c.resident_id = resident_record.id
+      and c.id = any(p_emergency_contact_ids);
+
+    if selected_contact_count <> array_length(p_emergency_contact_ids, 1) then
+      return jsonb_build_object('ok', false, 'message', 'One or more selected emergency contacts do not belong to this resident.');
+    end if;
+
+    select coalesce(
+      jsonb_agg(
+        jsonb_build_object(
+          'id', c.id,
+          'contact_name', c.contact_name,
+          'contact_role', c.contact_role,
+          'relationship', c.relationship,
+          'phone', c.phone,
+          'email', c.email,
+          'is_primary', c.is_primary
+        )
+        order by c.is_primary desc, c.contact_name
+      ),
+      '[]'::jsonb
+    )
+    into contact_snapshot
+    from public.resident_emergency_contacts c
+    where c.resident_id = resident_record.id
+      and c.id = any(p_emergency_contact_ids);
   end if;
-
-  if coalesce(array_length(p_emergency_contact_ids, 1), 0) = 0 then
-    return jsonb_build_object('ok', false, 'message', 'Select at least one emergency contact that was notified or attempted.');
-  end if;
-
-  select count(*)
-  into selected_contact_count
-  from public.resident_emergency_contacts c
-  where c.resident_id = resident_record.id
-    and c.id = any(p_emergency_contact_ids);
-
-  if selected_contact_count <> array_length(p_emergency_contact_ids, 1) then
-    return jsonb_build_object('ok', false, 'message', 'One or more selected emergency contacts do not belong to this resident.');
-  end if;
-
-  select coalesce(
-    jsonb_agg(
-      jsonb_build_object(
-        'id', c.id,
-        'contact_name', c.contact_name,
-        'contact_role', c.contact_role,
-        'relationship', c.relationship,
-        'phone', c.phone,
-        'email', c.email,
-        'is_primary', c.is_primary
-      )
-      order by c.is_primary desc, c.contact_name
-    ),
-    '[]'::jsonb
-  )
-  into contact_snapshot
-  from public.resident_emergency_contacts c
-  where c.resident_id = resident_record.id
-    and c.id = any(p_emergency_contact_ids);
 
   select *
   into active_episode
@@ -117,8 +98,8 @@ begin
     resident_status = 'discharged',
     discharge_date = effective_discharge_date,
     discharge_reason = clean_reason,
-    discharge_notes = clean_notes,
-    discharge_emergency_contact_ids = p_emergency_contact_ids,
+    discharge_notes = nullif(clean_notes, ''),
+    discharge_emergency_contact_ids = coalesce(p_emergency_contact_ids, '{}'::uuid[]),
     discharge_emergency_contacts_snapshot = contact_snapshot
   where id = resident_record.id;
 
@@ -127,14 +108,14 @@ begin
     status = 'discharged',
     discharge_date = effective_discharge_date,
     discharge_reason = clean_reason,
-    discharge_emergency_contact_ids = p_emergency_contact_ids,
+    discharge_emergency_contact_ids = coalesce(p_emergency_contact_ids, '{}'::uuid[]),
     discharge_emergency_contacts_snapshot = contact_snapshot,
-    notes = clean_notes,
+    notes = nullif(clean_notes, ''),
     updated_at = now()
   where id = active_episode.id;
 
   return jsonb_build_object('ok', true, 'message', 'Resident discharged.');
 end;
-$$;
+$function$;
 
 grant execute on function public.discharge_resident(uuid, date, text, text, uuid[]) to authenticated;

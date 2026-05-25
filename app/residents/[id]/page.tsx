@@ -2302,16 +2302,6 @@ Resident Signature Collected Electronically`;
         return;
       }
 
-      if (selectedDischargeContactIds.length === 0) {
-        setError("Select at least one emergency contact that was called or attempted.");
-        return;
-      }
-
-      if (dischargeNotes.trim().length < 20) {
-        setError("Enter a detailed discharge note before discharging the resident.");
-        return;
-      }
-
       const { data, error } = await supabase.rpc("discharge_resident", {
         p_resident_id: resident.id,
         p_discharge_date: dischargeDate || new Date().toISOString().slice(0, 10),
@@ -4232,7 +4222,7 @@ Resident Signature Collected Electronically`;
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
                   {resident.resident_status === "active"
-                    ? "Complete required discharge documentation before moving this resident to discharged status."
+                    ? "Complete discharge details before moving this resident to discharged status."
                     : "Readmit this resident and resume program fees from the readmission date."}
                 </p>
               </div>
@@ -4281,7 +4271,7 @@ Resident Signature Collected Electronically`;
                   <div className="mt-2 grid gap-3 rounded-2xl border bg-white p-4 md:grid-cols-2">
                     {emergencyContacts.filter((contact) => contact.status === "active").length === 0 ? (
                       <p className="text-sm text-slate-500">
-                        No active emergency contacts saved. Add an emergency contact before discharging.
+                        No active emergency contacts saved. You can still discharge this resident without selecting a contact.
                       </p>
                     ) : (
                       emergencyContacts
@@ -4310,7 +4300,7 @@ Resident Signature Collected Electronically`;
                 </div>
 
                 <label className="block md:col-span-2">
-                  <span className="text-sm font-medium text-slate-700">Detailed discharge note</span>
+                  <span className="text-sm font-medium text-slate-700">Discharge note</span>
                   <textarea
                     value={dischargeNotes}
                     onChange={(event) => setDischargeNotes(event.target.value)}
