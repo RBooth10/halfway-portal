@@ -161,15 +161,25 @@ begin
     );
   end if;
 
-  update public.resident_document_assignments
+  if assignment_record.signature_status = 'signed' then
+    return jsonb_build_object(
+      'ok', false,
+      'message', 'This document has already been signed and cannot be changed.'
+    );
+  end if;
+
+  update public.resident_document_assignments rda
   set
     signature_status = 'signed',
     signed_by_name = trim(p_signed_by_name),
     signed_at = now(),
     signature_method = 'electronic_typed_signature',
     assignment_status = 'completed',
+    signed_file_url = d.file_url,
     updated_at = now()
-  where id = assignment_record.id;
+  from public.documents d
+  where rda.id = assignment_record.id
+    and d.id = rda.document_id;
 
   return jsonb_build_object(
     'ok', true,

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import {
   CheckCircle2,
+  ExternalLink,
   FileSignature,
   Loader2,
   ShieldCheck,
@@ -22,6 +23,8 @@ type IntakeDocument = {
   document_name: string;
   category: string;
   file_url: string | null;
+  signing_content: string | null;
+  signature_statement: string | null;
   notes: string | null;
 };
 
@@ -96,6 +99,36 @@ export default function ClientIntakeSigningPage() {
       ...current,
       [assignmentId]: value,
     }));
+  }
+
+  async function openDocumentFile(document: IntakeDocument) {
+    if (!document.file_url) {
+      setError("No uploaded document file is attached to this intake item.");
+      return;
+    }
+
+    try {
+      setError("");
+
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase.storage
+        .from("compliance-documents")
+        .createSignedUrl(document.file_url, 300);
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.signedUrl) {
+        throw new Error("Could not create a secure document link.");
+      }
+
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      const fileError = err as { message?: unknown };
+      setError(fileError?.message ? String(fileError.message) : "Could not open document file.");
+    }
   }
 
   async function signDocument(document: IntakeDocument) {
@@ -234,6 +267,28 @@ export default function ClientIntakeSigningPage() {
                         </p>
                       ) : null}
 
+                      <div className="mt-5 rounded-2xl border bg-slate-50 p-4">
+                        <h3 className="text-sm font-semibold text-slate-950">Document Review</h3>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">
+                          Open and review the uploaded document before signing.
+                        </p>
+
+                        {document.file_url ? (
+                          <button
+                            type="button"
+                            onClick={() => openDocumentFile(document)}
+                            className="mt-4 inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                            View Document
+                          </button>
+                        ) : (
+                          <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                            No uploaded document file is attached. Please contact staff before signing.
+                          </p>
+                        )}
+                      </div>
+
                       {document.notes ? (
                         <p className="mt-3 text-sm leading-6 text-slate-600">{document.notes}</p>
                       ) : null}
@@ -253,9 +308,31 @@ export default function ClientIntakeSigningPage() {
                   </div>
 
                   {isSigned ? (
-                    <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-                      Signed by {document.signed_by_name ?? "resident"}
-                      {document.signed_at ? ` on ${formatDate(document.signed_at)}` : ""}.
+                    <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                      <div className="flex items-start gap-3">
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+                        <div>
+                          <p className="font-semibold">Signed Record</p>
+                          <p className="mt-1">
+                            This document was electronically signed by {document.signed_by_name ?? "resident"}
+                            {document.signed_at ? ` on ${formatDate(document.signed_at)}` : ""}.
+                          </p>
+                          <p className="mt-1 text-xs leading-5">
+                            Signature method: electronic typed signature. This signed record is locked and cannot be edited from this link.
+                          </p>
+
+                          {document.file_url ? (
+                            <button
+                              type="button"
+                              onClick={() => openDocumentFile(document)}
+                              className="mt-4 inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-medium text-emerald-900 hover:bg-emerald-50"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                              View Signed Document
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className="mt-5 border-t pt-5">

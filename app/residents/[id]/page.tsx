@@ -881,6 +881,17 @@ export default function ResidentProfilePage() {
         setAssignedDocuments((assignedDocumentsResult.data ?? []) as ResidentDocumentAssignmentRow[]);
       }
 
+      const intakeLinkResult = await supabase
+        .from("resident_intake_signing_links")
+        .select("access_token, expires_at")
+        .eq("resident_id", residentData.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (!intakeLinkResult.error && intakeLinkResult.data?.[0]?.access_token) {
+        setClientIntakeLink(`${window.location.origin}/client/intake/${intakeLinkResult.data[0].access_token}`);
+      }
+
       const notesResult = await supabase
         .from("progress_notes")
         .select("*")
@@ -3542,18 +3553,22 @@ Resident Signature Collected Electronically`;
                             </div>
 
                             <div className="flex flex-wrap gap-2">
-                              {assignedDocument?.file_url ? (
+                              {assignment.signature_status === "signed" && clientIntakeLink ? (
                                 <button
                                   type="button"
-                                  onClick={() => openResidentStoredFile(assignedDocument.file_url)}
+                                  onClick={() => window.open(clientIntakeLink, "_blank", "noopener,noreferrer")}
                                   className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
                                 >
                                   <ExternalLink className="h-3.5 w-3.5" />
-                                  View
+                                  View Signed Record
                                 </button>
+                              ) : assignment.signature_status === "signed" ? (
+                                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-600/20">
+                                  Signed
+                                </span>
                               ) : (
-                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-                                  No file
+                                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-600/20">
+                                  Awaiting resident signature
                                 </span>
                               )}
                             </div>
