@@ -35,6 +35,12 @@ type ResidentForm = {
   phone: string;
   date_of_birth: string;
   admission_date: string;
+  sobriety_date: string;
+  gender: string;
+  ethnicity: string;
+  drug_of_choice: string;
+  referral_resource: string;
+  prior_address: string;
   house_id: string;
   resident_status: string;
   file_status: string;
@@ -51,6 +57,12 @@ type ResidentRow = {
   phone: string | null;
   date_of_birth: string | null;
   admission_date: string | null;
+  sobriety_date: string | null;
+  gender: string | null;
+  ethnicity: string | null;
+  drug_of_choice: string | null;
+  referral_resource: string | null;
+  prior_address: string | null;
   house_id: string | null;
   resident_status: string;
   file_status: string;
@@ -63,6 +75,7 @@ type HouseOption = {
   id: string;
   name: string;
   provider_id: string;
+  status: string | null;
 };
 
 const initialForm: ResidentForm = {
@@ -72,6 +85,12 @@ const initialForm: ResidentForm = {
   phone: "",
   date_of_birth: "",
   admission_date: "",
+  sobriety_date: "",
+  gender: "",
+  ethnicity: "",
+  drug_of_choice: "",
+  referral_resource: "",
+  prior_address: "",
   house_id: "",
   resident_status: "active",
   file_status: "needs_onboarding_packet",
@@ -182,7 +201,7 @@ export default function ResidentsPage() {
 
     const housesResult = await supabase
       .from("houses")
-      .select("id, name, provider_id")
+      .select("id, name, provider_id, status")
       .eq("provider_id", activeProviderId)
       .order("name", { ascending: true });
 
@@ -265,6 +284,12 @@ export default function ResidentsPage() {
       phone: resident.phone ?? "",
       date_of_birth: resident.date_of_birth ?? "",
       admission_date: resident.admission_date ?? "",
+      sobriety_date: resident.sobriety_date ?? "",
+      gender: resident.gender ?? "",
+      ethnicity: resident.ethnicity ?? "",
+      drug_of_choice: resident.drug_of_choice ?? "",
+      referral_resource: resident.referral_resource ?? "",
+      prior_address: resident.prior_address ?? "",
       house_id: resident.house_id ?? "",
       resident_status: resident.resident_status ?? "pending_admission",
       file_status: resident.file_status ?? "needs_onboarding_packet",
@@ -367,10 +392,16 @@ export default function ResidentsPage() {
       phone: form.phone.trim() || null,
       date_of_birth: form.date_of_birth || null,
       admission_date: form.admission_date || null,
+      sobriety_date: form.sobriety_date || null,
+      gender: form.gender.trim() || null,
+      ethnicity: form.ethnicity.trim() || null,
+      drug_of_choice: form.drug_of_choice.trim() || null,
+      referral_resource: form.referral_resource.trim() || null,
+      prior_address: form.prior_address.trim() || null,
       resident_status: form.resident_status,
-      file_status: form.file_status,
-      medication_status: form.medication_status,
-      rci_status: form.rci_status,
+      file_status: form.file_status || "needs_onboarding_packet",
+      medication_status: form.medication_status || "not_completed",
+      rci_status: form.rci_status || "not_started",
       notes: form.notes.trim() || null,
     };
 
@@ -738,6 +769,38 @@ export default function ResidentsPage() {
               <Field label="Phone" placeholder="(555) 000-0000" icon={Phone} value={form.phone} onChange={(value) => updateField("phone", value)} />
               <Field label="Date of birth" placeholder="MM/DD/YYYY" icon={CalendarDays} type="date" value={form.date_of_birth} onChange={(value) => updateField("date_of_birth", value)} />
               <Field label="Admission date" placeholder="MM/DD/YYYY" icon={CalendarDays} type="date" value={form.admission_date} onChange={(value) => updateField("admission_date", value)} />
+              <Field label="Sobriety date" placeholder="MM/DD/YYYY" icon={CalendarDays} type="date" value={form.sobriety_date} onChange={(value) => updateField("sobriety_date", value)} />
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Gender</span>
+                <select
+                  value={form.gender}
+                  onChange={(event) => updateField("gender", event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="">Select gender</option>
+                  <option value="female">Female</option>
+                  <option value="male">Male</option>
+                  <option value="non_binary">Non-binary</option>
+                  <option value="transgender">Transgender</option>
+                  <option value="other">Other</option>
+                  <option value="prefer_not_to_answer">Prefer not to answer</option>
+                </select>
+              </label>
+
+              <Field label="Ethnicity" placeholder="Ethnicity" icon={Users} value={form.ethnicity} onChange={(value) => updateField("ethnicity", value)} />
+              <Field label="Drug of choice" placeholder="Primary substance or substances" icon={HeartHandshake} value={form.drug_of_choice} onChange={(value) => updateField("drug_of_choice", value)} />
+              <Field label="Referral resource" placeholder="Referral source, agency, person, or program" icon={UserPlus} value={form.referral_resource} onChange={(value) => updateField("referral_resource", value)} />
+
+              <label className="block md:col-span-2 xl:col-span-3">
+                <span className="text-sm font-medium text-slate-700">Prior address</span>
+                <textarea
+                  value={form.prior_address}
+                  onChange={(event) => updateField("prior_address", event.target.value)}
+                  placeholder="Prior living address or last known address."
+                  className="mt-2 min-h-20 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
 
               <label className="block">
                 <span className="text-sm font-medium text-slate-700">Assigned house</span>
@@ -752,46 +815,6 @@ export default function ResidentsPage() {
                       {house.name}
                     </option>
                   ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Resident status</span>
-                <select
-                  value={form.resident_status}
-                  onChange={(event) => updateField("resident_status", event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                >
-                  <option value="active">Active</option>
-                  <option value="discharged">Discharged</option>
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Medication / MAT-MAR disclosure</span>
-                <select
-                  value={form.medication_status}
-                  onChange={(event) => updateField("medication_status", event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                >
-                  <option value="not_completed">Not completed yet</option>
-                  <option value="no_medications_disclosed">No medications disclosed</option>
-                  <option value="medication_disclosed">Medication disclosed</option>
-                  <option value="mat_mar_disclosed">MAT/MAR disclosed</option>
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Initial file status</span>
-                <select
-                  value={form.file_status}
-                  onChange={(event) => updateField("file_status", event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                >
-                  <option value="needs_onboarding_packet">Needs onboarding packet</option>
-                  <option value="packet_sent">Packet sent</option>
-                  <option value="partially_complete">Partially complete</option>
-                  <option value="complete">Complete</option>
                 </select>
               </label>
 
