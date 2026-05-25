@@ -437,6 +437,7 @@ export default function ResidentProfilePage() {
   const [residentUploadNotes, setResidentUploadNotes] = useState("");
   const [residentUploadFile, setResidentUploadFile] = useState<File | null>(null);
   const [savingResidentUpload, setSavingResidentUpload] = useState(false);
+  const [assigningIntakeDocuments, setAssigningIntakeDocuments] = useState(false);
   const [progressNotes, setProgressNotes] = useState<ProgressNoteRow[]>([]);
   const [uaBaLogs, setUaBaLogs] = useState<UaBaLogRow[]>([]);
   const [scheduledUaItems, setScheduledUaItems] = useState<ScheduledUaItemRow[]>([]);
@@ -658,6 +659,113 @@ export default function ResidentProfilePage() {
       setError(uploadError?.message ? String(uploadError.message) : "Could not upload resident document.");
     } finally {
       setSavingResidentUpload(false);
+    }
+  }
+
+  async function assignIntakeDocuments() {
+    if (!resident) {
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    setAssigningIntakeDocuments(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const supabase = getResidentSupabase();
+
+      const templatesResult = await supabase
+        .from("documents")
+        .select("id, signature_required_from, signature_instructions")
+        .eq("provider_id", resident.provider_id)
+        .eq("category", "Resident")
+        .eq("is_signable", true)
+        .eq("signature_required_from", "resident")
+        .neq("status", "archived");
+
+      if (templatesResult.error) {
+        throw templatesResult.error;
+      }
+
+      const templates = templatesResult.data ?? [];
+
+      if (templates.length === 0) {
+        setMessage("No signable Resident Packet documents are available to assign.");
+        return;
+      }
+
+      const existingAssignmentsResult = await supabase
+        .from("resident_document_assignments")
+        .select("document_id")
+        .eq("resident_id", resident.id);
+
+      if (existingAssignmentsResult.error) {
+        throw existingAssignmentsResult.error;
+      }
+
+      const existingDocumentIds = new Set(
+        (existingAssignmentsResult.data ?? []).map((assignment) => assignment.document_id)
+      );
+
+      const newAssignments = templates
+        .filter((template) => !existingDocumentIds.has(template.id))
+        .map((template) => ({
+          provider_id: resident.provider_id,
+          resident_id: resident.id,
+          document_id: template.id,
+          assignment_status: "assigned",
+          signature_status: "not_sent",
+          signature_required_from: template.signature_required_from ?? "resident",
+          signature_instructions: template.signature_instructions ?? null,
+        }));
+
+      if (newAssignments.length === 0) {
+        setMessage("All available intake documents are already assigned to this resident.");
+        return;
+      }
+
+      const insertResult = await supabase
+        .from("resident_document_assignments")
+        .insert(newAssignments)
+        .select(`
+          id,
+          provider_id,
+          resident_id,
+          document_id,
+          assignment_status,
+          signature_status,
+          signature_required_from,
+          signature_instructions,
+          signed_by_name,
+          signed_at,
+          signature_method,
+          signed_file_url,
+          created_at,
+          documents (
+            id,
+            document_name,
+            category,
+            status,
+            file_url
+          )
+        `);
+
+      if (insertResult.error) {
+        throw insertResult.error;
+      }
+
+      setAssignedDocuments((current) => [
+        ...((insertResult.data ?? []) as ResidentDocumentAssignmentRow[]),
+        ...current,
+      ]);
+
+      setMessage(`${newAssignments.length} intake document(s) assigned to this resident.`);
+    } catch (err) {
+      const assignmentError = err as { message?: unknown };
+      setError(assignmentError?.message ? String(assignmentError.message) : "Could not assign intake documents.");
+    } finally {
+      setAssigningIntakeDocuments(false);
     }
   }
 
@@ -3301,7 +3409,18 @@ Resident Signature Collected Electronically`;
                       Assigned resident paperwork generated from signable intake document templates.
                     </p>
                   </div>
-                  <p className="text-sm text-slate-500">{assignedDocuments.length} assigned</p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <p className="text-sm text-slate-500">{assignedDocuments.length} assigned</p>
+                    <button
+                      type="button"
+                      onClick={assignIntakeDocuments}
+                      disabled={assigningIntakeDocuments}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {assigningIntakeDocuments ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      {assigningIntakeDocuments ? "Assigning..." : "Assign Intake Documents"}
+                    </button>
+                  </div>
                 </div>
 
                 {assignedDocuments.length === 0 ? (
