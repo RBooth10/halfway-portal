@@ -819,7 +819,7 @@ export default function DocumentsPage() {
                         <div className="font-medium text-slate-950">{doc.document_name}</div>
                         {doc.is_signable ? (
                           <div className="mt-1 text-xs text-slate-500">
-                            Signature: {doc.signature_status?.replaceAll("_", " ") ?? "not sent"}
+                            E-signable template • {(doc.signature_required_from ?? "resident").replaceAll("_", " ")} signature
                           </div>
                         ) : null}
                       </td>
