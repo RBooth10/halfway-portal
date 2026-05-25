@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
@@ -109,6 +110,9 @@ function DashboardCard({
   );
 }
 
+function getDashboardSupabase() {
+  return getSupabaseClient() as unknown as SupabaseClient;
+}
 export default function DashboardPage() {
   const [counts, setCounts] = useState<DashboardCounts>(initialCounts);
   const [loading, setLoading] = useState(true);
@@ -120,7 +124,7 @@ export default function DashboardPage() {
         setLoading(true);
         setError("");
 
-        const supabase = getSupabaseClient();
+        const supabase = getDashboardSupabase();
         let activeProviderId = localStorage.getItem("current_provider_id");
 
         if (!activeProviderId) {
@@ -130,7 +134,7 @@ export default function DashboardPage() {
             .order("created_at", { ascending: false })
             .limit(1);
 
-          activeProviderId = latestProviderResult.data?.[0]?.id as string | undefined;
+activeProviderId = latestProviderResult.data?.[0]?.id ?? null;
         }
 
         if (!activeProviderId) {

@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import {
   Archive,
@@ -20,6 +21,7 @@ import {
   ShieldCheck,
   Upload,
   Users,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import PageShell from "@/components/PageShell";
@@ -104,6 +106,38 @@ function getAreaForDocument(document: DocumentRow) {
   return "Other";
 }
 
+function getAreaDefaults(category: string): Pick<DocumentForm, "category" | "compliance_domain" | "applies_to"> {
+  const areaDefaults: Record<string, Pick<DocumentForm, "category" | "compliance_domain" | "applies_to">> = {
+    Provider: {
+      category: "Provider",
+      compliance_domain: "Administrative Operations",
+      applies_to: "Provider-wide",
+    },
+    House: {
+      category: "House",
+      compliance_domain: "Physical Environment",
+      applies_to: "Specific house",
+    },
+    Resident: {
+      category: "Resident",
+      compliance_domain: "Recovery Support",
+      applies_to: "Resident packet",
+    },
+    Staff: {
+      category: "Staff",
+      compliance_domain: "Staff Training",
+      applies_to: "Staff file",
+    },
+    Other: {
+      category: "Other",
+      compliance_domain: "Not sure yet",
+      applies_to: "General documents",
+    },
+  };
+
+  return areaDefaults[category] ?? areaDefaults.Provider;
+}
+
 function MetricCard({
   title,
   value,
@@ -178,7 +212,7 @@ function DocumentAreaCard({
       <div className="mt-5 border-t pt-4">
         <p className="text-2xl font-semibold tracking-tight text-slate-950">{count}</p>
         <p className="mt-1 text-sm text-slate-500">{count ? `${uploadedCount} uploaded` : "No records yet"}</p>
-        <p className="mt-3 text-sm font-semibold text-slate-950">{count ? "View area" : emptyCta}</p>
+        <p className="mt-3 text-sm font-semibold text-slate-950">{count ? "Add or review" : emptyCta}</p>
       </div>
     </button>
   );
@@ -255,6 +289,10 @@ function sanitizeFileName(fileName: string) {
     .replace(/^-|-$/g, "");
 }
 
+function getDocumentSupabase() {
+  return getSupabaseClient() as unknown as SupabaseClient;
+}
+
 export default function DocumentsPage() {
   const [form, setForm] = useState<DocumentForm>(initialForm);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -266,6 +304,7 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [isDocumentModalOpen, setIsDocumentModalOpen] = useState(false);
 
   function updateField(field: keyof DocumentForm, value: string) {
     setForm((current) => ({
@@ -274,43 +313,27 @@ export default function DocumentsPage() {
     }));
   }
 
-  function startNewDocument(category: string) {
-    const areaDefaults: Record<string, Pick<DocumentForm, "category" | "compliance_domain" | "applies_to">> = {
-      Provider: {
-        category: "Provider",
-        compliance_domain: "Administrative Operations",
-        applies_to: "Provider-wide",
-      },
-      House: {
-        category: "House",
-        compliance_domain: "Physical Environment",
-        applies_to: "Specific house",
-      },
-      Resident: {
-        category: "Resident",
-        compliance_domain: "Recovery Support",
-        applies_to: "Resident packet",
-      },
-      Other: {
-        category: "Other",
-        compliance_domain: "Not sure yet",
-        applies_to: "General documents",
-      },
-    };
-
+  function openNewDocumentModal(category = "Provider") {
     setForm({
       ...initialForm,
-      ...areaDefaults[category],
+      ...getAreaDefaults(category),
     });
     setSelectedFile(null);
     setEditingDocumentId(null);
     setMessage("");
     setError("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setIsDocumentModalOpen(true);
+  }
+
+  function closeDocumentModal() {
+    setIsDocumentModalOpen(false);
+    setForm(initialForm);
+    setSelectedFile(null);
+    setEditingDocumentId(null);
   }
 
   async function loadDocuments(activeProviderId: string) {
-    const supabase = getSupabaseClient();
+    const supabase = getDocumentSupabase();
 
     const providerResult = await supabase
       .from("providers")
@@ -338,7 +361,7 @@ export default function DocumentsPage() {
   useEffect(() => {
     async function initialize() {
       try {
-        const supabase = getSupabaseClient();
+        const supabase = getDocumentSupabase();
 
         let activeProviderId = localStorage.getItem("current_provider_id");
 
@@ -349,7 +372,7 @@ export default function DocumentsPage() {
             .order("created_at", { ascending: false })
             .limit(1);
 
-          activeProviderId = latestProviderResult.data?.[0]?.id as string | undefined;
+          activeProviderId = latestProviderResult.data?.[0]?.id ?? null;
         }
 
         if (!activeProviderId) {
@@ -377,7 +400,7 @@ export default function DocumentsPage() {
     setError("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getDocumentSupabase();
 
       const { data, error } = await supabase.storage
         .from("compliance-documents")
@@ -411,10 +434,9 @@ export default function DocumentsPage() {
       notes: document.notes ?? "",
     });
     setSelectedFile(null);
-    setMessage(`Editing ${document.document_name}. Update the form and click Save Changes.`);
+    setMessage("");
     setError("");
-
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setIsDocumentModalOpen(true);
   }
 
   async function archiveDocument(documentId: string, documentName: string) {
@@ -426,7 +448,7 @@ export default function DocumentsPage() {
     setError("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getDocumentSupabase();
 
       const { data, error } = await supabase
         .from("documents")
@@ -470,7 +492,7 @@ export default function DocumentsPage() {
     }
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getDocumentSupabase();
 
       let filePath: string | null = null;
 
@@ -527,6 +549,7 @@ export default function DocumentsPage() {
         setForm(initialForm);
         setSelectedFile(null);
         setEditingDocumentId(null);
+        setIsDocumentModalOpen(false);
         setMessage(`${data.document_name} was updated successfully.`);
         return;
       }
@@ -548,6 +571,7 @@ export default function DocumentsPage() {
       setForm(initialForm);
       setSelectedFile(null);
       setEditingDocumentId(null);
+      setIsDocumentModalOpen(false);
       setMessage(`${data.document_name} was saved successfully.`);
     } catch (err) {
       const supabaseError = err as {
@@ -626,11 +650,11 @@ export default function DocumentsPage() {
 
           <button
             type="button"
-            onClick={() => startNewDocument("Provider")}
+            onClick={() => openNewDocumentModal("Provider")}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
           >
             <Upload className="h-4 w-4" />
-            Add Document
+            Upload Document
           </button>
         </div>
       </section>
@@ -661,7 +685,7 @@ export default function DocumentsPage() {
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-slate-950">Document Areas</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Choose an area to prefill the document form and keep the compliance binder organized.
+            Choose an area to open the upload popup with the correct document area prefilled.
           </p>
         </div>
 
@@ -676,238 +700,107 @@ export default function DocumentsPage() {
               uploadedCount={area.uploadedCount}
               emptyCta={area.emptyCta}
               icon={area.icon}
-              onClick={() => startNewDocument(area.category)}
+              onClick={() => openNewDocumentModal(area.category)}
             />
           ))}
         </div>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[1fr_390px]">
-        <div className="space-y-6">
-          <form className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">{editingDocumentId ? "Edit Document Record" : "Add Document Record"}</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {editingDocumentId
-                ? "Update the selected document record. Attaching a new file will replace the stored file reference."
-                : "Create a document record and optionally attach a file to private Supabase Storage."}
-            </p>
-
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <Field
-                label="Document name"
-                placeholder="Example: Resident Handbook"
-                icon={FileText}
-                value={form.document_name}
-                onChange={(value) => updateField("document_name", value)}
-                required
-              />
-
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Document area</span>
-                <select
-                  value={form.category}
-                  onChange={(event) => updateField("category", event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                >
-                  <option value="Provider">Provider Documents</option>
-                  <option value="House">House Documents</option>
-                  <option value="Resident">Resident Packet</option>
-                  <option value="Staff">Documents - Staff</option>
-                  <option value="Other">Documents - Other</option>
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Compliance domain</span>
-                <select
-                  value={form.compliance_domain}
-                  onChange={(event) => updateField("compliance_domain", event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                >
-                  <option>Administrative Operations</option>
-                  <option>Physical Environment</option>
-                  <option>Recovery Support</option>
-                  <option>Good Neighbor</option>
-                  <option>Staff Training</option>
-                  <option>Not sure yet</option>
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Applies to</span>
-                <select
-                  value={form.applies_to}
-                  onChange={(event) => updateField("applies_to", event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                >
-                  <option>Provider-wide</option>
-                  <option>Specific house</option>
-                  <option>Resident packet</option>
-                  <option>Staff file</option>
-                  <option>General documents</option>
-                </select>
-              </label>
-
-              <Field
-                label="Version label"
-                placeholder="Example: 2026 v1"
-                icon={FileSignature}
-                value={form.version_label}
-                onChange={(value) => updateField("version_label", value)}
-              />
-
-              <Field
-                label="Effective date"
-                placeholder="MM/DD/YYYY"
-                icon={ClipboardCheck}
-                type="date"
-                value={form.effective_date}
-                onChange={(value) => updateField("effective_date", value)}
-              />
-
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Status</span>
-                <select
-                  value={form.status}
-                  onChange={(event) => updateField("status", event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                >
-                  <option value="not_uploaded">Not Uploaded</option>
-                  <option value="uploaded">Uploaded</option>
-                  <option value="needs_review">Needs Review</option>
-                  <option value="archived">Archived</option>
-                </select>
-              </label>
-
-              <label className="block md:col-span-2">
-                <span className="text-sm font-medium text-slate-700">Attach file</span>
-                <input
-                  type="file"
-                  onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-                  className="mt-2 block w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                />
-                {selectedFile ? (
-                  <p className="mt-2 text-sm text-slate-500">
-                    Selected: {selectedFile.name}
-                  </p>
-                ) : null}
-              </label>
-
-              <label className="block md:col-span-2">
-                <span className="text-sm font-medium text-slate-700">Notes</span>
-                <textarea
-                  value={form.notes}
-                  onChange={(event) => updateField("notes", event.target.value)}
-                  placeholder="Add review needs, FARR/NARR references, signature instructions, or document notes."
-                  className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                />
-              </label>
+        <div className="rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Saved Documents</h2>
+              <p className="mt-1 text-sm text-slate-500">Active document records grouped into the new document areas.</p>
             </div>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={saveDocument}
-                disabled={saving || loading}
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                {saving ? "Saving..." : editingDocumentId ? "Save Changes" : "Save Document"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setForm(initialForm);
-                  setSelectedFile(null);
-                  setEditingDocumentId(null);
-                  setMessage("");
-                  setError("");
-                }}
-                className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
-              >
-                {editingDocumentId ? "Cancel Edit" : "Clear Form"}
-              </button>
-            </div>
-          </form>
-
-          <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold">Saved Documents</h2>
-                <p className="mt-1 text-sm text-slate-500">Active document records grouped into the new document areas.</p>
-              </div>
-              <p className="text-sm text-slate-500">{activeDocuments.length} active record(s)</p>
-            </div>
-
-            {loading ? (
-              <p className="mt-3 text-sm text-slate-500">Loading documents...</p>
-            ) : activeDocuments.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">No active documents saved yet.</p>
-            ) : (
-              <div className="mt-4 overflow-hidden rounded-2xl border">
-                <table className="w-full border-collapse text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-4 py-3">Document</th>
-                      <th className="px-4 py-3">Area</th>
-                      <th className="px-4 py-3">Domain</th>
-                      <th className="px-4 py-3">File</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {activeDocuments.map((doc) => (
-                      <tr key={doc.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-4 font-medium text-slate-950">{doc.document_name}</td>
-                        <td className="px-4 py-4 text-slate-600">{doc.category}</td>
-                        <td className="px-4 py-4 text-slate-600">{doc.compliance_domain || "Not set"}</td>
-                        <td className="px-4 py-4 text-slate-600">
-                          {doc.file_url ? (
-                            <button
-                              type="button"
-                              onClick={() => openStoredFile(doc.file_url)}
-                              className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                            >
-                              <ExternalLink className="h-3.5 w-3.5" />
-                              View
-                            </button>
-                          ) : (
-                            <span>No file</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-4">
-                          <StatusBadge value={doc.status} />
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex flex-col gap-2">
-                            <button
-                              type="button"
-                              onClick={() => startEditingDocument(doc)}
-                              className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              Edit
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => archiveDocument(doc.id, doc.document_name)}
-                              className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                            >
-                              <Archive className="h-3.5 w-3.5" />
-                              Archive
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={() => openNewDocumentModal("Provider")}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
+            >
+              <Plus className="h-4 w-4" />
+              Upload Document
+            </button>
           </div>
+
+          {loading ? (
+            <p className="mt-3 text-sm text-slate-500">Loading documents...</p>
+          ) : activeDocuments.length === 0 ? (
+            <div className="mt-4 rounded-2xl bg-slate-50 p-6 text-center">
+              <p className="text-sm font-medium text-slate-950">No active documents saved yet.</p>
+              <p className="mt-1 text-sm text-slate-500">Use the upload button to add the first document record.</p>
+              <button
+                type="button"
+                onClick={() => openNewDocumentModal("Provider")}
+                className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                <Upload className="h-4 w-4" />
+                Upload Document
+              </button>
+            </div>
+          ) : (
+            <div className="mt-4 overflow-hidden rounded-2xl border">
+              <table className="w-full border-collapse text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Document</th>
+                    <th className="px-4 py-3">Area</th>
+                    <th className="px-4 py-3">Domain</th>
+                    <th className="px-4 py-3">File</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {activeDocuments.map((doc) => (
+                    <tr key={doc.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-4 font-medium text-slate-950">{doc.document_name}</td>
+                      <td className="px-4 py-4 text-slate-600">{doc.category}</td>
+                      <td className="px-4 py-4 text-slate-600">{doc.compliance_domain || "Not set"}</td>
+                      <td className="px-4 py-4 text-slate-600">
+                        {doc.file_url ? (
+                          <button
+                            type="button"
+                            onClick={() => openStoredFile(doc.file_url)}
+                            className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            View
+                          </button>
+                        ) : (
+                          <span>No file</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4">
+                        <StatusBadge value={doc.status} />
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={() => startEditingDocument(doc)}
+                            className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => archiveDocument(doc.id, doc.document_name)}
+                            className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            <Archive className="h-3.5 w-3.5" />
+                            Archive
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <aside className="space-y-6">
@@ -917,7 +810,7 @@ export default function DocumentsPage() {
               This page is now organized for e-signable provider documents, house documents, resident packet items, and general documents. The next build step can add signature templates, signing status, signed file storage, and resident-facing signature access.
             </p>
             <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-              Current phase: document area cleanup using the existing documents table and private storage bucket.
+              Current phase: upload popup using the existing documents table and private storage bucket.
             </div>
           </div>
 
@@ -956,6 +849,176 @@ export default function DocumentsPage() {
           </div>
         </aside>
       </section>
+
+      {isDocumentModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b p-6">
+              <div>
+                <p className="text-sm font-medium text-slate-500">Document Upload</p>
+                <h2 className="text-xl font-semibold text-slate-950">
+                  {editingDocumentId ? "Edit Document Record" : "Upload Document"}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {editingDocumentId
+                    ? "Update the selected document record. Attaching a new file will replace the stored file reference."
+                    : "Create a document record and optionally attach a file to private Supabase Storage."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeDocumentModal}
+                className="rounded-xl border p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-950"
+                aria-label="Close document upload modal"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="max-h-[calc(90vh-96px)] overflow-y-auto p-6">
+              <form>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field
+                    label="Document name"
+                    placeholder="Example: Resident Handbook"
+                    icon={FileText}
+                    value={form.document_name}
+                    onChange={(value) => updateField("document_name", value)}
+                    required
+                  />
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Document area</span>
+                    <select
+                      value={form.category}
+                      onChange={(event) => {
+                        const nextCategory = event.target.value;
+                        setForm((current) => ({
+                          ...current,
+                          ...getAreaDefaults(nextCategory),
+                        }));
+                      }}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option value="Provider">Provider Documents</option>
+                      <option value="House">House Documents</option>
+                      <option value="Resident">Resident Packet</option>
+                      <option value="Staff">Documents - Staff</option>
+                      <option value="Other">Documents - Other</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Compliance domain</span>
+                    <select
+                      value={form.compliance_domain}
+                      onChange={(event) => updateField("compliance_domain", event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option>Administrative Operations</option>
+                      <option>Physical Environment</option>
+                      <option>Recovery Support</option>
+                      <option>Good Neighbor</option>
+                      <option>Staff Training</option>
+                      <option>Not sure yet</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Applies to</span>
+                    <select
+                      value={form.applies_to}
+                      onChange={(event) => updateField("applies_to", event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option>Provider-wide</option>
+                      <option>Specific house</option>
+                      <option>Resident packet</option>
+                      <option>Staff file</option>
+                      <option>General documents</option>
+                    </select>
+                  </label>
+
+                  <Field
+                    label="Version label"
+                    placeholder="Example: 2026 v1"
+                    icon={FileSignature}
+                    value={form.version_label}
+                    onChange={(value) => updateField("version_label", value)}
+                  />
+
+                  <Field
+                    label="Effective date"
+                    placeholder="MM/DD/YYYY"
+                    icon={ClipboardCheck}
+                    type="date"
+                    value={form.effective_date}
+                    onChange={(value) => updateField("effective_date", value)}
+                  />
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Status</span>
+                    <select
+                      value={form.status}
+                      onChange={(event) => updateField("status", event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option value="not_uploaded">Not Uploaded</option>
+                      <option value="uploaded">Uploaded</option>
+                      <option value="needs_review">Needs Review</option>
+                      <option value="archived">Archived</option>
+                    </select>
+                  </label>
+
+                  <label className="block md:col-span-2">
+                    <span className="text-sm font-medium text-slate-700">Attach file</span>
+                    <input
+                      type="file"
+                      onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                      className="mt-2 block w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                    {selectedFile ? (
+                      <p className="mt-2 text-sm text-slate-500">
+                        Selected: {selectedFile.name}
+                      </p>
+                    ) : null}
+                  </label>
+
+                  <label className="block md:col-span-2">
+                    <span className="text-sm font-medium text-slate-700">Notes</span>
+                    <textarea
+                      value={form.notes}
+                      onChange={(event) => updateField("notes", event.target.value)}
+                      placeholder="Add review needs, FARR/NARR references, signature instructions, or document notes."
+                      className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-6 flex flex-wrap justify-end gap-3 border-t pt-5">
+                  <button
+                    type="button"
+                    onClick={closeDocumentModal}
+                    className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={saveDocument}
+                    disabled={saving || loading}
+                    className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    {saving ? "Saving..." : editingDocumentId ? "Save Changes" : "Save Document"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </PageShell>
   );
 }
