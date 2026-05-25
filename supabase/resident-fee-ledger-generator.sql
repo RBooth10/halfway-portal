@@ -30,6 +30,16 @@ declare
   resident_record public.residents%rowtype;
   provider_record public.providers%rowtype;
   episode_record public.resident_admission_episodes%rowtype;
+  house_record public.houses%rowtype;
+
+  effective_program_fee_model text;
+  effective_cost_per_client numeric;
+  effective_split_rent_total_amount numeric;
+  effective_split_rent_client_count integer;
+  effective_program_fee_frequency text;
+  effective_program_fee_charge_day_of_month integer;
+  effective_program_fee_charge_day_of_week text;
+  effective_prorate_first_period boolean;
 
   full_fee_amount numeric := 0;
   charge_amount numeric := 0;
@@ -82,27 +92,6 @@ begin
     return jsonb_build_object('ok', false, 'message', 'Provider not found.');
   end if;
 
-  if provider_record.program_fee_model = 'split_rent' then
-    if coalesce(provider_record.split_rent_client_count, 0) > 0 then
-      full_fee_amount := coalesce(provider_record.split_rent_total_amount, 0) / provider_record.split_rent_client_count;
-    else
-      full_fee_amount := 0;
-    end if;
-  else
-    full_fee_amount := coalesce(provider_record.cost_per_client, 0);
-  end if;
-
-  selected_day_offset := case provider_record.program_fee_charge_day_of_week
-    when 'Monday' then 0
-    when 'Tuesday' then 1
-    when 'Wednesday' then 2
-    when 'Thursday' then 3
-    when 'Friday' then 4
-    when 'Saturday' then 5
-    when 'Sunday' then 6
-    else 0
-  end;
-
   for episode_record in
     select *
     from public.resident_admission_episodes
@@ -122,6 +111,46 @@ begin
     if ledger_end_date < episode_record.admission_date then
       continue;
     end if;
+
+    if episode_record.house_id is not null then
+      select *
+      into house_record
+      from public.houses
+      where id = episode_record.house_id
+      limit 1;
+    else
+      house_record := null;
+    end if;
+
+    effective_program_fee_model := coalesce(nullif(house_record.program_fee_model_override, ''), provider_record.program_fee_model, 'cost_per_client');
+    effective_cost_per_client := coalesce(house_record.cost_per_client_override, provider_record.cost_per_client, 0);
+    effective_split_rent_total_amount := coalesce(house_record.split_rent_total_amount_override, provider_record.split_rent_total_amount, 0);
+    effective_split_rent_client_count := coalesce(house_record.split_rent_client_count_override, provider_record.split_rent_client_count, 0);
+    effective_program_fee_frequency := coalesce(nullif(house_record.program_fee_frequency_override, ''), provider_record.program_fee_frequency, 'monthly');
+    effective_program_fee_charge_day_of_month := coalesce(house_record.program_fee_charge_day_of_month_override, provider_record.program_fee_charge_day_of_month);
+    effective_program_fee_charge_day_of_week := coalesce(nullif(house_record.program_fee_charge_day_of_week_override, ''), provider_record.program_fee_charge_day_of_week);
+    effective_prorate_first_period := coalesce(house_record.prorate_first_period_override, provider_record.prorate_first_period, true);
+
+    if effective_program_fee_model = 'split_rent' then
+      if coalesce(effective_split_rent_client_count, 0) > 0 then
+        full_fee_amount := coalesce(effective_split_rent_total_amount, 0) / effective_split_rent_client_count;
+      else
+        full_fee_amount := 0;
+      end if;
+    else
+      full_fee_amount := coalesce(effective_cost_per_client, 0);
+    end if;
+
+    selected_day_offset := case effective_program_fee_charge_day_of_week
+      when 'Monday' then 0
+      when 'Tuesday' then 1
+      when 'Wednesday' then 2
+      when 'Thursday' then 3
+      when 'Friday' then 4
+      when 'Saturday' then 5
+      when 'Sunday' then 6
+      else 0
+    end;
 
     -- Admission fee: initial admission charges automatically, and readmission charges when the episode says yes.
     if coalesce(provider_record.admission_fee_amount, 0) > 0
@@ -168,7 +197,7 @@ begin
       continue;
     end if;
 
-    if provider_record.program_fee_frequency = 'daily' then
+    if effective_program_fee_frequency = 'daily' then
       period_cursor := episode_record.admission_date;
 
       while period_cursor <= ledger_end_date loop
@@ -212,7 +241,7 @@ begin
         period_cursor := period_cursor + 1;
       end loop;
 
-    elsif provider_record.program_fee_frequency = 'monthly' then
+    elsif effective_program_fee_frequency = 'monthly' then
       period_cursor := date_trunc('month', episode_record.admission_date)::date;
 
       while period_cursor <= ledger_end_date loop
@@ -221,7 +250,7 @@ begin
         last_day_of_month := base_period_end;
 
         monthly_day := least(
-          greatest(coalesce(provider_record.program_fee_charge_day_of_month, extract(day from base_period_start)::integer), 1),
+          greatest(coalesce(effective_program_fee_charge_day_of_month, extract(day from base_period_start)::integer), 1),
           extract(day from last_day_of_month)::integer
         );
 
@@ -237,7 +266,7 @@ begin
         charge_days := greatest((charge_period_end - charge_period_start) + 1, 1);
 
         should_prorate_charge :=
-          (charge_period_start > base_period_start and coalesce(provider_record.prorate_first_period, true))
+          (charge_period_start > base_period_start and coalesce(effective_prorate_first_period, true))
           or charge_period_end < base_period_end;
 
         if should_prorate_charge then
@@ -294,7 +323,7 @@ begin
         period_cursor := (period_cursor + interval '1 month')::date;
       end loop;
 
-    elsif provider_record.program_fee_frequency = 'biweekly' then
+    elsif effective_program_fee_frequency = 'biweekly' then
       period_cursor := date_trunc('week', episode_record.admission_date)::date;
 
       while period_cursor <= ledger_end_date loop
@@ -312,7 +341,7 @@ begin
         charge_days := greatest((charge_period_end - charge_period_start) + 1, 1);
 
         should_prorate_charge :=
-          (charge_period_start > base_period_start and coalesce(provider_record.prorate_first_period, true))
+          (charge_period_start > base_period_start and coalesce(effective_prorate_first_period, true))
           or charge_period_end < base_period_end;
 
         if should_prorate_charge then
@@ -387,7 +416,7 @@ begin
         charge_days := greatest((charge_period_end - charge_period_start) + 1, 1);
 
         should_prorate_charge :=
-          (charge_period_start > base_period_start and coalesce(provider_record.prorate_first_period, true))
+          (charge_period_start > base_period_start and coalesce(effective_prorate_first_period, true))
           or charge_period_end < base_period_end;
 
         if should_prorate_charge then
