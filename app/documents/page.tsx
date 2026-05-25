@@ -173,6 +173,7 @@ function DocumentAreaCard({
   uploadedCount,
   emptyCta,
   icon: Icon,
+  active,
   onClick,
 }: {
   title: string;
@@ -182,13 +183,16 @@ function DocumentAreaCard({
   uploadedCount: number;
   emptyCta: string;
   icon: IconComponent;
+  active: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="group flex h-full flex-col rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+      className={`group flex h-full flex-col rounded-2xl border p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md ${
+        active ? "border-slate-950 bg-slate-50" : "bg-white"
+      }`}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="rounded-2xl bg-slate-100 p-3 transition group-hover:bg-slate-200">
@@ -212,7 +216,7 @@ function DocumentAreaCard({
       <div className="mt-5 border-t pt-4">
         <p className="text-2xl font-semibold tracking-tight text-slate-950">{count}</p>
         <p className="mt-1 text-sm text-slate-500">{count ? `${uploadedCount} uploaded` : "No records yet"}</p>
-        <p className="mt-3 text-sm font-semibold text-slate-950">{count ? "Add or review" : emptyCta}</p>
+        <p className="mt-3 text-sm font-semibold text-slate-950">{count ? "View area" : emptyCta}</p>
       </div>
     </button>
   );
@@ -305,6 +309,7 @@ export default function DocumentsPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isDocumentModalOpen, setIsDocumentModalOpen] = useState(false);
+  const [selectedAreaCategory, setSelectedAreaCategory] = useState("All");
 
   function updateField(field: keyof DocumentForm, value: string) {
     setForm((current) => ({
@@ -610,6 +615,15 @@ export default function DocumentsPage() {
   }, [documents]);
 
   const activeDocuments = documents.filter((doc) => doc.status !== "archived");
+  const filteredActiveDocuments =
+    selectedAreaCategory === "All"
+      ? activeDocuments
+      : activeDocuments.filter((document) => getAreaForDocument(document) === selectedAreaCategory);
+  const selectedAreaLabel =
+    selectedAreaCategory === "All"
+      ? "All Documents"
+      : documentAreas.find((area) => area.category === selectedAreaCategory)?.title ?? "Documents";
+  const uploadAreaCategory = selectedAreaCategory === "All" ? "Provider" : selectedAreaCategory;
   const archivedDocuments = documents.filter((doc) => doc.status === "archived");
 
   return (
@@ -650,7 +664,7 @@ export default function DocumentsPage() {
 
           <button
             type="button"
-            onClick={() => openNewDocumentModal("Provider")}
+            onClick={() => openNewDocumentModal(uploadAreaCategory)}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
           >
             <Upload className="h-4 w-4" />
@@ -685,8 +699,19 @@ export default function DocumentsPage() {
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-slate-950">Document Areas</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Choose an area to open the upload popup with the correct document area prefilled.
+            Choose an area to filter the saved document list. Use Upload Document when you want to add a new file.
           </p>
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => setSelectedAreaCategory("All")}
+              className={`rounded-xl border px-4 py-2 text-sm font-medium ${
+                selectedAreaCategory === "All" ? "border-slate-950 bg-slate-950 text-white" : "bg-white hover:bg-slate-50"
+              }`}
+            >
+              All Documents
+            </button>
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -700,7 +725,8 @@ export default function DocumentsPage() {
               uploadedCount={area.uploadedCount}
               emptyCta={area.emptyCta}
               icon={area.icon}
-              onClick={() => openNewDocumentModal(area.category)}
+              active={selectedAreaCategory === area.category}
+              onClick={() => setSelectedAreaCategory(area.category)}
             />
           ))}
         </div>
@@ -710,12 +736,14 @@ export default function DocumentsPage() {
         <div className="rounded-2xl border bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Saved Documents</h2>
-              <p className="mt-1 text-sm text-slate-500">Active document records grouped into the new document areas.</p>
+              <h2 className="text-lg font-semibold">{selectedAreaLabel}</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Active document records for the selected document area. {filteredActiveDocuments.length} shown / {activeDocuments.length} active total.
+              </p>
             </div>
             <button
               type="button"
-              onClick={() => openNewDocumentModal("Provider")}
+              onClick={() => openNewDocumentModal(uploadAreaCategory)}
               className="inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
             >
               <Plus className="h-4 w-4" />
@@ -725,13 +753,13 @@ export default function DocumentsPage() {
 
           {loading ? (
             <p className="mt-3 text-sm text-slate-500">Loading documents...</p>
-          ) : activeDocuments.length === 0 ? (
+          ) : filteredActiveDocuments.length === 0 ? (
             <div className="mt-4 rounded-2xl bg-slate-50 p-6 text-center">
-              <p className="text-sm font-medium text-slate-950">No active documents saved yet.</p>
-              <p className="mt-1 text-sm text-slate-500">Use the upload button to add the first document record.</p>
+              <p className="text-sm font-medium text-slate-950">No documents found for this area.</p>
+              <p className="mt-1 text-sm text-slate-500">Use the upload button to add a document record.</p>
               <button
                 type="button"
-                onClick={() => openNewDocumentModal("Provider")}
+                onClick={() => openNewDocumentModal(uploadAreaCategory)}
                 className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
               >
                 <Upload className="h-4 w-4" />
@@ -752,7 +780,7 @@ export default function DocumentsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {activeDocuments.map((doc) => (
+                  {filteredActiveDocuments.map((doc) => (
                     <tr key={doc.id} className="hover:bg-slate-50">
                       <td className="px-4 py-4 font-medium text-slate-950">{doc.document_name}</td>
                       <td className="px-4 py-4 text-slate-600">{doc.category}</td>
