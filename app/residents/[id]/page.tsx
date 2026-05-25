@@ -1,17 +1,25 @@
 "use client";
 
 import type React from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import {
   CheckCircle2,
+  ExternalLink,
   Loader2,
   Plus,
+  Upload,
   User,
+  X,
 } from "lucide-react";
 import PageShell from "@/components/PageShell";
 import { getSupabaseClient } from "@/lib/supabase";
 import { createAuditLog } from "@/lib/audit";
+
+function getResidentSupabase() {
+  return getSupabaseClient() as unknown as SupabaseClient;
+}
 
 type ProviderPhaseRow = {
   id: string;
@@ -63,6 +71,37 @@ type DocumentRow = {
   status: string;
   file_url: string | null;
 };
+
+type ResidentDocumentAssignmentRow = {
+  id: string;
+  provider_id: string;
+  resident_id: string;
+  document_id: string;
+  assignment_status: string;
+  signature_status: string;
+  signature_required_from: string;
+  signature_instructions: string | null;
+  signed_by_name: string | null;
+  signed_at: string | null;
+  signature_method: string | null;
+  signed_file_url: string | null;
+  created_at: string;
+  documents: DocumentRow | DocumentRow[] | null;
+};
+
+function getAssignedDocument(assignment: ResidentDocumentAssignmentRow) {
+  return Array.isArray(assignment.documents)
+    ? assignment.documents[0] ?? null
+    : assignment.documents;
+}
+
+function sanitizeFileName(fileName: string) {
+  return fileName
+    .toLowerCase()
+    .replace(/[^a-z0-9.\-_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
 
 type ProgressNoteRow = {
   id: string;
@@ -390,6 +429,14 @@ export default function ResidentProfilePage() {
   const [house, setHouse] = useState<HouseRow | null>(null);
   const [houseOptions, setHouseOptions] = useState<HouseRow[]>([]);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
+  const [assignedDocuments, setAssignedDocuments] = useState<ResidentDocumentAssignmentRow[]>([]);
+  const [showResidentUploadModal, setShowResidentUploadModal] = useState(false);
+  const [residentUploadName, setResidentUploadName] = useState("");
+  const [residentUploadCategory, setResidentUploadCategory] = useState("Resident Upload");
+  const [residentUploadStatus, setResidentUploadStatus] = useState("uploaded");
+  const [residentUploadNotes, setResidentUploadNotes] = useState("");
+  const [residentUploadFile, setResidentUploadFile] = useState<File | null>(null);
+  const [savingResidentUpload, setSavingResidentUpload] = useState(false);
   const [progressNotes, setProgressNotes] = useState<ProgressNoteRow[]>([]);
   const [uaBaLogs, setUaBaLogs] = useState<UaBaLogRow[]>([]);
   const [scheduledUaItems, setScheduledUaItems] = useState<ScheduledUaItemRow[]>([]);
@@ -503,9 +550,120 @@ export default function ResidentProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  async function openResidentStoredFile(filePath: string | null) {
+    if (!filePath) return;
+
+    setError("");
+
+    try {
+      const supabase = getResidentSupabase();
+
+      const { data, error } = await supabase.storage
+        .from("compliance-documents")
+        .createSignedUrl(filePath, 60);
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.signedUrl) {
+        throw new Error("Could not create a signed file link.");
+      }
+
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      const storageError = err as { message?: unknown };
+      setError(storageError?.message ? String(storageError.message) : "Could not open file.");
+    }
+  }
+
+  function resetResidentUploadForm() {
+    setResidentUploadName("");
+    setResidentUploadCategory("Resident Upload");
+    setResidentUploadStatus("uploaded");
+    setResidentUploadNotes("");
+    setResidentUploadFile(null);
+  }
+
+  function closeResidentUploadModal() {
+    setShowResidentUploadModal(false);
+    resetResidentUploadForm();
+  }
+
+  async function saveResidentUpload() {
+    setSavingResidentUpload(true);
+    setMessage("");
+    setError("");
+
+    if (!resident) {
+      setSavingResidentUpload(false);
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    if (!residentUploadName.trim()) {
+      setSavingResidentUpload(false);
+      setError("Document name is required.");
+      return;
+    }
+
+    if (!residentUploadFile) {
+      setSavingResidentUpload(false);
+      setError("Attach a file before saving the resident upload.");
+      return;
+    }
+
+    try {
+      const supabase = getResidentSupabase();
+
+      const safeFileName = sanitizeFileName(residentUploadFile.name);
+      const filePath = `${resident.provider_id}/residents/${resident.id}/${Date.now()}-${safeFileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("compliance-documents")
+        .upload(filePath, residentUploadFile, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data, error } = await supabase
+        .from("documents")
+        .insert({
+          provider_id: resident.provider_id,
+          resident_id: resident.id,
+          document_name: residentUploadName.trim(),
+          category: residentUploadCategory,
+          compliance_domain: "Resident File",
+          applies_to: "Specific resident",
+          status: residentUploadStatus,
+          file_url: filePath,
+          notes: residentUploadNotes.trim() || null,
+        })
+        .select("id, document_name, category, status, file_url")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setDocuments((current) => [data as DocumentRow, ...current]);
+      setMessage(`${data.document_name} was uploaded to the resident file.`);
+      closeResidentUploadModal();
+    } catch (err) {
+      const uploadError = err as { message?: unknown };
+      setError(uploadError?.message ? String(uploadError.message) : "Could not upload resident document.");
+    } finally {
+      setSavingResidentUpload(false);
+    }
+  }
+
   async function loadResidentProfile() {
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getResidentSupabase();
 
       const residentResult = await supabase
         .from("residents")
@@ -580,6 +738,37 @@ export default function ResidentProfilePage() {
 
       if (!documentsResult.error) {
         setDocuments((documentsResult.data ?? []) as DocumentRow[]);
+      }
+
+      const assignedDocumentsResult = await supabase
+        .from("resident_document_assignments")
+        .select(`
+          id,
+          provider_id,
+          resident_id,
+          document_id,
+          assignment_status,
+          signature_status,
+          signature_required_from,
+          signature_instructions,
+          signed_by_name,
+          signed_at,
+          signature_method,
+          signed_file_url,
+          created_at,
+          documents (
+            id,
+            document_name,
+            category,
+            status,
+            file_url
+          )
+        `)
+        .eq("resident_id", residentData.id)
+        .order("created_at", { ascending: false });
+
+      if (!assignedDocumentsResult.error) {
+        setAssignedDocuments((assignedDocumentsResult.data ?? []) as ResidentDocumentAssignmentRow[]);
       }
 
       const notesResult = await supabase
@@ -2163,7 +2352,7 @@ Resident Signature Collected Electronically`;
                   <TabButton active={activeTab === "medication"} label="Medication Records" status={medicationRecords.length > 0 ? "Complete" : "Needs meds"} onClick={() => setActiveTab("medication")} />
                   <TabButton active={activeTab === "rci"} label="RCI & Plan" status={latestCompletedRci ? `Complete • ${rciCompletedLabel}` : "Needs RCI"} onClick={() => setActiveTab("rci")} />
                   <TabButton active={activeTab === "contacts"} label="ROI & Contacts" status={`${emergencyContacts.length} saved`} onClick={() => setActiveTab("contacts")} />
-                  <TabButton active={activeTab === "documents"} label="Documents" status={`${documents.length} uploaded`} onClick={() => setActiveTab("documents")} />
+                  <TabButton active={activeTab === "documents"} label="Documents" status={`${assignedDocuments.length} intake • ${documents.length} uploads`} onClick={() => setActiveTab("documents")} />
                 </div>
               </div>
 
@@ -3105,28 +3294,236 @@ Resident Signature Collected Electronically`;
               </div>
 
               <div className={activeTab === "documents" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
-                <h2 className="text-lg font-semibold">Resident Documents</h2>
-                {documents.length === 0 ? (
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold">Intake Documents</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Assigned resident paperwork generated from signable intake document templates.
+                    </p>
+                  </div>
+                  <p className="text-sm text-slate-500">{assignedDocuments.length} assigned</p>
+                </div>
+
+                {assignedDocuments.length === 0 ? (
                   <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-                    No resident-specific documents are attached yet.
+                    No intake documents have been assigned to this resident yet.
                   </p>
                 ) : (
                   <div className="mt-4 space-y-3">
-                    {documents.map((document) => (
-                      <div key={document.id} className="rounded-2xl bg-slate-50 p-4">
-                        <p className="font-medium text-slate-950">{document.document_name}</p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {document.category} • {document.status} • {document.file_url ? "File stored" : "No file"}
-                        </p>
-                      </div>
-                    ))}
+                    {assignedDocuments.map((assignment) => {
+                      const assignedDocument = getAssignedDocument(assignment);
+
+                      return (
+                        <div key={assignment.id} className="rounded-2xl bg-slate-50 p-4">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <p className="font-medium text-slate-950">
+                                {assignedDocument?.document_name ?? "Document template unavailable"}
+                              </p>
+                              <p className="mt-1 text-sm text-slate-500">
+                                {assignedDocument?.category ?? "Document"} • Assignment: {assignment.assignment_status.replaceAll("_", " ")} • Signature: {assignment.signature_status.replaceAll("_", " ")}
+                              </p>
+                              {assignment.signature_instructions ? (
+                                <p className="mt-2 text-sm leading-6 text-slate-600">
+                                  {assignment.signature_instructions}
+                                </p>
+                              ) : null}
+                              {assignment.signed_by_name ? (
+                                <p className="mt-2 text-xs text-slate-500">
+                                  Signed by {assignment.signed_by_name}
+                                  {assignment.signed_at ? ` on ${formatDate(assignment.signed_at)}` : ""}
+                                </p>
+                              ) : null}
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              {assignedDocument?.file_url ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openResidentStoredFile(assignedDocument.file_url)}
+                                  className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                  View
+                                </button>
+                              ) : (
+                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                                  No file
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
+
+                <div className="mt-8 border-t pt-6">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-950">Resident Uploads</h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Individual resident-specific files uploaded by staff, such as IDs, insurance cards, court paperwork, outside treatment records, or manually received signed forms.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowResidentUploadModal(true)}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
+                    >
+                      <Upload className="h-4 w-4" />
+                      Upload Resident Document
+                    </button>
+                  </div>
+
+                  {documents.length === 0 ? (
+                    <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                      No resident uploads have been added yet.
+                    </p>
+                  ) : (
+                    <div className="mt-4 space-y-3">
+                      {documents.map((document) => (
+                        <div key={document.id} className="rounded-2xl bg-slate-50 p-4">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <p className="font-medium text-slate-950">{document.document_name}</p>
+                              <p className="mt-1 text-sm text-slate-500">
+                                {document.category} • {document.status} • {document.file_url ? "File stored" : "No file"}
+                              </p>
+                            </div>
+
+                            {document.file_url ? (
+                              <button
+                                type="button"
+                                onClick={() => openResidentStoredFile(document.file_url)}
+                                className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                View
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </section>
         </>
       ) : null}
+      {showResidentUploadModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b pb-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">Upload Resident Document</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Add an individual file to this resident record.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeResidentUploadModal}
+                className="rounded-xl border p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-950"
+                aria-label="Close resident upload modal"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Document name</span>
+                <input
+                  type="text"
+                  value={residentUploadName}
+                  onChange={(event) => setResidentUploadName(event.target.value)}
+                  placeholder="Example: Driver license"
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Category</span>
+                <select
+                  value={residentUploadCategory}
+                  onChange={(event) => setResidentUploadCategory(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option>Resident Upload</option>
+                  <option>Identification</option>
+                  <option>Insurance</option>
+                  <option>Court Document</option>
+                  <option>Medical Document</option>
+                  <option>Treatment Document</option>
+                  <option>Manually Signed Form</option>
+                  <option>Other</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Status</span>
+                <select
+                  value={residentUploadStatus}
+                  onChange={(event) => setResidentUploadStatus(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="uploaded">Uploaded</option>
+                  <option value="needs_review">Needs Review</option>
+                  <option value="archived">Archived</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Attach file</span>
+                <input
+                  type="file"
+                  onChange={(event) => setResidentUploadFile(event.target.files?.[0] ?? null)}
+                  className="mt-2 block w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+                {residentUploadFile ? (
+                  <p className="mt-2 text-sm text-slate-500">Selected: {residentUploadFile.name}</p>
+                ) : null}
+              </label>
+
+              <label className="block md:col-span-2">
+                <span className="text-sm font-medium text-slate-700">Notes</span>
+                <textarea
+                  value={residentUploadNotes}
+                  onChange={(event) => setResidentUploadNotes(event.target.value)}
+                  placeholder="Add upload notes, review needs, or source information."
+                  className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3 border-t pt-5">
+              <button
+                type="button"
+                onClick={closeResidentUploadModal}
+                className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={saveResidentUpload}
+                disabled={savingResidentUpload}
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savingResidentUpload ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                {savingResidentUpload ? "Uploading..." : "Save Upload"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {showRoiSignatureModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
           <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
