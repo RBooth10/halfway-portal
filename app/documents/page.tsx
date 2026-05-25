@@ -1114,7 +1114,6 @@ export default function DocumentsPage() {
                       className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                     >
                       <option>Provider-wide</option>
-                      <option>Specific house</option>
                       <option>Resident packet</option>
                       <option>Staff file</option>
                       <option>General documents</option>
