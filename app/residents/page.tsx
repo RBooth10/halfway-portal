@@ -355,12 +355,20 @@ export default function ResidentsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  async function assignIntakeDocumentsToResident(activeProviderId: string, activeResidentId: string) {
+  async function assignIntakeDocumentsToResident(activeProviderId: string, activeResidentId: string, activeHouseId: string | null) {
     const supabase = getResidentsSupabase();
 
     const templatesResult = await supabase
       .from("documents")
-      .select("id, signature_required_from, signature_instructions")
+      .select(`
+        id,
+        signature_required_from,
+        signature_instructions,
+        resident_send_scope,
+        document_house_targets (
+          house_id
+        )
+      `)
       .eq("provider_id", activeProviderId)
       .eq("category", "Resident")
       .eq("is_signable", true)
@@ -371,7 +379,22 @@ export default function ResidentsPage() {
       throw templatesResult.error;
     }
 
-    const templates = templatesResult.data ?? [];
+    const templates = (templatesResult.data ?? []).filter((template) => {
+      const record = template as {
+        resident_send_scope?: string | null;
+        document_house_targets?: { house_id: string | null }[] | null;
+      };
+
+      if (record.resident_send_scope !== "selected_houses") {
+        return true;
+      }
+
+      if (!activeHouseId) {
+        return false;
+      }
+
+      return (record.document_house_targets ?? []).some((target) => target.house_id === activeHouseId);
+    });
 
     if (templates.length === 0) {
       return 0;
@@ -527,7 +550,7 @@ export default function ResidentsPage() {
         p_resident_id: data.id,
       });
 
-      const assignedIntakeCount = await assignIntakeDocumentsToResident(providerId, data.id);
+      const assignedIntakeCount = await assignIntakeDocumentsToResident(providerId, data.id, data.house_id ?? null);
 
       setResidents((current) => [data as ResidentRow, ...current]);
       setShowResidentForm(false);

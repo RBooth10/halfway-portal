@@ -39,6 +39,7 @@ type DocumentForm = {
   signature_required_from: string;
   signature_status: string;
   signature_instructions: string;
+  resident_send_scope: string;
   notes: string;
 };
 
@@ -56,9 +57,16 @@ type DocumentRow = {
   signature_required_from: string | null;
   signature_status: string | null;
   signature_instructions: string | null;
+  resident_send_scope: string | null;
   signed_file_url: string | null;
   signed_at: string | null;
   notes: string | null;
+};
+
+type HouseOption = {
+  id: string;
+  name: string;
+  status: string | null;
 };
 
 type IconComponent = React.ComponentType<{ className?: string }>;
@@ -75,6 +83,7 @@ const initialForm: DocumentForm = {
   signature_required_from: "not_required",
   signature_status: "not_required",
   signature_instructions: "",
+  resident_send_scope: "all_residents",
   notes: "",
 };
 
@@ -315,6 +324,8 @@ export default function DocumentsPage() {
   const [form, setForm] = useState<DocumentForm>(initialForm);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
+  const [houses, setHouses] = useState<HouseOption[]>([]);
+  const [selectedTargetHouseIds, setSelectedTargetHouseIds] = useState<string[]>([]);
   const [editingDocumentId, setEditingDocumentId] = useState<string | null>(null);
   const [providerId, setProviderId] = useState<string | null>(null);
   const [providerName, setProviderName] = useState("Current Provider");
@@ -330,6 +341,18 @@ export default function DocumentsPage() {
       ...current,
       [field]: value,
     }));
+
+    if (field === "resident_send_scope" && value !== "selected_houses") {
+      setSelectedTargetHouseIds([]);
+    }
+  }
+
+  function toggleTargetHouse(houseId: string) {
+    setSelectedTargetHouseIds((current) =>
+      current.includes(houseId)
+        ? current.filter((id) => id !== houseId)
+        : [...current, houseId]
+    );
   }
 
   function updateSignatureRequirement(isSignable: boolean) {
@@ -339,7 +362,12 @@ export default function DocumentsPage() {
       signature_required_from: isSignable ? "resident" : "not_required",
       signature_status: isSignable ? "not_sent" : "not_required",
       signature_instructions: isSignable ? current.signature_instructions : "",
+      resident_send_scope: isSignable ? current.resident_send_scope : "all_residents",
     }));
+
+    if (!isSignable) {
+      setSelectedTargetHouseIds([]);
+    }
   }
 
   function openNewDocumentModal(category = "Provider") {
@@ -348,6 +376,7 @@ export default function DocumentsPage() {
       ...getAreaDefaults(category),
     });
     setSelectedFile(null);
+    setSelectedTargetHouseIds([]);
     setEditingDocumentId(null);
     setMessage("");
     setError("");
@@ -358,6 +387,7 @@ export default function DocumentsPage() {
     setIsDocumentModalOpen(false);
     setForm(initialForm);
     setSelectedFile(null);
+    setSelectedTargetHouseIds([]);
     setEditingDocumentId(null);
   }
 
@@ -372,6 +402,20 @@ export default function DocumentsPage() {
 
     if (!providerResult.error && providerResult.data?.legal_name) {
       setProviderName(providerResult.data.legal_name);
+    }
+
+    const housesResult = await supabase
+      .from("houses")
+      .select("id, name, status")
+      .eq("provider_id", activeProviderId)
+      .order("name", { ascending: true });
+
+    if (!housesResult.error) {
+      setHouses(
+        ((housesResult.data ?? []) as HouseOption[]).filter(
+          (house) => String(house.status ?? "active").toLowerCase() !== "inactive"
+        )
+      );
     }
 
     const { data, error } = await supabase
@@ -464,8 +508,32 @@ export default function DocumentsPage() {
       signature_required_from: document.signature_required_from ?? "not_required",
       signature_status: document.signature_status ?? "not_required",
       signature_instructions: document.signature_instructions ?? "",
+      resident_send_scope: document.resident_send_scope ?? "all_residents",
       notes: document.notes ?? "",
     });
+
+    void (async () => {
+      try {
+        const supabase = getDocumentSupabase();
+        const targetResult = await supabase
+          .from("document_house_targets")
+          .select("house_id")
+          .eq("document_id", document.id);
+
+        if (!targetResult.error) {
+          setSelectedTargetHouseIds(
+            (targetResult.data ?? [])
+              .map((target) => target.house_id)
+              .filter(Boolean) as string[]
+          );
+        } else {
+          setSelectedTargetHouseIds([]);
+        }
+      } catch {
+        setSelectedTargetHouseIds([]);
+      }
+    })();
+
     setSelectedFile(null);
     setMessage("");
     setError("");
@@ -558,6 +626,10 @@ export default function DocumentsPage() {
         signature_required_from: form.is_signable ? form.signature_required_from : "not_required",
         signature_status: form.is_signable ? form.signature_status : "not_required",
         signature_instructions: form.is_signable ? form.signature_instructions.trim() || null : null,
+        resident_send_scope:
+          form.category === "Resident" && form.is_signable && form.signature_required_from === "resident"
+            ? form.resident_send_scope
+            : "all_residents",
         notes: form.notes.trim() || null,
       };
 
@@ -575,6 +647,30 @@ export default function DocumentsPage() {
 
         if (error) {
           throw error;
+        }
+
+        await supabase
+          .from("document_house_targets")
+          .delete()
+          .eq("document_id", editingDocumentId);
+
+        if (
+          documentPayload.resident_send_scope === "selected_houses" &&
+          selectedTargetHouseIds.length > 0
+        ) {
+          const targetInsertResult = await supabase
+            .from("document_house_targets")
+            .insert(
+              selectedTargetHouseIds.map((houseId) => ({
+                provider_id: providerId,
+                document_id: editingDocumentId,
+                house_id: houseId,
+              }))
+            );
+
+          if (targetInsertResult.error) {
+            throw targetInsertResult.error;
+          }
         }
 
         setDocuments((current) =>
@@ -602,6 +698,25 @@ export default function DocumentsPage() {
 
       if (error) {
         throw error;
+      }
+
+      if (
+        documentPayload.resident_send_scope === "selected_houses" &&
+        selectedTargetHouseIds.length > 0
+      ) {
+        const targetInsertResult = await supabase
+          .from("document_house_targets")
+          .insert(
+            selectedTargetHouseIds.map((houseId) => ({
+              provider_id: providerId,
+              document_id: data.id,
+              house_id: houseId,
+            }))
+          );
+
+        if (targetInsertResult.error) {
+          throw targetInsertResult.error;
+        }
       }
 
       setDocuments((current) => [data as DocumentRow, ...current]);
@@ -1092,6 +1207,77 @@ export default function DocumentsPage() {
                             className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                           />
                         </label>
+
+                        {form.category === "Resident" && form.signature_required_from === "resident" ? (
+                          <div className="rounded-2xl border bg-white p-4 md:col-span-2">
+                            <h3 className="text-sm font-semibold text-slate-950">Resident Packet Sending</h3>
+                            <p className="mt-1 text-sm leading-5 text-slate-500">
+                              Choose whether this form is assigned to every resident or only residents in selected houses.
+                            </p>
+
+                            <div className="mt-4 grid gap-3 md:grid-cols-2">
+                              <label className="flex items-start gap-3 rounded-xl border bg-slate-50 p-3">
+                                <input
+                                  type="radio"
+                                  name="resident_send_scope"
+                                  value="all_residents"
+                                  checked={form.resident_send_scope !== "selected_houses"}
+                                  onChange={(event) => updateField("resident_send_scope", event.target.value)}
+                                  className="mt-1 h-4 w-4"
+                                />
+                                <span>
+                                  <span className="block text-sm font-medium text-slate-700">Send to all residents</span>
+                                  <span className="mt-1 block text-xs leading-5 text-slate-500">
+                                    Use for universal intake documents and policies.
+                                  </span>
+                                </span>
+                              </label>
+
+                              <label className="flex items-start gap-3 rounded-xl border bg-slate-50 p-3">
+                                <input
+                                  type="radio"
+                                  name="resident_send_scope"
+                                  value="selected_houses"
+                                  checked={form.resident_send_scope === "selected_houses"}
+                                  onChange={(event) => updateField("resident_send_scope", event.target.value)}
+                                  className="mt-1 h-4 w-4"
+                                />
+                                <span>
+                                  <span className="block text-sm font-medium text-slate-700">Send only to selected houses</span>
+                                  <span className="mt-1 block text-xs leading-5 text-slate-500">
+                                    Use for house-specific fee agreements, rules, or acknowledgments.
+                                  </span>
+                                </span>
+                              </label>
+                            </div>
+
+                            {form.resident_send_scope === "selected_houses" ? (
+                              <div className="mt-4 rounded-xl border bg-slate-50 p-4">
+                                <p className="text-sm font-medium text-slate-700">Selected houses</p>
+
+                                {houses.length === 0 ? (
+                                  <p className="mt-2 text-sm text-slate-500">
+                                    No active houses are available for this provider.
+                                  </p>
+                                ) : (
+                                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                                    {houses.map((house) => (
+                                      <label key={house.id} className="flex items-center gap-2 rounded-lg bg-white p-2 text-sm">
+                                        <input
+                                          type="checkbox"
+                                          checked={selectedTargetHouseIds.includes(house.id)}
+                                          onChange={() => toggleTargetHouse(house.id)}
+                                          className="h-4 w-4 rounded border-slate-300"
+                                        />
+                                        <span>{house.name}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>

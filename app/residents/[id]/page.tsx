@@ -679,7 +679,15 @@ export default function ResidentProfilePage() {
 
       const templatesResult = await supabase
         .from("documents")
-        .select("id, signature_required_from, signature_instructions")
+        .select(`
+          id,
+          signature_required_from,
+          signature_instructions,
+          resident_send_scope,
+          document_house_targets (
+            house_id
+          )
+        `)
         .eq("provider_id", resident.provider_id)
         .eq("category", "Resident")
         .eq("is_signable", true)
@@ -690,7 +698,22 @@ export default function ResidentProfilePage() {
         throw templatesResult.error;
       }
 
-      const templates = templatesResult.data ?? [];
+      const templates = (templatesResult.data ?? []).filter((template) => {
+        const record = template as {
+          resident_send_scope?: string | null;
+          document_house_targets?: { house_id: string | null }[] | null;
+        };
+
+        if (record.resident_send_scope !== "selected_houses") {
+          return true;
+        }
+
+        if (!resident.house_id) {
+          return false;
+        }
+
+        return (record.document_house_targets ?? []).some((target) => target.house_id === resident.house_id);
+      });
 
       if (templates.length === 0) {
         setMessage("No signable Resident Packet documents are available to assign.");
