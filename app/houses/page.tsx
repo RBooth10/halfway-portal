@@ -459,6 +459,12 @@ export default function HousesPage() {
     (house) => String(house.status ?? "active").toLowerCase() !== "inactive"
   );
 
+  const showCostPerClientOverride = form.program_fee_model_override === "cost_per_client";
+  const showSplitRentOverride = form.program_fee_model_override === "split_rent";
+  const showMonthlyChargeDayOverride = form.program_fee_frequency_override === "monthly";
+  const showWeeklyChargeDayOverride =
+    form.program_fee_frequency_override === "weekly" || form.program_fee_frequency_override === "biweekly";
+
 
   return (
     <PageShell>
@@ -732,32 +738,38 @@ export default function HousesPage() {
                   </select>
                 </label>
 
-                <Field
-                  label="Cost per client override"
-                  placeholder="Example: 850"
-                  icon={Home}
-                  type="number"
-                  value={form.cost_per_client_override}
-                  onChange={(value) => updateField("cost_per_client_override", value)}
-                />
+                {showCostPerClientOverride ? (
+                  <Field
+                    label="Cost per client override"
+                    placeholder="Example: 850"
+                    icon={Home}
+                    type="number"
+                    value={form.cost_per_client_override}
+                    onChange={(value) => updateField("cost_per_client_override", value)}
+                  />
+                ) : null}
 
-                <Field
-                  label="Split rent total override"
-                  placeholder="Example: 3200"
-                  icon={Home}
-                  type="number"
-                  value={form.split_rent_total_amount_override}
-                  onChange={(value) => updateField("split_rent_total_amount_override", value)}
-                />
+                {showSplitRentOverride ? (
+                  <>
+                    <Field
+                      label="Split rent total override"
+                      placeholder="Example: 3200"
+                      icon={Home}
+                      type="number"
+                      value={form.split_rent_total_amount_override}
+                      onChange={(value) => updateField("split_rent_total_amount_override", value)}
+                    />
 
-                <Field
-                  label="Split rent client count override"
-                  placeholder="Example: 4"
-                  icon={Users}
-                  type="number"
-                  value={form.split_rent_client_count_override}
-                  onChange={(value) => updateField("split_rent_client_count_override", value)}
-                />
+                    <Field
+                      label="Split rent client count override"
+                      placeholder="Example: 4"
+                      icon={Users}
+                      type="number"
+                      value={form.split_rent_client_count_override}
+                      onChange={(value) => updateField("split_rent_client_count_override", value)}
+                    />
+                  </>
+                ) : null}
 
                 <label className="block">
                   <span className="text-sm font-medium text-slate-700">Frequency override</span>
@@ -774,45 +786,51 @@ export default function HousesPage() {
                   </select>
                 </label>
 
-                <Field
-                  label="Charge day of month override"
-                  placeholder="1-31"
-                  icon={Home}
-                  type="number"
-                  value={form.program_fee_charge_day_of_month_override}
-                  onChange={(value) => updateField("program_fee_charge_day_of_month_override", value)}
-                />
+                {showMonthlyChargeDayOverride ? (
+                  <Field
+                    label="Charge day of month override"
+                    placeholder="1-31"
+                    icon={Home}
+                    type="number"
+                    value={form.program_fee_charge_day_of_month_override}
+                    onChange={(value) => updateField("program_fee_charge_day_of_month_override", value)}
+                  />
+                ) : null}
 
-                <label className="block">
-                  <span className="text-sm font-medium text-slate-700">Charge day of week override</span>
-                  <select
-                    value={form.program_fee_charge_day_of_week_override}
-                    onChange={(event) => updateField("program_fee_charge_day_of_week_override", event.target.value)}
-                    className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                  >
-                    <option value="">Use provider default</option>
-                    <option>Monday</option>
-                    <option>Tuesday</option>
-                    <option>Wednesday</option>
-                    <option>Thursday</option>
-                    <option>Friday</option>
-                    <option>Saturday</option>
-                    <option>Sunday</option>
-                  </select>
-                </label>
+                {showWeeklyChargeDayOverride ? (
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Charge day of week override</span>
+                    <select
+                      value={form.program_fee_charge_day_of_week_override}
+                      onChange={(event) => updateField("program_fee_charge_day_of_week_override", event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option value="">Use provider default</option>
+                      <option>Monday</option>
+                      <option>Tuesday</option>
+                      <option>Wednesday</option>
+                      <option>Thursday</option>
+                      <option>Friday</option>
+                      <option>Saturday</option>
+                      <option>Sunday</option>
+                    </select>
+                  </label>
+                ) : null}
 
-                <label className="block">
-                  <span className="text-sm font-medium text-slate-700">Prorate first period override</span>
-                  <select
-                    value={form.prorate_first_period_override}
-                    onChange={(event) => updateField("prorate_first_period_override", event.target.value)}
-                    className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                  >
-                    <option value="">Use provider default</option>
-                    <option value="true">Yes</option>
-                    <option value="false">No</option>
-                  </select>
-                </label>
+                {form.program_fee_frequency_override && form.program_fee_frequency_override !== "daily" ? (
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Prorate first period override</span>
+                    <select
+                      value={form.prorate_first_period_override}
+                      onChange={(event) => updateField("prorate_first_period_override", event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    >
+                      <option value="">Use provider default</option>
+                      <option value="true">Yes</option>
+                      <option value="false">No</option>
+                    </select>
+                  </label>
+                ) : null}
               </div>
             </div>
 
