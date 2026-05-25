@@ -29,7 +29,6 @@ type Counts = {
   houseDocuments: number;
   residentDocuments: number;
   staffDocuments: number;
-  goodNeighborDocuments: number;
 };
 
 const emptyCounts: Counts = {
@@ -45,7 +44,6 @@ const emptyCounts: Counts = {
   houseDocuments: 0,
   residentDocuments: 0,
   staffDocuments: 0,
-  goodNeighborDocuments: 0,
 };
 
 function MetricCard({
@@ -218,8 +216,7 @@ export default function ReportsPage() {
           houseDocuments: documents.filter((doc) => doc.category === "House").length,
           residentDocuments: documents.filter((doc) => doc.category === "Resident").length,
           staffDocuments: documents.filter((doc) => doc.category === "Staff").length,
-          goodNeighborDocuments: documents.filter((doc) => doc.compliance_domain === "Good Neighbor").length,
-        });
+         });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Could not load reports.";
         setError(message);
@@ -250,17 +247,11 @@ export default function ReportsPage() {
     { label: "Resident document records started", complete: counts.residentDocuments > 0 },
   ];
 
-  const neighborItems = [
-    { label: "Good Neighbor document records started", complete: counts.goodNeighborDocuments > 0 },
-    { label: "House records created", complete: counts.houses > 0 },
-    { label: "Resident records created", complete: counts.residents > 0 },
-  ];
-
   const overallScore = Math.round(
-    (score(adminItems) + score(physicalItems) + score(recoveryItems) + score(neighborItems)) / 4
+    (score(adminItems) + score(physicalItems) + score(recoveryItems)) / 3
   );
 
-  const openItems = [...adminItems, ...physicalItems, ...recoveryItems, ...neighborItems].filter(
+  const openItems = [...adminItems, ...physicalItems, ...recoveryItems].filter(
     (item) => !item.complete
   ).length;
 
@@ -333,8 +324,7 @@ export default function ReportsPage() {
         <ReadinessCard title="Administrative Operations" score={score(adminItems)} items={adminItems} />
         <ReadinessCard title="Physical Environment" score={score(physicalItems)} items={physicalItems} />
         <ReadinessCard title="Recovery Support" score={score(recoveryItems)} items={recoveryItems} />
-        <ReadinessCard title="Good Neighbor" score={score(neighborItems)} items={neighborItems} />
-      </section>
+       </section>
 
       <section className="rounded-2xl border bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Current Setup Snapshot</h2>
