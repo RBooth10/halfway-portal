@@ -493,6 +493,8 @@ export default function ResidentProfilePage() {
   const [selectedScheduledUaId, setSelectedScheduledUaId] = useState<string | null>(null);
   const [clientRciLink, setClientRciLink] = useState("");
   const [generatingRciLink, setGeneratingRciLink] = useState(false);
+  const [clientIntakeLink, setClientIntakeLink] = useState("");
+  const [generatingIntakeLink, setGeneratingIntakeLink] = useState(false);
   const [showRciActionModal, setShowRciActionModal] = useState(false);
   const [savingSnapshotStatus, setSavingSnapshotStatus] = useState(false);
   const [dischargeDate, setDischargeDate] = useState(new Date().toISOString().slice(0, 10));
@@ -1579,6 +1581,67 @@ export default function ResidentProfilePage() {
       setError(rciLinkError?.message ? String(rciLinkError.message) : "Could not generate client RCI link.");
     } finally {
       setGeneratingRciLink(false);
+    }
+  }
+
+  async function generateClientIntakeLink() {
+    setGeneratingIntakeLink(true);
+    setMessage("");
+    setError("");
+
+    if (!resident) {
+      setGeneratingIntakeLink(false);
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    try {
+      const supabase = getResidentSupabase();
+      const { data: userData } = await supabase.auth.getUser();
+
+      if (!userData.user) {
+        throw new Error("You must be signed in before generating an intake signing link.");
+      }
+
+      const token = crypto.randomUUID();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 14);
+
+      const { data, error } = await supabase
+        .from("resident_intake_signing_links")
+        .insert({
+          provider_id: resident.provider_id,
+          resident_id: resident.id,
+          created_by_auth_user_id: userData.user.id,
+          access_token: token,
+          expires_at: expiresAt.toISOString(),
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      const link = `${window.location.origin}/client/intake/${token}`;
+
+      setClientIntakeLink(link);
+      setMessage("Client intake signing link generated successfully.");
+
+      await createAuditLog({
+        providerId: resident.provider_id,
+        action: "client_intake_signing_link_generated",
+        tableName: "resident_intake_signing_links",
+        recordId: data.id,
+        oldValues: null,
+        newValues: data as Record<string, unknown>,
+        reason: "Client intake document signing link generated from resident profile.",
+      });
+    } catch (err) {
+      const intakeLinkError = err as { message?: unknown };
+      setError(intakeLinkError?.message ? String(intakeLinkError.message) : "Could not generate intake signing link.");
+    } finally {
+      setGeneratingIntakeLink(false);
     }
   }
 
@@ -3420,8 +3483,31 @@ Resident Signature Collected Electronically`;
                       {assigningIntakeDocuments ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                       {assigningIntakeDocuments ? "Assigning..." : "Assign Intake Documents"}
                     </button>
+                    <button
+                      type="button"
+                      onClick={generateClientIntakeLink}
+                      disabled={generatingIntakeLink || assignedDocuments.length === 0}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {generatingIntakeLink ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      {generatingIntakeLink ? "Generating..." : "Generate Intake Signing Link"}
+                    </button>
                   </div>
                 </div>
+
+                {clientIntakeLink ? (
+                  <div className="mt-4 rounded-2xl border bg-slate-50 p-4">
+                    <p className="text-sm font-medium text-slate-950">Resident intake signing link</p>
+                    <p className="mt-2 break-all text-sm text-slate-600">{clientIntakeLink}</p>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(clientIntakeLink)}
+                      className="mt-3 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
+                    >
+                      Copy Link
+                    </button>
+                  </div>
+                ) : null}
 
                 {assignedDocuments.length === 0 ? (
                   <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
