@@ -1,9 +1,8 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle,
   ArrowRight,
   BarChart3,
   Building2,
@@ -12,9 +11,9 @@ import {
   Home,
   Loader2,
   ShieldCheck,
-  UserCog,
+  Shuffle,
+  UserRound,
   Users,
-  Dice5,
 } from "lucide-react";
 import Link from "next/link";
 import PageShell from "@/components/PageShell";
@@ -23,26 +22,30 @@ import { getSupabaseClient } from "@/lib/supabase";
 type DashboardCounts = {
   providerName: string;
   houses: number;
-  beds: number;
-  staff: number;
+  activeHouses: number;
   residents: number;
-  assignedResidents: number;
+  activeResidents: number;
+  staff: number;
+  activeStaff: number;
   documents: number;
   uploadedDocuments: number;
 };
 
-const emptyCounts: DashboardCounts = {
+const initialCounts: DashboardCounts = {
   providerName: "Current Provider",
   houses: 0,
-  beds: 0,
-  staff: 0,
+  activeHouses: 0,
   residents: 0,
-  assignedResidents: 0,
+  activeResidents: 0,
+  staff: 0,
+  activeStaff: 0,
   documents: 0,
   uploadedDocuments: 0,
 };
 
-function MetricCard({
+type IconComponent = React.ComponentType<{ className?: string }>;
+
+function StatCard({
   title,
   value,
   subtitle,
@@ -51,94 +54,73 @@ function MetricCard({
   title: string;
   value: string;
   subtitle: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: IconComponent;
 }) {
   return (
-    <div className="rounded-2xl border bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
+    <div className="rounded-2xl border bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-slate-500">{title}</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{value}</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
           <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
         </div>
         <div className="rounded-2xl bg-slate-100 p-3">
-          <Icon className="h-6 w-6 text-slate-700" />
+          <Icon className="h-5 w-5 text-slate-700" />
         </div>
       </div>
     </div>
   );
 }
 
-function SetupStep({
+function DashboardCard({
   title,
-  description,
+  value,
+  subtitle,
+  cta,
   href,
   icon: Icon,
-  complete,
 }: {
   title: string;
-  description: string;
+  value: string;
+  subtitle: string;
+  cta: string;
   href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  complete: boolean;
+  icon: IconComponent;
 }) {
   return (
     <Link
       href={href}
-      className="group rounded-2xl border bg-white p-5 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+      className="group flex min-h-40 flex-col justify-between rounded-2xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="rounded-xl bg-slate-100 p-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="rounded-2xl bg-slate-100 p-3 transition group-hover:bg-slate-200">
           <Icon className="h-5 w-5 text-slate-700" />
         </div>
-
-        <span
-          className={
-            complete
-              ? "inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-600/20"
-              : "inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-600/20"
-          }
-        >
-          {complete ? "Started" : "Pending"}
-        </span>
+        <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-1 group-hover:text-slate-700" />
       </div>
 
-      <h3 className="mt-4 font-semibold text-slate-950">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
-
-      <div className="mt-4 flex items-center gap-2 text-sm font-medium text-slate-700">
-        Open section
-        <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+      <div>
+        <p className="text-sm font-medium text-slate-500">{title}</p>
+        <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
+        <p className="mt-1 text-sm leading-5 text-slate-500">{subtitle}</p>
+        <p className="mt-3 text-sm font-semibold text-slate-950">{cta}</p>
       </div>
     </Link>
   );
 }
 
-function getReadinessScore(counts: DashboardCounts) {
-  const checks = [
-    counts.providerName !== "Current Provider",
-    counts.houses > 0,
-    counts.beds > 0,
-    counts.staff > 0,
-    counts.residents > 0,
-    counts.assignedResidents > 0,
-    counts.documents > 0,
-    counts.uploadedDocuments > 0,
-  ];
-
-  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
-}
-
 export default function DashboardPage() {
-  const [counts, setCounts] = useState<DashboardCounts>(emptyCounts);
+  const [counts, setCounts] = useState<DashboardCounts>(initialCounts);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     async function loadDashboard() {
       try {
-        const supabase = getSupabaseClient();
+        setLoading(true);
+        setError("");
 
+        const supabase = getSupabaseClient();
         let activeProviderId = localStorage.getItem("current_provider_id");
 
         if (!activeProviderId) {
@@ -152,7 +134,7 @@ export default function DashboardPage() {
         }
 
         if (!activeProviderId) {
-          setCounts(emptyCounts);
+          setCounts(initialCounts);
           return;
         }
 
@@ -166,17 +148,17 @@ export default function DashboardPage() {
 
         const housesResult = await supabase
           .from("houses")
-          .select("id, total_beds")
-          .eq("provider_id", activeProviderId);
-
-        const staffResult = await supabase
-          .from("staff_profiles")
-          .select("id")
+          .select("id, status")
           .eq("provider_id", activeProviderId);
 
         const residentsResult = await supabase
           .from("residents")
-          .select("id, house_id")
+          .select("id, resident_status")
+          .eq("provider_id", activeProviderId);
+
+        const staffResult = await supabase
+          .from("staff_profiles")
+          .select("id, status")
           .eq("provider_id", activeProviderId);
 
         const documentsResult = await supabase
@@ -186,22 +168,23 @@ export default function DashboardPage() {
 
         if (providerResult.error) throw providerResult.error;
         if (housesResult.error) throw housesResult.error;
-        if (staffResult.error) throw staffResult.error;
         if (residentsResult.error) throw residentsResult.error;
+        if (staffResult.error) throw staffResult.error;
         if (documentsResult.error) throw documentsResult.error;
 
         const houses = housesResult.data ?? [];
-        const staff = staffResult.data ?? [];
         const residents = residentsResult.data ?? [];
+        const staff = staffResult.data ?? [];
         const documents = documentsResult.data ?? [];
 
         setCounts({
           providerName: providerResult.data?.legal_name ?? "Current Provider",
           houses: houses.length,
-          beds: houses.reduce((sum, house) => sum + Number(house.total_beds || 0), 0),
-          staff: staff.length,
+          activeHouses: houses.filter((house) => house.status !== "inactive").length,
           residents: residents.length,
-          assignedResidents: residents.filter((resident) => Boolean(resident.house_id)).length,
+          activeResidents: residents.filter((resident) => resident.resident_status === "active").length,
+          staff: staff.length,
+          activeStaff: staff.filter((person) => person.status !== "inactive").length,
           documents: documents.length,
           uploadedDocuments: documents.filter((document) => document.status === "uploaded").length,
         });
@@ -216,61 +199,72 @@ export default function DashboardPage() {
     loadDashboard();
   }, []);
 
-  const readinessScore = getReadinessScore(counts);
+  const dashboardCards = useMemo(
+    () => [
+      {
+        title: "Edit Provider Profile",
+        value: counts.providerName === "Current Provider" ? "Setup" : "Open",
+        subtitle:
+          counts.providerName === "Current Provider"
+            ? "Create the provider profile."
+            : counts.providerName,
+        cta: counts.providerName === "Current Provider" ? "Create provider profile" : "Update provider profile",
+        href: "/onboarding",
+        icon: UserRound,
+      },
+      {
+        title: "Houses",
+        value: String(counts.houses),
+        subtitle: counts.houses ? `${counts.activeHouses} active house(s)` : "No houses created yet.",
+        cta: counts.houses ? "Manage houses" : "Create your house",
+        href: "/houses",
+        icon: Home,
+      },
+      {
+        title: "Residents",
+        value: String(counts.residents),
+        subtitle: counts.residents ? `${counts.activeResidents} active resident(s)` : "No residents added yet.",
+        cta: counts.residents ? "Manage residents" : "Add residents",
+        href: "/residents",
+        icon: Users,
+      },
+      {
+        title: "Staff",
+        value: String(counts.staff),
+        subtitle: counts.staff ? `${counts.activeStaff} active staff member(s)` : "No staff profiles added yet.",
+        cta: counts.staff ? "Manage staff" : "Onboard staff",
+        href: "/staff",
+        icon: ShieldCheck,
+      },
+      {
+        title: "Documents",
+        value: String(counts.documents),
+        subtitle: counts.documents ? `${counts.uploadedDocuments} uploaded file(s)` : "No document records yet.",
+        cta: counts.documents ? "Manage documents" : "Add documents",
+        href: "/documents",
+        icon: FileText,
+      },
+      {
+        title: "Rolling UA Schedule",
+        value: "Open",
+        subtitle: "Generate and review scheduled UA/BA testing.",
+        cta: "Open UA schedule",
+        href: "/ua-randomizer",
+        icon: Shuffle,
+      },
+      {
+        title: "Reports",
+        value: "Review",
+        subtitle: "View provider-level compliance and activity snapshots.",
+        cta: "Open reports",
+        href: "/reports",
+        icon: BarChart3,
+      },
+    ],
+    [counts],
+  );
 
-  const setupSteps = [
-    {
-      title: "Provider Profile",
-      description: "Create the recovery residence provider profile.",
-      href: "/onboarding",
-      icon: Building2,
-      complete: counts.providerName !== "Current Provider",
-    },
-    {
-      title: "Houses",
-      description: "Add house records, addresses, levels, and bed counts.",
-      href: "/houses",
-      icon: Home,
-      complete: counts.houses > 0,
-    },
-    {
-      title: "Staff & Roles",
-      description: "Invite staff and begin assigning access levels.",
-      href: "/staff",
-      icon: UserCog,
-      complete: counts.staff > 0,
-    },
-    {
-      title: "Residents",
-      description: "Add residents and assign them to houses.",
-      href: "/residents",
-      icon: Users,
-      complete: counts.residents > 0,
-    },
-    {
-      title: "UA Randomizer",
-      description: "Generate randomized UA schedules for active residents.",
-      href: "/ua-randomizer",
-      icon: Dice5,
-      complete: counts.residents > 0,
-    },
-    {
-      title: "Documents",
-      description: "Start provider, house, resident, and staff document records.",
-      href: "/documents",
-      icon: FileText,
-      complete: counts.documents > 0,
-    },
-    {
-      title: "Reports",
-      description: "Review setup progress and readiness calculations.",
-      href: "/reports",
-      icon: BarChart3,
-      complete: readinessScore > 0,
-    },
-  ];
-
-  const openItems = setupSteps.filter((step) => !step.complete).length;
+  const savedRecordCount = counts.houses + counts.residents + counts.staff + counts.documents;
 
   return (
     <PageShell>
@@ -278,116 +272,85 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex gap-4">
             <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-slate-100">
-              <ShieldCheck className="h-10 w-10 text-slate-700" />
+              <Building2 className="h-10 w-10 text-slate-700" />
             </div>
             <div>
               <p className="text-sm font-medium text-slate-500">Provider Dashboard</p>
-              <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-                Recovery Residence Compliance Portal
-              </h1>
+              <h1 className="mt-1 text-3xl font-semibold tracking-tight">Halfway Portal</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                Current provider:{" "}
-                <span className="font-medium text-slate-950">{counts.providerName}</span>. This dashboard now pulls saved setup records from Supabase.
+                Current provider: <span className="font-medium text-slate-950">{counts.providerName}</span>. Use the cards below to open each workflow and continue setup or daily operations.
               </p>
             </div>
           </div>
 
           <Link
-            href="/reports"
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            href="/onboarding"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-slate-50"
           >
-            View Readiness Report
+            Edit Provider Profile
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </section>
 
       {error && (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           {error}
         </div>
       )}
 
-      {loading && (
-        <div className="rounded-2xl border bg-white p-6 text-sm text-slate-500 shadow-sm">
-          <div className="flex items-center gap-2">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            Loading dashboard data...
-          </div>
+      {loading ? (
+        <div className="rounded-3xl border bg-white p-8 text-center shadow-sm">
+          <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-500" />
+          <p className="mt-3 text-sm text-slate-500">Loading dashboard...</p>
         </div>
-      )}
+      ) : (
+        <>
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              title="Saved Records"
+              value={String(savedRecordCount)}
+              subtitle="Houses, residents, staff, documents"
+              icon={CheckCircle2}
+            />
+            <StatCard
+              title="Active Houses"
+              value={String(counts.activeHouses)}
+              subtitle={`${counts.houses} total house record(s)`}
+              icon={Home}
+            />
+            <StatCard
+              title="Active Residents"
+              value={String(counts.activeResidents)}
+              subtitle={`${counts.residents} total resident record(s)`}
+              icon={Users}
+            />
+            <StatCard
+              title="Uploaded Documents"
+              value={String(counts.uploadedDocuments)}
+              subtitle={`${counts.documents} total document record(s)`}
+              icon={FileText}
+            />
+          </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="Houses" value={String(counts.houses)} subtitle={`${counts.beds} total beds`} icon={Home} />
-        <MetricCard title="Staff" value={String(counts.staff)} subtitle="Saved staff profiles" icon={UserCog} />
-        <MetricCard title="Residents" value={String(counts.residents)} subtitle={`${counts.assignedResidents} assigned to houses`} icon={Users} />
-        <MetricCard title="Readiness" value={`${readinessScore}%`} subtitle={`${openItems} setup sections pending`} icon={ShieldCheck} />
-      </section>
-
-      <section className="rounded-2xl border bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-950">Setup Progress</h2>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-              Complete each setup area to prepare the provider for compliance tracking and reporting.
-            </p>
-          </div>
-
-          <div className="rounded-2xl bg-slate-50 p-4 text-sm">
-            <div className="flex items-center gap-2 font-medium text-slate-950">
-              {openItems === 0 ? (
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-              ) : (
-                <AlertTriangle className="h-5 w-5 text-amber-600" />
-              )}
-              {openItems === 0 ? "Setup started across all sections" : `${openItems} sections still pending`}
-            </div>
-            <p className="mt-1 text-slate-500">Readiness score: {readinessScore}%</p>
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {setupSteps.map((step) => (
-            <SetupStep key={step.title} {...step} />
-          ))}
-        </div>
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-[1fr_420px]">
-        <div className="rounded-2xl border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Current Setup Snapshot</h2>
-          <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-            <p className="rounded-2xl bg-slate-50 p-4">Provider: {counts.providerName}</p>
-            <p className="rounded-2xl bg-slate-50 p-4">Houses: {counts.houses}</p>
-            <p className="rounded-2xl bg-slate-50 p-4">Beds: {counts.beds}</p>
-            <p className="rounded-2xl bg-slate-50 p-4">Staff: {counts.staff}</p>
-            <p className="rounded-2xl bg-slate-50 p-4">Residents: {counts.residents}</p>
-            <p className="rounded-2xl bg-slate-50 p-4">Documents: {counts.documents}</p>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Next Priority</h2>
-          <div className="mt-4 space-y-3 text-sm text-slate-600">
-            {setupSteps
-              .filter((step) => !step.complete)
-              .slice(0, 3)
-              .map((step) => (
-                <Link key={step.title} href={step.href} className="block rounded-2xl bg-slate-50 p-4 hover:bg-slate-100">
-                  <span className="font-medium text-slate-950">{step.title}</span>
-                  <br />
-                  {step.description}
-                </Link>
-              ))}
-
-            {openItems === 0 && (
-              <div className="rounded-2xl bg-emerald-50 p-4 text-emerald-700">
-                All core setup sections have been started. Continue building detailed workflows next.
+          <section>
+            <div className="mb-4 flex items-end justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">Workflows</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Smaller clickable cards replace the former setup progress checklist.
+                </p>
               </div>
-            )}
-          </div>
-        </div>
-      </section>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {dashboardCards.map((card) => (
+                <DashboardCard key={card.title} {...card} />
+              ))}
+            </div>
+          </section>
+        </>
+      )}
     </PageShell>
   );
 }
