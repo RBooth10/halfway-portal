@@ -146,15 +146,9 @@ function Field({
 
 function RoleCard({ role }: { role: (typeof roles)[number] }) {
   return (
-    <div className="rounded-2xl border bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h3 className="font-semibold text-slate-950">{role.name}</h3>
-          <p className="mt-1 text-sm font-medium text-slate-600">{role.access}</p>
-          <p className="mt-2 text-sm leading-6 text-slate-500">{role.description}</p>
-        </div>
-        <ShieldCheck className="h-5 w-5 shrink-0 text-slate-700" />
-      </div>
+    <div className="rounded-xl border bg-white px-3 py-2 shadow-sm">
+      <p className="text-sm font-semibold text-slate-950">{role.name}</p>
+      <p className="mt-0.5 text-xs text-slate-500">{role.access}</p>
     </div>
   );
 }
@@ -652,9 +646,9 @@ export default function StaffPage() {
         </aside>
       </section>
 
-      <section>
-        <h2 className="mb-4 text-lg font-semibold">Default Role Types & Custom Option</h2>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <section className="rounded-2xl border bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-semibold text-slate-950">Default Role Types & Custom Option</h2>
+        <div className="mt-3 grid gap-2 md:grid-cols-3 xl:grid-cols-6">
           {roles.map((role) => (
             <RoleCard key={role.name} role={role} />
           ))}
