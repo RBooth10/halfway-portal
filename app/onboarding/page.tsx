@@ -94,6 +94,16 @@ const initialForm: ProviderForm = {
   certification_status: "Not certified yet",
   farr_level: "Not sure yet",
   mat_mar_statement: "",
+  program_fee_model: "cost_per_client",
+  cost_per_client: "",
+  split_rent_total_amount: "",
+  split_rent_client_count: "",
+  program_fee_frequency: "weekly",
+  program_fee_charge_day_of_month: "",
+  program_fee_charge_day_of_week: "Friday",
+  admission_fee_amount: "",
+  admission_fee_refundable: false,
+  prorate_first_period: true,
 };
 
 export default function ProviderOnboardingPage() {
@@ -124,7 +134,7 @@ export default function ProviderOnboardingPage() {
 
   async function loadProviderProfile(providerId: string) {
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data, error } = await supabase
         .from("providers")
@@ -146,7 +156,7 @@ export default function ProviderOnboardingPage() {
 
   async function loadProviderPhases(providerId: string) {
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data, error } = await supabase
         .from("provider_phase_levels")
@@ -184,7 +194,7 @@ export default function ProviderOnboardingPage() {
     }
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data: userData, error: userError } = await supabase.auth.getUser();
 
@@ -280,7 +290,7 @@ export default function ProviderOnboardingPage() {
     }
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const payload = {
         provider_id: savedProviderId,
@@ -366,7 +376,7 @@ export default function ProviderOnboardingPage() {
     setMessage("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data, error } = await supabase
         .from("provider_phase_levels")

@@ -41,7 +41,7 @@ export default function AccountPage() {
     setError("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data: userData, error: userError } = await supabase.auth.getUser();
 
@@ -104,7 +104,7 @@ export default function AccountPage() {
         return;
       }
 
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data, error } = await supabase
         .from("staff_profiles")

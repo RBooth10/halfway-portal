@@ -19,7 +19,7 @@ export async function createAuditLog({
   newValues = null,
   reason = null,
 }: AuditLogInput) {
-  const supabase = getSupabaseClient();
+  const supabase = getSupabaseClient() as any;
 
   const { error } = await supabase.from("audit_logs").insert({
     provider_id: providerId,

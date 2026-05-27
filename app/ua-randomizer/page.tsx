@@ -126,7 +126,7 @@ export default function UaRandomizerPage() {
   }
 
   async function refreshSchedule(activeProviderId: string) {
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseClient() as any;
 
     const scheduleResult = await supabase
       .from("ua_randomizer_schedule")
@@ -153,7 +153,7 @@ export default function UaRandomizerPage() {
           throw new Error("No provider selected. Save or select a provider first.");
         }
 
-        const supabase = getSupabaseClient();
+        const supabase = getSupabaseClient() as any;
 
         const residentsResult = await supabase
           .from("residents")
@@ -233,7 +233,7 @@ export default function UaRandomizerPage() {
   }, []);
 
   async function saveDefaultRollingRule(activeProviderId: string) {
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseClient() as any;
 
     const existingRuleResult = await supabase
       .from("ua_randomizer_rules")
@@ -298,7 +298,7 @@ export default function UaRandomizerPage() {
     setError("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       await saveDefaultRollingRule(providerId);
 

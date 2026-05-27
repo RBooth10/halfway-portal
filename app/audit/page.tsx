@@ -92,7 +92,7 @@ export default function AuditLogPage() {
   useEffect(() => {
     async function loadAuditLogs() {
       try {
-        const supabase = getSupabaseClient();
+        const supabase = getSupabaseClient() as any;
 
         let activeProviderId = localStorage.getItem("current_provider_id");
 
@@ -103,7 +103,7 @@ export default function AuditLogPage() {
             .order("created_at", { ascending: false })
             .limit(1);
 
-          activeProviderId = latestProviderResult.data?.[0]?.id as string | undefined;
+          activeProviderId = latestProviderResult.data?.[0]?.id ?? null;
         }
 
         if (!activeProviderId) {

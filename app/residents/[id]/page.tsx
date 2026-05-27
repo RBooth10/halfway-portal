@@ -44,6 +44,9 @@ type ResidentDetail = {
   date_of_birth: string | null;
   admission_date: string | null;
   resident_status: string;
+  discharge_date?: string | null;
+  discharge_reason?: string | null;
+  discharge_notes?: string | null;
   file_status: string;
   medication_status: string;
   rci_status: string;
@@ -56,12 +59,12 @@ type ResidentDetail = {
   program_fees_current: boolean;
   medication_status_reviewed: boolean;
   notes: string | null;
-  created_at: string;
-};
+  created_at: string;};
 
 type HouseRow = {
   id: string;
   name: string;
+  status?: string | null;
 };
 
 type DocumentRow = {
@@ -175,10 +178,10 @@ type MedicationLogRow = {
     mat_mar_related: boolean;
   }>;
   note_text: string;
+  self_administered?: boolean | null;
   follow_up_needed: boolean;
   follow_up_notes: string | null;
-  created_at: string;
-};
+  created_at: string;};
 
 type RciAssessmentRow = {
   id: string;
@@ -1090,7 +1093,7 @@ export default function ResidentProfilePage() {
     }
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data: userData } = await supabase.auth.getUser();
 
@@ -1175,7 +1178,7 @@ export default function ResidentProfilePage() {
     }
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data: userData } = await supabase.auth.getUser();
 
@@ -1296,7 +1299,7 @@ export default function ResidentProfilePage() {
     }
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data: userData } = await supabase.auth.getUser();
 
@@ -1412,7 +1415,7 @@ export default function ResidentProfilePage() {
     setMessage("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data, error } = await supabase
         .from("medication_records")
@@ -1473,7 +1476,7 @@ export default function ResidentProfilePage() {
     };
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       if (editingMedicationId) {
         const previousMedication = medicationRecords.find((medication) => medication.id === editingMedicationId) ?? null;
@@ -1559,7 +1562,7 @@ export default function ResidentProfilePage() {
     }
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
       const { data: userData } = await supabase.auth.getUser();
 
       const token = crypto.randomUUID();
@@ -1900,7 +1903,7 @@ Resident Signature Collected Electronically`;
     setMessage("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
       const today = new Date().toISOString().slice(0, 10);
       const expirationDate = new Date();
       expirationDate.setFullYear(expirationDate.getFullYear() + 1);
@@ -1973,7 +1976,7 @@ Resident Signature Collected Electronically`;
     setMessage("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       if (contactIsPrimary) {
         const primaryUpdateResult = await supabase
@@ -2046,7 +2049,7 @@ Resident Signature Collected Electronically`;
     setMessage("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data, error } = await supabase
         .from("resident_roi_authorizations")
@@ -2092,7 +2095,7 @@ Resident Signature Collected Electronically`;
     setMessage("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       if (contactIsPrimary) {
         const primaryUpdateResult = await supabase
@@ -2197,7 +2200,7 @@ Resident Signature Collected Electronically`;
     setMessage("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const noteParts = [
         `Manual charge: ${manualChargeDescription.trim()}`,
@@ -2261,7 +2264,7 @@ Resident Signature Collected Electronically`;
     setMessage("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data, error } = await supabase
         .from("resident_payments")
@@ -2318,7 +2321,7 @@ Resident Signature Collected Electronically`;
     setMessage("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       if (!dischargeReason) {
         setError("Select a discharge reason.");
@@ -2372,7 +2375,7 @@ Resident Signature Collected Electronically`;
     setMessage("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data, error } = await supabase.rpc("readmit_resident", {
         p_resident_id: resident.id,
@@ -2442,7 +2445,7 @@ Resident Signature Collected Electronically`;
     setMessage("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data, error } = await supabase
         .from("residents")
@@ -2478,7 +2481,7 @@ Resident Signature Collected Electronically`;
     setMessage("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data, error } = await supabase
         .from("residents")
@@ -2672,7 +2675,7 @@ Resident Signature Collected Electronically`;
                       <div className="mt-5 divide-y rounded-2xl border text-left">
                         <div className="flex items-center justify-between gap-4 p-3">
                           <span className="text-sm font-medium text-slate-600">Status</span>
-                          <span className="text-sm font-semibold text-slate-950">{resident.status}</span>
+                          <span className="text-sm font-semibold text-slate-950">{resident.resident_status}</span>
                         </div>
                         <div className="flex items-center justify-between gap-4 p-3">
                           <span className="text-sm font-medium text-slate-600">House</span>

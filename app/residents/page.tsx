@@ -238,7 +238,7 @@ export default function ResidentsPage() {
   }
 
   async function loadData(activeProviderId: string) {
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseClient() as any;
 
     const providerResult = await supabase
       .from("providers")
@@ -282,7 +282,7 @@ export default function ResidentsPage() {
   useEffect(() => {
     async function initialize() {
       try {
-        const supabase = getSupabaseClient();
+        const supabase = getSupabaseClient() as any;
 
         const latestHouseResult = await supabase
           .from("houses")
@@ -301,7 +301,7 @@ export default function ResidentsPage() {
             .order("created_at", { ascending: false })
             .limit(1);
 
-          activeProviderId = latestProviderResult.data?.[0]?.id as string | undefined;
+          activeProviderId = latestProviderResult.data?.[0]?.id ?? null;
         }
 
         if (!activeProviderId) {
@@ -480,7 +480,7 @@ export default function ResidentsPage() {
     };
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       if (editingResidentId) {
         const { data, error } = await supabase

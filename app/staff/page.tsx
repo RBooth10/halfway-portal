@@ -182,7 +182,7 @@ export default function StaffPage() {
   }
 
   async function loadStaff(activeProviderId: string) {
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseClient() as any;
 
     const providerResult = await supabase
       .from("providers")
@@ -257,7 +257,7 @@ export default function StaffPage() {
     setError("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data, error } = await supabase
         .from("staff_profiles")
@@ -327,7 +327,7 @@ export default function StaffPage() {
     };
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       if (editingStaffId) {
         const { data, error } = await supabase

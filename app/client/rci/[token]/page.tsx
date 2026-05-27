@@ -141,7 +141,7 @@ export default function ClientRciPage() {
   useEffect(() => {
     async function loadAssessment() {
       try {
-        const supabase = getSupabaseClient();
+        const supabase = getSupabaseClient() as any;
 
         const { data, error } = await supabase.rpc("get_client_rci_assessment", {
           p_access_token: token,
@@ -282,7 +282,7 @@ export default function ClientRciPage() {
     }
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const responsePayload = questions.map((question) => ({
         question_id: question.id,

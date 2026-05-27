@@ -87,14 +87,14 @@ export default function StaffProfilePage() {
     if (!staffId) return;
 
     let isMounted = true;
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseClient() as any;
 
     supabase
       .from("staff_profiles")
       .select("*")
       .eq("id", staffId)
       .single()
-      .then(async (staffResult) => {
+      .then(async (staffResult: any) => {
         if (staffResult.error) {
           throw staffResult.error;
         }
@@ -143,7 +143,7 @@ export default function StaffProfilePage() {
     if (!filePath) return;
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data, error: storageError } = await supabase.storage
         .from("compliance-documents")
@@ -178,7 +178,7 @@ export default function StaffProfilePage() {
     setError("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
       let filePath: string | null = null;
 
       if (selectedFile) {

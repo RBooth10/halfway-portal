@@ -57,7 +57,7 @@ export default function ClientIntakeSigningPage() {
       setLoading(true);
       setError("");
 
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data, error } = await supabase.rpc("get_client_intake_documents", {
         p_access_token: token,
@@ -110,7 +110,7 @@ export default function ClientIntakeSigningPage() {
     try {
       setError("");
 
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data, error } = await supabase.storage
         .from("compliance-documents")
@@ -144,7 +144,7 @@ export default function ClientIntakeSigningPage() {
       setMessage("");
       setError("");
 
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data, error } = await supabase.rpc("submit_client_intake_signature", {
         p_access_token: token,
