@@ -13,7 +13,6 @@ import {
   MapPin,
   Pencil,
   Plus,
-  ShieldCheck,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -151,7 +150,7 @@ export default function HousesPage() {
   const [form, setForm] = useState<HouseForm>(initialForm);
   const [houses, setHouses] = useState<HouseRow[]>([]);
   const [providerId, setProviderId] = useState<string | null>(null);
-  const [providerName, setProviderName] = useState("Current Provider");
+  const [, setProviderName] = useState("Current Provider");
   const [editingHouseId, setEditingHouseId] = useState<string | null>(null);
   const [showHouseForm, setShowHouseForm] = useState(false);
   const [saving, setSaving] = useState(false);

@@ -4,21 +4,16 @@ import type React from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Archive,
   ArrowLeft,
   ArrowRight,
   Building2,
-  CheckCircle2,
   ClipboardCheck,
-  ExternalLink,
   FileSignature,
   FileText,
   FolderOpen,
   Home,
   Loader2,
-  Pencil,
   Plus,
-  ShieldCheck,
   Upload,
   Users,
   X,
@@ -332,11 +327,11 @@ export default function DocumentsPage() {
   const [selectedTargetHouseIds, setSelectedTargetHouseIds] = useState<string[]>([]);
   const [editingDocumentId, setEditingDocumentId] = useState<string | null>(null);
   const [providerId, setProviderId] = useState<string | null>(null);
-  const [providerName, setProviderName] = useState("Current Provider");
+  const [, setProviderName] = useState("Current Provider");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [, setMessage] = useState("");
+  const [, setError] = useState("");
   const [isDocumentModalOpen, setIsDocumentModalOpen] = useState(false);
   const [selectedAreaCategory, setSelectedAreaCategory] = useState("All");
 

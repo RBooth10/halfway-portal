@@ -12,7 +12,6 @@ import {
   Mail,
   Pencil,
   Plus,
-  ShieldCheck,
   UserCog,
   UserPlus,
   Users,
@@ -157,7 +156,7 @@ export default function StaffPage() {
   const [form, setForm] = useState<StaffForm>(initialForm);
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [providerId, setProviderId] = useState<string | null>(null);
-  const [providerName, setProviderName] = useState("Current Provider");
+  const [, setProviderName] = useState("Current Provider");
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [showStaffForm, setShowStaffForm] = useState(false);
   const [saving, setSaving] = useState(false);

@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   Download,
   HeartHandshake,
-  Home,
   Loader2,
   Mail,
   Phone,
@@ -168,7 +167,7 @@ export default function ResidentsPage() {
   const [residents, setResidents] = useState<ResidentRow[]>([]);
   const [houses, setHouses] = useState<HouseOption[]>([]);
   const [providerId, setProviderId] = useState<string | null>(null);
-  const [providerName, setProviderName] = useState("Current Provider");
+  const [, setProviderName] = useState("Current Provider");
   const [editingResidentId, setEditingResidentId] = useState<string | null>(null);
   const [residentListTab, setResidentListTab] = useState<"active" | "discharged">("active");
   const [residentSearch, setResidentSearch] = useState("");

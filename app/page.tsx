@@ -6,11 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   BarChart3,
-  Building2,
-  CheckCircle2,
   FileText,
   Home,
-  Loader2,
   ShieldCheck,
   Shuffle,
   UserRound,
@@ -115,8 +112,8 @@ function getDashboardSupabase() {
 }
 export default function DashboardPage() {
   const [counts, setCounts] = useState<DashboardCounts>(initialCounts);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [, setLoading] = useState(true);
+  const [, setError] = useState("");
 
   useEffect(() => {
     async function loadDashboard() {
