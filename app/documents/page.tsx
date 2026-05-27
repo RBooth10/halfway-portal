@@ -365,7 +365,7 @@ export default function DocumentsPage() {
       is_signable: isSignable,
       signature_required_from: isSignable ? "resident" : "not_required",
       signature_status: isSignable ? "not_sent" : "not_required",
-      signature_instructions: isSignable ? current.signature_instructions : "",
+      signature_instructions: "",
       resident_send_scope: isSignable ? current.resident_send_scope : "all_residents",
     }));
 
@@ -630,7 +630,7 @@ export default function DocumentsPage() {
         effective_date: form.effective_date || null,
         status: selectedFile ? "uploaded" : form.status,
         is_signable: form.is_signable,
-        signature_required_from: form.is_signable ? form.signature_required_from : "not_required",
+        signature_required_from: form.is_signable ? "resident" : "not_required",
         signature_status: form.is_signable
           ? editingDocument?.signature_status ?? "not_sent"
           : "not_required",
@@ -1095,27 +1095,14 @@ export default function DocumentsPage() {
                         className="mt-1 h-4 w-4 rounded border-slate-300"
                       />
                       <span>
-                        <span className="block text-sm font-medium text-slate-700">Requires electronic signature</span>
+                        <span className="block text-sm font-medium text-slate-700">Requires resident e-signature</span>
 </span>
                     </label>
 
                     {form.is_signable ? (
                       <div className="mt-4 grid gap-4 md:grid-cols-2">
-                        <label className="block">
-                          <span className="text-sm font-medium text-slate-700">Signature required from</span>
-                          <select
-                            value={form.signature_required_from}
-                            onChange={(event) => updateField("signature_required_from", event.target.value)}
-                            className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                          >
-                            <option value="resident">Resident</option>
-                            <option value="staff">Staff</option>
-                            <option value="provider">Provider</option>
-                            <option value="house_manager">House Manager</option>
-                          </select>
-                        </label>
 
-                        {form.category === "Resident" && form.signature_required_from === "resident" ? (
+                        {form.category === "Resident" && form.is_signable ? (
                           <div className="rounded-2xl border bg-white p-4 md:col-span-2">
                             <h3 className="text-sm font-semibold text-slate-950">Resident Packet Sending</h3>
 <div className="mt-4 grid gap-3 md:grid-cols-2">
