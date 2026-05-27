@@ -336,11 +336,11 @@ export default function UaRandomizerPage() {
         </Link>
       </div>
 
-      <section className="rounded-3xl border bg-white p-6 shadow-sm">
+      <section className="rounded-2xl border bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="text-sm font-medium text-slate-500">UA/BA Workflow</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight">Rolling UA Schedule</h1>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight">Rolling UA Schedule</h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
               Keep future UA schedules current as residents are added, discharged, readmitted, or moved through phases.
             </p>
@@ -378,7 +378,7 @@ export default function UaRandomizerPage() {
       ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <div className="rounded-3xl border bg-white p-6 shadow-sm">
+        <div className="rounded-2xl border bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold">Rolling Schedule Rule</h2>
           <p className="mt-1 text-sm text-slate-500">
             Set the rolling UA rule once. After initialization, resident additions, phase changes, house moves, readmissions, and discharges update the future UA list automatically.
@@ -451,7 +451,7 @@ export default function UaRandomizerPage() {
           </div>
         </div>
 
-        <div className="rounded-3xl border bg-white p-6 shadow-sm">
+        <div className="rounded-2xl border bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">Scheduled UA List</h2>
@@ -520,7 +520,7 @@ export default function UaRandomizerPage() {
         </div>
       </section>
 
-      <section className="rounded-3xl border bg-white p-6 shadow-sm">
+      <section className="rounded-2xl border bg-white p-5 shadow-sm">
         <div className="flex items-start gap-3">
           <Users className="mt-1 h-5 w-5 text-slate-600" />
           <div>

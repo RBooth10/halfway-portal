@@ -448,15 +448,15 @@ export default function StaffPage() {
         </Link>
       </div>
 
-      <section className="rounded-3xl border bg-white p-6 shadow-sm">
+      <section className="rounded-2xl border bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex gap-4">
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-slate-100">
-              <UserCog className="h-10 w-10 text-slate-700" />
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-100">
+              <UserCog className="h-7 w-7 text-slate-700" />
             </div>
             <div>
               <p className="text-sm font-medium text-slate-500">Provider Staff Setup</p>
-              <h1 className="mt-1 text-3xl font-semibold tracking-tight">Staff & Roles</h1>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight">Staff & Roles</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
                 Invite provider staff for <span className="font-medium text-slate-950">{providerName}</span>,
                 assign roles, limit access by house, and protect sensitive resident, medication, UA/BA, incident, grievance, payment, and report data.
@@ -499,7 +499,7 @@ export default function StaffPage() {
       <section className="space-y-6">
         {showStaffForm ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-            <form className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border bg-white p-6 shadow-xl">
+            <form className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border bg-white p-5 shadow-xl">
           <h2 className="text-lg font-semibold">{editingStaffId ? "Edit Staff Member" : "Invite Staff Member"}</h2>
           <p className="mt-1 text-sm text-slate-500">
             {editingStaffId

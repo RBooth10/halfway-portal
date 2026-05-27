@@ -196,7 +196,7 @@ export default function ClientIntakeSigningPage() {
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-8 text-slate-950">
       <div className="mx-auto max-w-4xl space-y-6">
-        <section className="rounded-3xl border bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="flex gap-4">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-slate-100">
@@ -204,7 +204,7 @@ export default function ClientIntakeSigningPage() {
               </div>
               <div>
                 <p className="text-sm font-medium text-slate-500">Resident Intake Documents</p>
-                <h1 className="mt-1 text-3xl font-semibold tracking-tight">Review and Sign</h1>
+                <h1 className="mt-1 text-2xl font-semibold tracking-tight">Review and Sign</h1>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
                   {residentName ? `${residentName}, please review and electronically sign the intake documents listed below.` : "Please review and electronically sign the intake documents listed below."}
                 </p>
@@ -253,7 +253,7 @@ export default function ClientIntakeSigningPage() {
               const isSigned = document.signature_status === "signed";
 
               return (
-                <div key={document.assignment_id} className="rounded-3xl border bg-white p-6 shadow-sm">
+                <div key={document.assignment_id} className="rounded-2xl border bg-white p-5 shadow-sm">
                   <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div>
                       <h2 className="text-lg font-semibold text-slate-950">{document.document_name}</h2>

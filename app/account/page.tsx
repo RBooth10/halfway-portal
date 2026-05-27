@@ -140,14 +140,14 @@ export default function AccountPage() {
         Back to dashboard
       </Link>
 
-      <section className="rounded-3xl border bg-white p-6 shadow-sm">
+      <section className="rounded-2xl border bg-white p-5 shadow-sm">
         <div className="flex gap-4">
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-slate-100">
-            <UserCog className="h-10 w-10 text-slate-700" />
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-100">
+            <UserCog className="h-7 w-7 text-slate-700" />
           </div>
           <div>
             <p className="text-sm font-medium text-slate-500">Account Setup</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight">
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight">
               Link Auth Account to Staff Profile
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">

@@ -343,14 +343,14 @@ export default function ClientRciPage() {
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-950">
       <div className="mx-auto max-w-3xl space-y-6">
-        <section className="rounded-3xl border bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border bg-white p-5 shadow-sm">
           <div className="flex gap-4">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-slate-100">
               <ShieldCheck className="h-8 w-8 text-slate-700" />
             </div>
             <div>
               <p className="text-sm font-medium text-slate-500">Client Assessment</p>
-              <h1 className="mt-1 text-3xl font-semibold tracking-tight">Recovery Capital Assessment</h1>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight">Recovery Capital Assessment</h1>
               <p className="mt-3 text-sm leading-6 text-slate-600">
                 Complete each question based on how true it feels for you today. After you answer,
                 you will see your results and use them to create your recovery goals.

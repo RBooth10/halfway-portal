@@ -2662,7 +2662,7 @@ Resident Signature Collected Electronically`;
                 <div className="space-y-6">
                   <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
                     <div className="rounded-2xl border bg-white p-6 text-center shadow-sm">
-                      <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-slate-100">
+                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
                         <User className="h-10 w-10 text-slate-500" />
                       </div>
 
