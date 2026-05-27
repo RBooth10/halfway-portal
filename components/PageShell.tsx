@@ -10,8 +10,8 @@ export default function PageShell({
   maxWidth?: "max-w-5xl" | "max-w-6xl" | "max-w-7xl";
 }) {
   return (
-    <main className="min-h-screen bg-slate-100 p-6 text-slate-950">
-      <div className={`mx-auto ${maxWidth} space-y-6`}>
+    <main className="min-h-screen bg-slate-100 px-4 py-4 text-slate-950 sm:px-5 lg:px-6">
+      <div className={`mx-auto ${maxWidth} space-y-4`}>
         <AppHeader />
         <SetupNav />
         {children}
