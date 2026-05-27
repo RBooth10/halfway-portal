@@ -709,7 +709,7 @@ export default function ResidentsPage() {
             <div className="mt-5 rounded-2xl bg-slate-50 p-5">
               <p className="text-sm font-semibold text-slate-950">No residents saved yet.</p>
               <p className="mt-1 text-sm text-slate-500">
-                Add the first resident to begin managing this provider's resident list.
+                Add the first resident to begin managing this provider&apos;s resident list.
               </p>
             </div>
           ) : displayedResidents.length === 0 ? (
