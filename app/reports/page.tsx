@@ -484,7 +484,7 @@ export default function ReportsPage() {
   }, [selectedReportType, selectedHouseResidents]);
 
   async function loadReports(activeProviderId: string) {
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseClient() as any;
 
     const providerResult = await supabase.from("providers").select("legal_name").eq("id", activeProviderId).single();
     const housesResult = await supabase.from("houses").select("id, name, total_beds, status").eq("provider_id", activeProviderId).order("name", { ascending: true });
@@ -535,12 +535,12 @@ export default function ReportsPage() {
   useEffect(() => {
     async function initialize() {
       try {
-        const supabase = getSupabaseClient();
-        let activeProviderId = localStorage.getItem("current_provider_id");
+        const supabase = getSupabaseClient() as any;
+        let activeProviderId: string | null = localStorage.getItem("current_provider_id");
 
         if (!activeProviderId) {
           const latestProviderResult = await supabase.from("providers").select("id").order("created_at", { ascending: false }).limit(1);
-          activeProviderId = latestProviderResult.data?.[0]?.id as string | undefined;
+          activeProviderId = latestProviderResult.data?.[0]?.id ?? null;
         }
 
         if (!activeProviderId) {
@@ -669,7 +669,7 @@ export default function ReportsPage() {
     }
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
       const { data: userData } = await supabase.auth.getUser();
 
       const reportScope =
@@ -745,7 +745,7 @@ export default function ReportsPage() {
     const resolutionNotes = window.prompt("Resolution notes, if any:") ?? "";
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
       const { data: userData } = await supabase.auth.getUser();
 
       const { error: updateError } = await supabase
