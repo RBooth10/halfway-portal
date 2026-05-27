@@ -39,6 +39,9 @@ type DocumentForm = {
   signature_required_from: string;
   signature_status: string;
   signature_instructions: string;
+  document_source: string;
+  document_body: string;
+  acknowledgment_statement: string;
   resident_send_scope: string;
   notes: string;
 };
@@ -57,6 +60,9 @@ type DocumentRow = {
   signature_required_from: string | null;
   signature_status: string | null;
   signature_instructions: string | null;
+  document_source: string | null;
+  document_body: string | null;
+  acknowledgment_statement: string | null;
   resident_send_scope: string | null;
   signed_file_url: string | null;
   signed_at: string | null;
@@ -83,6 +89,9 @@ const initialForm: DocumentForm = {
   signature_required_from: "not_required",
   signature_status: "not_required",
   signature_instructions: "",
+  document_source: "upload",
+  document_body: "",
+  acknowledgment_statement: "",
   resident_send_scope: "all_residents",
   notes: "",
 };
@@ -508,6 +517,9 @@ export default function DocumentsPage() {
       signature_required_from: document.signature_required_from ?? "not_required",
       signature_status: document.signature_status ?? "not_required",
       signature_instructions: document.signature_instructions ?? "",
+      document_source: document.document_source ?? (document.file_url ? "upload" : "text"),
+      document_body: document.document_body ?? "",
+      acknowledgment_statement: document.acknowledgment_statement ?? "",
       resident_send_scope: document.resident_send_scope ?? "all_residents",
       notes: document.notes ?? "",
     });
@@ -626,6 +638,10 @@ export default function DocumentsPage() {
         signature_required_from: form.is_signable ? form.signature_required_from : "not_required",
         signature_status: form.is_signable ? form.signature_status : "not_required",
         signature_instructions: form.is_signable ? form.signature_instructions.trim() || null : null,
+        document_source: form.document_source === "text" ? "text" : "upload",
+        document_body: form.document_source === "text" ? form.document_body.trim() || null : null,
+        acknowledgment_statement:
+          form.document_source === "text" ? form.acknowledgment_statement.trim() || null : null,
         resident_send_scope:
           form.category === "Resident" && form.is_signable && form.signature_required_from === "resident"
             ? form.resident_send_scope
@@ -773,6 +789,9 @@ export default function DocumentsPage() {
       : documentAreas.find((area) => area.category === selectedAreaCategory)?.title ?? "Documents";
   const uploadAreaCategory = selectedAreaCategory === "All" ? "Provider" : selectedAreaCategory;
   const archivedDocuments = documents.filter((doc) => doc.status === "archived");
+  const editingDocument = editingDocumentId
+    ? documents.find((document) => document.id === editingDocumentId) ?? null
+    : null;
 
   return (
     <PageShell>
@@ -891,7 +910,7 @@ export default function DocumentsPage() {
                       {getAreaForDocument(doc)} • {doc.compliance_domain ?? "No domain"}
                     </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      {doc.status === "uploaded" ? "Uploaded" : doc.status ?? "Not uploaded"}
+                      {doc.document_source === "text" ? "Text document" : doc.status === "uploaded" ? "Uploaded file" : doc.status ?? "Not uploaded"}
                       {doc.is_signable ? " • E-signable" : ""}
                     </p>
                   </div>
@@ -906,14 +925,15 @@ export default function DocumentsPage() {
                     </button>
 
                     {doc.file_url ? (
-                      <a
-                        href={doc.file_url}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (doc.file_url) void openStoredFile(doc.file_url);
+                        }}
                         className="rounded-xl border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
                       >
                         View File
-                      </a>
+                      </button>
                     ) : null}
                   </div>
                 </div>
@@ -954,14 +974,14 @@ export default function DocumentsPage() {
           <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-2xl">
             <div className="flex items-start justify-between gap-4 border-b p-6">
               <div>
-                <p className="text-sm font-medium text-slate-500">Document Upload</p>
+                <p className="text-sm font-medium text-slate-500">Document</p>
                 <h2 className="text-xl font-semibold text-slate-950">
-                  {editingDocumentId ? "Edit Document Record" : "Upload Document"}
+                  {editingDocumentId ? "Edit Document Record" : "Add Document"}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
                   {editingDocumentId
-                    ? "Update the selected document record. Attaching a new file will replace the stored file reference."
-                    : "Create a document record and optionally attach a file to private Supabase Storage."}
+                    ? "Update the selected document record."
+                    : "Create a document record by upload or text."}
                 </p>
               </div>
               <button
@@ -1006,6 +1026,39 @@ export default function DocumentsPage() {
                       <option value="Other">Documents - Other</option>
                     </select>
                   </label>
+
+                  <div className="rounded-2xl border bg-slate-50 p-4 md:col-span-2">
+                    <p className="text-sm font-semibold text-slate-950">Document Source</p>
+<div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <label className="flex items-start gap-3 rounded-xl border bg-white p-3">
+                        <input
+                          type="radio"
+                          name="document_source"
+                          value="upload"
+                          checked={form.document_source !== "text"}
+                          onChange={(event) => updateField("document_source", event.target.value)}
+                          className="mt-1 h-4 w-4"
+                        />
+                        <span>
+                          <span className="block text-sm font-medium text-slate-700">Upload file</span>
+</span>
+                      </label>
+
+                      <label className="flex items-start gap-3 rounded-xl border bg-white p-3">
+                        <input
+                          type="radio"
+                          name="document_source"
+                          value="text"
+                          checked={form.document_source === "text"}
+                          onChange={(event) => updateField("document_source", event.target.value)}
+                          className="mt-1 h-4 w-4"
+                        />
+                        <span>
+                          <span className="block text-sm font-medium text-slate-700">Create from text</span>
+</span>
+                      </label>
+                    </div>
+                  </div>
 
                   <label className="block">
                     <span className="text-sm font-medium text-slate-700">Compliance domain</span>
@@ -1077,10 +1130,7 @@ export default function DocumentsPage() {
                       />
                       <span>
                         <span className="block text-sm font-medium text-slate-700">Requires electronic signature</span>
-                        <span className="mt-1 block text-sm leading-5 text-slate-500">
-                          Use this for resident packet documents, acknowledgments, agreements, and other documents that need a signed record.
-                        </span>
-                      </span>
+</span>
                     </label>
 
                     {form.is_signable ? (
@@ -1126,11 +1176,7 @@ export default function DocumentsPage() {
                         {form.category === "Resident" && form.signature_required_from === "resident" ? (
                           <div className="rounded-2xl border bg-white p-4 md:col-span-2">
                             <h3 className="text-sm font-semibold text-slate-950">Resident Packet Sending</h3>
-                            <p className="mt-1 text-sm leading-5 text-slate-500">
-                              Choose whether this form is assigned to every resident or only residents in selected houses.
-                            </p>
-
-                            <div className="mt-4 grid gap-3 md:grid-cols-2">
+<div className="mt-4 grid gap-3 md:grid-cols-2">
                               <label className="flex items-start gap-3 rounded-xl border bg-slate-50 p-3">
                                 <input
                                   type="radio"
@@ -1142,10 +1188,7 @@ export default function DocumentsPage() {
                                 />
                                 <span>
                                   <span className="block text-sm font-medium text-slate-700">Send to all residents</span>
-                                  <span className="mt-1 block text-xs leading-5 text-slate-500">
-                                    Use for universal intake documents and policies.
-                                  </span>
-                                </span>
+</span>
                               </label>
 
                               <label className="flex items-start gap-3 rounded-xl border bg-slate-50 p-3">
@@ -1159,16 +1202,13 @@ export default function DocumentsPage() {
                                 />
                                 <span>
                                   <span className="block text-sm font-medium text-slate-700">Send only to selected houses</span>
-                                  <span className="mt-1 block text-xs leading-5 text-slate-500">
-                                    Use for house-specific fee agreements, rules, or acknowledgments.
-                                  </span>
-                                </span>
+</span>
                               </label>
                             </div>
 
                             {form.resident_send_scope === "selected_houses" ? (
                               <div className="mt-4 rounded-xl border bg-slate-50 p-4">
-                                <p className="text-sm font-medium text-slate-700">Selected houses</p>
+                                <p className="text-sm font-medium text-slate-700">Houses</p>
 
                                 {houses.length === 0 ? (
                                   <p className="mt-2 text-sm text-slate-500">
@@ -1197,19 +1237,85 @@ export default function DocumentsPage() {
                     ) : null}
                   </div>
 
-                  <label className="block md:col-span-2">
-                    <span className="text-sm font-medium text-slate-700">Attach file</span>
-                    <input
-                      type="file"
-                      onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-                      className="mt-2 block w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    />
-                    {selectedFile ? (
-                      <p className="mt-2 text-sm text-slate-500">
-                        Selected: {selectedFile.name}
-                      </p>
-                    ) : null}
-                  </label>
+                  {form.document_source === "text" ? (
+                    <div className="md:col-span-2 grid gap-4">
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">Document body</span>
+                        <textarea
+                          value={form.document_body}
+                          onChange={(event) => updateField("document_body", event.target.value)}
+                          placeholder="Paste or write the document text here. This is the version residents/staff will review before signing."
+                          className="mt-2 min-h-64 w-full rounded-xl border bg-white p-3 text-sm leading-6 outline-none ring-slate-900/10 focus:ring-4"
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">Acknowledgment statement</span>
+                        <textarea
+                          value={form.acknowledgment_statement}
+                          onChange={(event) => updateField("acknowledgment_statement", event.target.value)}
+                          placeholder="Example: I acknowledge that I have read, understand, and agree to follow this document."
+                          className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm leading-6 outline-none ring-slate-900/10 focus:ring-4"
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <label className="block md:col-span-2">
+                      <span className="text-sm font-medium text-slate-700">
+                        {editingDocument?.file_url ? "Attached file" : "Attach file"}
+                      </span>
+
+                      {editingDocument?.file_url ? (
+                        <div className="mt-2 rounded-2xl border bg-slate-50 p-3">
+                          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                            <p className="text-sm font-medium text-slate-700">File attached</p>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (editingDocument?.file_url) void openStoredFile(editingDocument.file_url);
+                              }}
+                              className="inline-flex items-center justify-center rounded-xl border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
+                            >
+                              View file
+                            </button>
+                          </div>
+
+                          <details className="mt-3">
+                            <summary className="cursor-pointer text-xs font-medium text-slate-600">
+                              Replace file
+                            </summary>
+
+                            <input
+                              type="file"
+                              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                              className="mt-3 block w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                            />
+
+                            {selectedFile ? (
+                              <p className="mt-2 text-sm text-slate-500">
+                                New file selected: {selectedFile.name}
+                              </p>
+                            ) : null}
+                          </details>
+                        </div>
+                      ) : (
+                        <>
+                          <input
+                            type="file"
+                            onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                            className="mt-2 block w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                          />
+
+                          {selectedFile ? (
+                            <p className="mt-2 text-sm text-slate-500">
+                              Selected: {selectedFile.name}
+                            </p>
+                          ) : null}
+                        </>
+                      )}
+                    </label>
+                  )}
 
                   <label className="block md:col-span-2">
                     <span className="text-sm font-medium text-slate-700">Notes</span>
