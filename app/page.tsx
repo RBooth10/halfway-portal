@@ -268,12 +268,84 @@ activeProviderId = latestProviderResult.data?.[0]?.id ?? null;
     [counts],
   );
 
-  const savedRecordCount = counts.houses + counts.residents + counts.staff + counts.documents;
+  const workflowCards = [
+    {
+      title: "Provider Setup",
+      subtitle: "Review provider information and program fee settings.",
+      cta: "Open provider setup",
+      href: "/onboarding",
+    },
+    {
+      title: "Houses",
+      subtitle: "Manage houses, beds, and house-level setup.",
+      cta: "Open houses",
+      href: "/houses",
+    },
+    {
+      title: "Residents",
+      subtitle: "Manage resident records, assignments, and profiles.",
+      cta: "Open residents",
+      href: "/residents",
+    },
+    {
+      title: "Documents",
+      subtitle: "Upload and organize provider, house, and resident documents.",
+      cta: "Open documents",
+      href: "/documents",
+    },
+    {
+      title: "Reports",
+      subtitle: "Create and review compliance reports and logs.",
+      cta: "Open reports",
+      href: "/reports",
+    },
+    {
+      title: "UA Schedule",
+      subtitle: "Generate and review scheduled UA/BA testing.",
+      cta: "Open UA schedule",
+      href: "/ua-randomizer",
+    },
+  ];
 
   return (
     <PageShell>
-        </>
-      )}
+      <section className="rounded-2xl border bg-white p-5 shadow-sm">
+        <div>
+          <p className="text-sm font-medium text-slate-500">Dashboard</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Halfway Portal</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+            Open the areas below to manage provider setup, houses, residents, documents, reports, and UA scheduling.
+          </p>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border bg-white p-5 shadow-sm">
+        <h2 className="text-base font-semibold text-slate-950">Work Areas</h2>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {workflowCards.map((card) => (
+            <Link
+              key={card.href}
+              href={card.href}
+              className="rounded-2xl border bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-slate-950">{card.title}</p>
+                  <p className="mt-1 text-sm text-slate-500">{card.subtitle}</p>
+                </div>
+
+                <div className="rounded-2xl bg-white px-2.5 py-1 text-xs font-medium text-slate-500">
+                  Open
+                </div>
+              </div>
+
+              <p className="mt-4 text-sm font-medium text-slate-700">{card.cta}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
     </PageShell>
   );
+
 }

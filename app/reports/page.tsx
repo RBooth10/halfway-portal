@@ -1629,21 +1629,7 @@ export default function ReportsPage() {
             </button>
           </div>
         </section>
-      ) : (
-        <section className="rounded-2xl border bg-white p-5 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="rounded-2xl bg-slate-100 p-3">
-              <FolderOpen className="h-5 w-5 text-slate-700" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold">Select a Report Folder</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Choose a report folder above to open the fillable form.
-              </p>
-            </div>
-          </div>
-        </section>
-      )}
+      ) : null}
 
       {selectedReportType && selectedReportType !== "incident_reporting" ? (
         <section className="rounded-2xl border bg-white p-5 shadow-sm">
