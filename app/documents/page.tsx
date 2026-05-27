@@ -498,6 +498,35 @@ export default function DocumentsPage() {
     }
   }
 
+  async function restoreDocument(document: DocumentRow) {
+    const restoredStatus =
+      document.document_source === "text" || document.file_url ? "uploaded" : "not_uploaded";
+
+    setMessage("");
+    setError("");
+
+    try {
+      const supabase = getSupabaseClient() as any;
+
+      const { error } = await supabase
+        .from("documents")
+        .update({ status: restoredStatus })
+        .eq("id", document.id);
+
+      if (error) throw error;
+
+      setDocuments((current) =>
+        current.map((item) =>
+          item.id === document.id ? { ...item, status: restoredStatus } : item
+        )
+      );
+
+      setMessage(`${document.document_name} was restored.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not restore document.");
+    }
+  }
+
   function startEditingDocument(document: DocumentRow) {
     setEditingDocumentId(document.id);
     setForm({
@@ -932,6 +961,14 @@ export default function DocumentsPage() {
                         View File
                       </button>
                     ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => void archiveDocument(doc)}
+                      className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100"
+                    >
+                      Archive
+                    </button>
                   </div>
                 </div>
               </div>
@@ -952,13 +989,23 @@ export default function DocumentsPage() {
                   <p className="mt-1 text-slate-500">
                     {getAreaForDocument(doc)} • {doc.compliance_domain ?? "No domain"}
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => startEditingDocument(doc)}
-                    className="mt-3 rounded-xl border px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
-                  >
-                    Edit
-                  </button>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => startEditingDocument(doc)}
+                      className="rounded-xl border px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => void restoreDocument(doc)}
+                      className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                    >
+                      Restore
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
