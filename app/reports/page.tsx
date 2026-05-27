@@ -364,7 +364,7 @@ function MetricCard({
   icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <div className="rounded-2xl border bg-white p-5 shadow-sm">
+    <div className="rounded-3xl border bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-slate-500">{title}</p>
@@ -372,7 +372,7 @@ function MetricCard({
           <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
         </div>
         <div className="rounded-2xl bg-slate-100 p-3">
-          <Icon className="h-6 w-6 text-slate-700" />
+          <Icon className="h-6 w-6 text-slate-600" />
         </div>
       </div>
     </div>
@@ -1438,11 +1438,11 @@ export default function ReportsPage() {
 
   return (
     <PageShell>
-      <section className="rounded-3xl border bg-white p-6 shadow-sm">
+      <section className="rounded-3xl border bg-gradient-to-br from-white to-slate-50 p-6 shadow-sm">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex gap-4">
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-slate-100">
-              <BarChart3 className="h-10 w-10 text-slate-700" />
+            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-slate-100 shadow-inner">
+              <BarChart3 className="h-10 w-10 text-slate-600" />
             </div>
             <div>
               <p className="text-sm font-medium text-slate-500">Provider Reports / Logs</p>
@@ -1484,8 +1484,8 @@ export default function ReportsPage() {
         <MetricCard title="Residents" value={String(counts.residents)} subtitle="Residents on file" icon={Users} />
       </section>
 
-      <section className="rounded-2xl border bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap gap-2">
+      <section className="rounded-3xl border bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap gap-2 rounded-2xl bg-slate-100 p-1">
           {reportTypes.map((reportType) => (
             <button
               key={reportType.value}
@@ -1499,8 +1499,10 @@ export default function ReportsPage() {
                 setMessage("");
                 setError("");
               }}
-              className={`rounded-xl px-3 py-2 text-sm font-medium ${
-                selectedReportType === reportType.value ? "bg-slate-950 text-white" : "border bg-white text-slate-700 hover:bg-slate-50"
+              className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+                selectedReportType === reportType.value
+                  ? "bg-white text-slate-950 shadow-sm"
+                  : "text-slate-600 hover:text-slate-950"
               }`}
             >
               {reportType.label}
@@ -1510,7 +1512,7 @@ export default function ReportsPage() {
       </section>
 
       {selectedReportType ? (
-        <section className="rounded-2xl border bg-white p-6 shadow-sm">
+        <section className="rounded-3xl border bg-gradient-to-br from-white to-slate-50 p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="rounded-2xl bg-slate-100 p-3">
               <Plus className="h-5 w-5 text-slate-700" />
@@ -1640,7 +1642,7 @@ export default function ReportsPage() {
           </div>
         </section>
       ) : (
-        <section className="rounded-2xl border bg-white p-6 shadow-sm">
+        <section className="rounded-3xl border bg-white p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="rounded-2xl bg-slate-100 p-3">
               <FolderOpen className="h-5 w-5 text-slate-700" />
@@ -1656,7 +1658,7 @@ export default function ReportsPage() {
       )}
 
       {selectedReportType && selectedReportType !== "incident_reporting" ? (
-        <section className="rounded-2xl border bg-white p-6 shadow-sm">
+        <section className="rounded-3xl border bg-white p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="rounded-2xl bg-slate-100 p-3">
               <CalendarDays className="h-5 w-5 text-slate-700" />
@@ -1691,10 +1693,10 @@ export default function ReportsPage() {
         </section>
       ) : null}
 
-      <section className="rounded-2xl border bg-white p-6 shadow-sm">
+      <section className="rounded-3xl border bg-gradient-to-br from-white to-slate-50 p-6 shadow-sm">
         <div className="flex items-start gap-3">
           <div className="rounded-2xl bg-slate-100 p-3">
-            <ShieldCheck className="h-5 w-5 text-slate-700" />
+            <ShieldCheck className="h-5 w-5 text-slate-600" />
           </div>
           <div>
             <h2 className="text-lg font-semibold">Saved Reports</h2>
@@ -1704,14 +1706,16 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-5 flex flex-wrap gap-2 rounded-2xl bg-slate-100 p-1">
           {reportTypes.map((reportType) => (
             <button
               key={reportType.value}
               type="button"
               onClick={() => setSavedReportsTab(reportType.value)}
-              className={`rounded-xl px-3 py-2 text-sm font-medium ${
-                savedReportsTab === reportType.value ? "bg-slate-950 text-white" : "border bg-white text-slate-700 hover:bg-slate-50"
+              className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+                savedReportsTab === reportType.value
+                  ? "bg-white text-slate-950 shadow-sm"
+                  : "text-slate-600 hover:text-slate-950"
               }`}
             >
               {reportType.label}
@@ -1724,13 +1728,13 @@ export default function ReportsPage() {
         </div>
 
         {filteredReports.length === 0 ? (
-          <div className="mt-5 rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
+          <div className="mt-5 rounded-3xl bg-slate-50 p-5 text-sm text-slate-500">
             No {savedReportsLabel.toLowerCase()} reports have been saved yet.
           </div>
         ) : (
           <div className="mt-5 space-y-3">
             {filteredReports.map((report) => (
-              <div key={report.id} className="rounded-2xl border bg-slate-50 p-4">
+              <div key={report.id} className="rounded-3xl border bg-white p-4 shadow-sm transition hover:shadow-md">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>
                     <h3 className="font-semibold text-slate-950">{getReportLabel(report.report_type)}</h3>
@@ -1747,7 +1751,7 @@ export default function ReportsPage() {
                     <button
                       type="button"
                       onClick={() => setSelectedViewReport(report)}
-                      className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-xs font-medium hover:bg-slate-50"
+                      className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-xs font-medium shadow-sm hover:bg-slate-50"
                     >
                       <Eye className="h-4 w-4" />
                       View Report
