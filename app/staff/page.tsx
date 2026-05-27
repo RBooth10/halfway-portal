@@ -454,14 +454,8 @@ export default function StaffPage() {
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-100">
               <UserCog className="h-7 w-7 text-slate-700" />
             </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Provider Staff Setup</p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight">Staff & Roles</h1>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                Invite provider staff for <span className="font-medium text-slate-950">{providerName}</span>,
-                assign roles, limit access by house, and protect sensitive resident, medication, UA/BA, incident, grievance, payment, and report data.
-              </p>
-            </div>
+            <div><h1 className="mt-1 text-2xl font-semibold tracking-tight">Staff & Roles</h1>
+</div>
           </div>
 
           <button

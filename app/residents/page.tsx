@@ -606,14 +606,8 @@ export default function ResidentsPage() {
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-100">
               <UserPlus className="h-7 w-7 text-slate-700" />
             </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Resident Onboarding</p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight">Residents</h1>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                Add residents for <span className="font-medium text-slate-950">{providerName}</span>,
-                assign them to a house, and manage their resident record.
-              </p>
-            </div>
+            <div><h1 className="mt-1 text-2xl font-semibold tracking-tight">Residents</h1>
+</div>
           </div>
 
           {residents.length > 0 ? (
@@ -645,10 +639,7 @@ export default function ResidentsPage() {
         </div>
       )}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="Active Residents" value={String(activeResidents)} subtitle={`${dischargedResidents} discharged`} icon={Users} />
-        <MetricCard title="Assigned Houses" value={`${residentsWithHouse}/${residents.length}`} subtitle="Residents assigned to houses" icon={Home} />
-      </section>
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">      </section>
 
       <section className="space-y-6">
         <div className="rounded-2xl border bg-white p-6 shadow-sm">

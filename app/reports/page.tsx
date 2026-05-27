@@ -1444,13 +1444,8 @@ export default function ReportsPage() {
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-100 shadow-inner">
               <BarChart3 className="h-7 w-7 text-slate-600" />
             </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Provider Reports / Logs</p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight">Reports</h1>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                Select a report folder, choose the house or houses it applies to, and save the completed log.
-              </p>
-            </div>
+            <div><h1 className="mt-1 text-2xl font-semibold tracking-tight">Reports</h1>
+</div>
           </div>
 
           <button
@@ -1476,13 +1471,6 @@ export default function ReportsPage() {
           </div>
         </div>
       ) : null}
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="Houses" value={String(activeHouses.length)} subtitle="Active/pending houses" icon={Home} />
-        <MetricCard title="Saved Reports" value={String(counts.providerReports)} subtitle="Provider logs on file" icon={ClipboardCheck} />
-        <MetricCard title="Open Follow-Ups" value={String(counts.openFollowUps)} subtitle="Items needing resolution" icon={AlertTriangle} />
-        <MetricCard title="Residents" value={String(counts.residents)} subtitle="Residents on file" icon={Users} />
-      </section>
 
       <section className="rounded-3xl border bg-white p-4 shadow-sm">
         <div className="flex flex-wrap gap-2 rounded-2xl bg-slate-100 p-1">
@@ -1700,10 +1688,7 @@ export default function ReportsPage() {
           </div>
           <div>
             <h2 className="text-lg font-semibold">Saved Reports</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Review saved reports by folder. This section stays visible even when no new form is open.
-            </p>
-          </div>
+</div>
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2 rounded-2xl bg-slate-100 p-1">

@@ -91,32 +91,32 @@ const documentAreas = [
   {
     title: "Provider Documents",
     category: "Provider",
-    description: "Organization-level policies, certification files, insurance, operating procedures, and provider-wide compliance records.",
-    examples: ["Policies and procedures", "Resident handbook", "Certificate of insurance", "MAT/MAR policy", "Grievance procedure"],
+    description: "",
+    examples: ["", "", "", "MAT/MAR policy", "Grievance procedure"],
     emptyCta: "Add provider document",
     icon: Building2,
   },
   {
     title: "House Documents",
     category: "House",
-    description: "House-specific records for location, safety, fire drills, emergency planning, and physical environment compliance.",
-    examples: ["Evacuation map", "Fire drill log", "Safety checklist", "Owner or lease letter", "House rules"],
+    description: "",
+    examples: ["", "", "", "Owner or lease letter", "House rules"],
     emptyCta: "Add house document",
     icon: Home,
   },
   {
     title: "Resident Packet",
     category: "Resident",
-    description: "Admission, consent, agreement, recovery planning, and resident-facing documents assigned to individual resident files.",
-    examples: ["Application", "Fee agreement", "Release of information", "Emergency contacts", "Recovery plan"],
+    description: "",
+    examples: ["", "", "", "Emergency contacts", "Recovery plan"],
     emptyCta: "Add resident packet item",
     icon: Users,
   },
   {
     title: "Documents",
     category: "Other",
-    description: "General document storage for staff files, training acknowledgments, templates, reference materials, and other supporting records.",
-    examples: ["Staff training", "Acknowledgments", "Templates", "Reference documents", "Other support files"],
+    description: "",
+    examples: ["", "", "", "Reference documents", "Other support files"],
     emptyCta: "Add document",
     icon: FolderOpen,
   },
@@ -793,245 +793,6 @@ export default function DocumentsPage() {
           Residents
         </Link>
       </div>
-
-      <section className="rounded-2xl border bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-100">
-              <FolderOpen className="h-7 w-7 text-slate-700" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Compliance Documents</p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight">Documents</h1>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                Upload and organize provider, house, resident packet, and general document records for{" "}
-                <span className="font-medium text-slate-950">{providerName}</span>.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => openNewDocumentModal(uploadAreaCategory)}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-          >
-            <Upload className="h-4 w-4" />
-            Upload Document
-          </button>
-        </div>
-      </section>
-
-      {message && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-          <div className="flex gap-2">
-            <CheckCircle2 className="h-5 w-5 shrink-0" />
-            <p>{message}</p>
-          </div>
-        </div>
-      )}
-
-      {error && (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-          {error}
-        </div>
-      )}
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="Documents" value={String(documents.length)} subtitle="Saved records" icon={FileText} />
-        <MetricCard title="Uploaded" value={String(uploadedCount)} subtitle="Stored file attached" icon={CheckCircle2} />
-        <MetricCard title="E-Signable" value={String(signableCount)} subtitle="Signature-enabled records" icon={FileSignature} />
-        <MetricCard title="Archived" value={String(archivedCount)} subtitle="Retained inactive records" icon={Archive} />
-      </section>
-
-      <section>
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-slate-950">Document Areas</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Choose an area to filter the saved document list. Use Upload Document when you want to add a new file.
-          </p>
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={() => setSelectedAreaCategory("All")}
-              className={`rounded-xl border px-4 py-2 text-sm font-medium ${
-                selectedAreaCategory === "All" ? "border-slate-950 bg-slate-950 text-white" : "bg-white hover:bg-slate-50"
-              }`}
-            >
-              All Documents
-            </button>
-          </div>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {areaCounts.map((area) => (
-            <DocumentAreaCard
-              key={area.title}
-              title={area.title}
-              description={area.description}
-              examples={area.examples}
-              count={area.count}
-              uploadedCount={area.uploadedCount}
-              emptyCta={area.emptyCta}
-              icon={area.icon}
-              active={selectedAreaCategory === area.category}
-              onClick={() => setSelectedAreaCategory(area.category)}
-            />
-          ))}
-        </div>
-      </section>
-
-      <section className="grid gap-6 lg:grid-cols-[1fr_390px]">
-        <div className="rounded-2xl border bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">{selectedAreaLabel}</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Active document records for the selected document area. {filteredActiveDocuments.length} shown / {activeDocuments.length} active total.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => openNewDocumentModal(uploadAreaCategory)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
-            >
-              <Plus className="h-4 w-4" />
-              Upload Document
-            </button>
-          </div>
-
-          {loading ? (
-            <p className="mt-3 text-sm text-slate-500">Loading documents...</p>
-          ) : filteredActiveDocuments.length === 0 ? (
-            <div className="mt-4 rounded-2xl bg-slate-50 p-6 text-center">
-              <p className="text-sm font-medium text-slate-950">No documents found for this area.</p>
-              <p className="mt-1 text-sm text-slate-500">Use the upload button to add a document record.</p>
-              <button
-                type="button"
-                onClick={() => openNewDocumentModal(uploadAreaCategory)}
-                className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-              >
-                <Upload className="h-4 w-4" />
-                Upload Document
-              </button>
-            </div>
-          ) : (
-            <div className="mt-4 overflow-hidden rounded-2xl border">
-              <table className="w-full border-collapse text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3">Document</th>
-                    <th className="px-4 py-3">Area</th>
-                    <th className="px-4 py-3">Domain</th>
-                    <th className="px-4 py-3">File</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {filteredActiveDocuments.map((doc) => (
-                    <tr key={doc.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-4">
-                        <div className="font-medium text-slate-950">{doc.document_name}</div>
-                        {doc.is_signable ? (
-                          <div className="mt-1 text-xs text-slate-500">
-                            E-signable template • {(doc.signature_required_from ?? "resident").replaceAll("_", " ")} signature
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-4 text-slate-600">{doc.category}</td>
-                      <td className="px-4 py-4 text-slate-600">{doc.compliance_domain || "Not set"}</td>
-                      <td className="px-4 py-4 text-slate-600">
-                        {doc.file_url ? (
-                          <button
-                            type="button"
-                            onClick={() => openStoredFile(doc.file_url)}
-                            className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                            View
-                          </button>
-                        ) : (
-                          <span>No file</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4">
-                        <StatusBadge value={doc.status} />
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex flex-col gap-2">
-                          <button
-                            type="button"
-                            onClick={() => startEditingDocument(doc)}
-                            className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                            Edit
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => archiveDocument(doc.id, doc.document_name)}
-                            className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                          >
-                            <Archive className="h-3.5 w-3.5" />
-                            Archive
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        <aside className="space-y-6">
-          <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">E-Signature Workflow</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              This page is now organized for e-signable provider documents, house documents, resident packet items, and general documents. The next build step can add signature templates, signing status, signed file storage, and resident-facing signature access.
-            </p>
-            <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-              Current phase: upload popup using the existing documents table and private storage bucket.
-            </div>
-          </div>
-
-          <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">Archived Documents</h2>
-            {archivedDocuments.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">No archived document records.</p>
-            ) : (
-              <div className="mt-4 space-y-3">
-                {archivedDocuments.map((doc) => (
-                  <div key={doc.id} className="rounded-2xl bg-slate-50 p-4 text-sm">
-                    <div className="font-medium text-slate-950">{doc.document_name}</div>
-                    <div className="mt-1 text-slate-500">{doc.category} · {doc.compliance_domain || "Not set"}</div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => startEditingDocument(doc)}
-                        className="rounded-xl border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
-                      >
-                        Edit
-                      </button>
-                      {doc.file_url ? (
-                        <button
-                          type="button"
-                          onClick={() => openStoredFile(doc.file_url)}
-                          className="rounded-xl border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
-                        >
-                          View File
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </aside>
-      </section>
 
       {isDocumentModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">

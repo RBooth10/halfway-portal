@@ -484,14 +484,8 @@ export default function HousesPage() {
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-100">
               <Home className="h-7 w-7 text-slate-700" />
             </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Provider House Setup</p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight">Houses</h1>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-                Add recovery residence houses for <span className="font-medium text-slate-950">{providerName}</span>.
-                Bed counts, residents, documents, safety checks, incidents, grievances, and readiness scores will roll up from the house level.
-              </p>
-            </div>
+            <div><h1 className="mt-1 text-2xl font-semibold tracking-tight">Houses</h1>
+</div>
           </div>
 
           <button className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50">
@@ -519,9 +513,7 @@ export default function HousesPage() {
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard title="Houses" value={String(houses.length)} subtitle="Saved to Supabase" icon={Home} />
         <MetricCard title="Beds" value={String(totalBeds)} subtitle="Total saved bed count" icon={BedDouble} />
-        <MetricCard title="Residents" value="0" subtitle="No residents assigned yet" icon={Users} />
-        <MetricCard title="Readiness" value={houses.length ? "In Progress" : "Setup"} subtitle="Waiting for house documents" icon={ShieldCheck} />
-      </section>
+        <MetricCard title="Residents" value="0" subtitle="No residents assigned yet" icon={Users} />      </section>
 
       <section className="space-y-6">
         <div className="rounded-2xl border bg-white p-6 shadow-sm">
