@@ -9,12 +9,14 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Download,
+  Eye,
   FolderOpen,
   Home,
   Loader2,
   Plus,
   ShieldCheck,
   Users,
+  X,
 } from "lucide-react";
 import PageShell from "@/components/PageShell";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -24,6 +26,7 @@ const reportTypes = [
   { value: "weekly_house_meeting_minutes", label: "Weekly House Meeting Minutes", frequency: "Weekly" },
   { value: "monthly_staff_meeting_minutes", label: "Monthly Staff/QI Meeting Minutes", frequency: "Monthly" },
   { value: "monthly_self_safety_assessment", label: "Monthly Self-Safety Assessment", frequency: "Monthly" },
+  { value: "incident_reporting", label: "Incident Reporting", frequency: "As Needed" },
 ] as const;
 
 type ReportType = (typeof reportTypes)[number]["value"];
@@ -34,9 +37,8 @@ type Counts = {
   beds: number;
   staff: number;
   residents: number;
-  documents: number;
-  uploadedDocuments: number;
   providerReports: number;
+  openFollowUps: number;
 };
 
 type HouseRow = {
@@ -71,6 +73,9 @@ type ProviderHouseReport = {
   report_data: ReportJson | null;
   follow_up_needed: boolean;
   follow_up_notes: string | null;
+  follow_up_resolved: boolean | null;
+  follow_up_resolved_at: string | null;
+  follow_up_resolution_notes: string | null;
   created_at: string;
   updated_at: string;
   provider_house_report_houses?: ReportHouseTarget[] | null;
@@ -81,7 +86,7 @@ type ReportForm = {
   completed_by: string;
   follow_up_needed: boolean;
   follow_up_notes: string;
-  report_data: Record<string, string>;
+  report_data: ReportJson;
 };
 
 const emptyCounts: Counts = {
@@ -90,9 +95,8 @@ const emptyCounts: Counts = {
   beds: 0,
   staff: 0,
   residents: 0,
-  documents: 0,
-  uploadedDocuments: 0,
   providerReports: 0,
+  openFollowUps: 0,
 };
 
 const initialForm: ReportForm = {
@@ -103,7 +107,7 @@ const initialForm: ReportForm = {
   report_data: {},
 };
 
-const reportFields: Record<ReportType, { key: string; label: string; placeholder: string }[]> = {
+const reportFields: Record<Exclude<ReportType, "monthly_self_safety_assessment" | "incident_reporting">, { key: string; label: string; placeholder: string }[]> = {
   annual_fire_drill: [
     { key: "house_name_address", label: "House name / address", placeholder: "Confirm the house name and address where the drill occurred." },
     { key: "start_time", label: "Start time", placeholder: "Example: 10:30 AM" },
@@ -143,19 +147,135 @@ const reportFields: Record<ReportType, { key: string; label: string; placeholder
     { key: "financial_admin_review", label: "Financial and administrative review", placeholder: "Notable financial trends, charges, refunds, third-party payers, or discrepancies." },
     { key: "house_meeting_feedback", label: "Resident feedback from house meetings", placeholder: "Resident suggestions or themes from house meetings." },
   ],
-  monthly_self_safety_assessment: [
-    { key: "smoke_detectors_fire_extinguishers", label: "Smoke detectors / fire extinguishers", placeholder: "Document alarms on each level/sleeping area, monthly testing/cleaning, batteries, age, and extinguisher status." },
-    { key: "cooking_safety", label: "Cooking safety", placeholder: "Document cooking area hazards, stove hood condition, unattended pots, and kitchen/fridge/microwave/oven cleanliness." },
-    { key: "electrical_appliance_safety", label: "Electrical and appliance safety", placeholder: "Document cords, adapters, appliances, dryer lint/venting, and appliance condition." },
-    { key: "gas_appliance_carbon_monoxide", label: "Gas appliances / carbon monoxide", placeholder: "If applicable, document carbon monoxide alarms on each level and alarm age." },
-    { key: "smoking_safety", label: "Smoking safety", placeholder: "Document smoke-free environment, designated smoking area, cigarette butt disposal, ashtray safety, and fire-proof disposal." },
-    { key: "heating_safety", label: "Heating safety", placeholder: "Document chimney/furnace inspection, clearance from heaters/fireplaces, ash disposal, extension cord use, and heater safety." },
-    { key: "home_escape_plan", label: "Home escape plan", placeholder: "Document two exits from sleeping rooms, meeting place, fire escape practice, and evacuation maps posted." },
-    { key: "resident_safety_farr_compliance", label: "Resident safety / FARR compliance", placeholder: "Document resident rights, grievance policy, emergency numbers/procedures, training, and Narcan availability." },
-    { key: "not_applicable_items", label: "Items marked not applicable", placeholder: "List any safety items marked not applicable and why." },
-    { key: "person_completing", label: "Person completing assessment", placeholder: "Typed name/signature of person completing the assessment." },
-  ],
 };
+
+const selfSafetySections = [
+  {
+    title: "Smoke Detectors / Fire Extinguishers",
+    items: [
+      ["smoke_alarm_every_level", "There is one smoke alarm on every level of the home and inside and outside each sleeping area."],
+      ["smoke_alarms_tested_cleaned", "Smoke alarms are tested and cleaned monthly."],
+      ["smoke_alarm_batteries_changed", "Smoke alarm batteries are changed as needed."],
+      ["smoke_alarms_under_10_years", "Smoke alarms are less than 10 years old."],
+      ["fire_extinguishers_visible", "Functioning fire extinguishers are mounted in plain sight and in clear locations."],
+    ],
+  },
+  {
+    title: "Cooking Safety",
+    items: [
+      ["cooking_area_clear", "Cooking area is free from items that can catch fire."],
+      ["stove_hood_clean", "Kitchen stove hood is clean and vented to the outside."],
+      ["pots_not_unattended", "Pots are not left unattended on the stove."],
+      ["kitchen_appliances_clean", "Kitchen, fridge, microwave, and oven are clean of bacteria and mold."],
+    ],
+  },
+  {
+    title: "Electrical & Appliance Safety",
+    items: [
+      ["cords_not_under_rugs", "Electrical cords do not run under rugs."],
+      ["cords_not_frayed", "Electrical cords are not frayed or cracked."],
+      ["protected_adapters_used", "Circuit-protected, multi-prong adapters are used for additional outlets."],
+      ["appliances_wall_outlets", "Large and small appliances are plugged directly into wall outlets."],
+      ["dryer_lint_clean", "Clothes dryer lint filter and venting system are clean."],
+      ["appliances_working", "Appliances are in working order and in good condition."],
+    ],
+  },
+  {
+    title: "Gas Appliances / Carbon Monoxide",
+    items: [
+      ["co_alarms_each_level", "Carbon monoxide alarms are located on each level of the home."],
+      ["co_alarms_under_7_years", "Carbon monoxide alarms are less than 7 years old."],
+    ],
+  },
+  {
+    title: "Smoking",
+    items: [
+      ["smoke_free_environment", "Residence is a smoke-free living environment."],
+      ["designated_smoking_area", "Designated smoking areas are located outside the residence."],
+      ["cigarette_butts_ashtrays", "Cigarette butts are discarded in ashtrays and not tossed on the ground."],
+      ["ashtrays_safe", "Ashtrays are large, deep, and kept away from items that can catch fire."],
+      ["ashtrays_emptied", "Ashtrays are emptied regularly into a fire-proof container."],
+    ],
+  },
+  {
+    title: "Heating Safety",
+    items: [
+      ["chimney_furnace_inspected", "Chimney and furnace are cleaned and inspected yearly."],
+      ["items_three_feet_from_heat", "Furniture and other items that can catch fire are at least 3 feet from heat sources."],
+      ["ashes_metal_container", "Fireplace and barbecue ashes are placed outdoors in a covered metal container."],
+      ["no_extension_space_heaters", "Extension cords are never used with space heaters."],
+      ["heaters_approved", "Heaters are approved by a national testing laboratory and have tip-over shut-off function."],
+    ],
+  },
+  {
+    title: "Home Escape Plan",
+    items: [
+      ["two_ways_out_sleeping_room", "Have two ways out of each sleeping room."],
+      ["meeting_location_known", "Know where to meet after escape."],
+      ["meeting_place_front", "Meeting place should be near the front of the home."],
+      ["fire_escape_practiced", "Practice your fire escape plan."],
+      ["evacuation_maps_posted", "Evacuation maps are posted in conspicuous locations."],
+    ],
+  },
+  {
+    title: "Resident Safety / FARR Compliance",
+    items: [
+      ["resident_rights_posted", "Resident Rights & Requirements posted."],
+      ["grievance_policy_posted", "Grievance Policy & Procedure posted."],
+      ["emergency_numbers_posted", "Emergency phone numbers are posted."],
+      ["emergency_procedures_posted", "Emergency procedures are posted and staff/residents are trained."],
+      ["narcan_available", "Narcan is readily available and staff/residents are trained in its use."],
+    ],
+  },
+];
+
+const farrIncidentTypes = [
+  "Overdose (Fatal or Non-fatal)",
+  "Life-threatening incident",
+  "Death",
+  "Resident arrest",
+  "Staff/Owner arrest",
+  "Criminal activity",
+  "Mental Health Crisis with EMS Involvement",
+  "Other: Lost/stolen medication, emergency services called, staff/owner relapse",
+];
+
+const nonFarrIncidentTypes = [
+  "Verbal Altercation",
+  "Physical Altercation (no EMS called)",
+  "Severe Rule Violation",
+  "Trespassing",
+  "Contraband",
+  "Alcohol/Drug Use",
+  "Property Loss or Damage",
+  "Injury or Accident (no EMS called)",
+];
+
+const incidentTextFields = [
+  ["reporting_first_name", "Reporting party first name", "First name"],
+  ["reporting_last_name", "Reporting party last name", "Last name"],
+  ["reporting_phone", "Reporting party phone", "Phone number"],
+  ["reporting_email", "Reporting party email", "Email address"],
+  ["program_name", "Program name", "Program name"],
+  ["certification_status", "Certification status", "Level 1, Level 2, Level 3, Level 4"],
+  ["incident_address", "Address of incident", "Street address or location"],
+  ["incident_county", "County of incident", "County"],
+  ["incident_time", "Approximate time of incident", "Example: 8:15 PM"],
+  ["narcan_doses", "If Narcan was used, how many doses?", "Number of doses"],
+  ["responder_arrival_time", "Emergency responder arrival time", "How long did responders take to arrive?"],
+  ["other_notified", "Other notifications", "Who else was notified other than emergency responders?"],
+  ["gender", "Gender", "Gender"],
+  ["age", "Age", "Age"],
+  ["drug_of_choice", "Drug of choice", "Drug of choice"],
+  ["length_of_stay", "Length of stay in program", "Length of stay"],
+  ["last_drug_test_result", "Last drug test & result", "Last drug test and result"],
+] as const;
+
+const incidentNarrativeFields = [
+  ["incident_description", "Describe the incident", "Document the incident in detail."],
+  ["actions_performed", "What actions were performed?", "Document interventions, staff response, emergency response, and immediate actions."],
+  ["pertinent_behaviors", "Pertinent behaviors prior to the incident", "Document behaviors, warning signs, or relevant context before the incident."],
+] as const;
 
 function getReportLabel(reportType: string) {
   return reportTypes.find((type) => type.value === reportType)?.label ?? reportType.replaceAll("_", " ");
@@ -167,15 +287,9 @@ function getReportFrequency(reportType: string) {
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "Not entered";
-
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return "Not entered";
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(date);
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
 }
 
 function toDate(value: string) {
@@ -201,24 +315,16 @@ function addYears(date: Date, years: number) {
 }
 
 function getNextDueDate(reportType: ReportType, lastReportDate: string | null) {
-  if (!lastReportDate) return null;
-
+  if (!lastReportDate || reportType === "incident_reporting") return null;
   const lastDate = toDate(lastReportDate);
-
   if (reportType === "annual_fire_drill") return addYears(lastDate, 1);
   if (reportType === "weekly_house_meeting_minutes") return addDays(lastDate, 7);
-
   return addMonths(lastDate, 1);
 }
 
 function formatDueDate(value: Date | null) {
   if (!value) return "No report saved";
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(value);
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(value);
 }
 
 function getDueStatus(reportType: ReportType, lastReportDate: string | null) {
@@ -226,45 +332,24 @@ function getDueStatus(reportType: ReportType, lastReportDate: string | null) {
   const nextDueDate = getNextDueDate(reportType, lastReportDate);
 
   if (!nextDueDate) {
-    return {
-      label: "Due",
-      className: "bg-rose-50 text-rose-700 ring-rose-600/20",
-      nextDueDate,
-    };
+    return { label: "Due", className: "bg-rose-50 text-rose-700 ring-rose-600/20", nextDueDate };
   }
 
   if (nextDueDate < today) {
-    return {
-      label: "Overdue",
-      className: "bg-rose-50 text-rose-700 ring-rose-600/20",
-      nextDueDate,
-    };
+    return { label: "Overdue", className: "bg-rose-50 text-rose-700 ring-rose-600/20", nextDueDate };
   }
 
   if (nextDueDate <= addDays(today, 7)) {
-    return {
-      label: "Due Soon",
-      className: "bg-amber-50 text-amber-700 ring-amber-600/20",
-      nextDueDate,
-    };
+    return { label: "Due Soon", className: "bg-amber-50 text-amber-700 ring-amber-600/20", nextDueDate };
   }
 
-  return {
-    label: "Current",
-    className: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
-    nextDueDate,
-  };
+  return { label: "Current", className: "bg-emerald-50 text-emerald-700 ring-emerald-600/20", nextDueDate };
 }
 
 function getReportTargetHouseIds(report: ProviderHouseReport) {
-  const targetIds = (report.provider_house_report_houses ?? [])
-    .map((target) => target.house_id)
-    .filter(Boolean);
-
+  const targetIds = (report.provider_house_report_houses ?? []).map((target) => target.house_id).filter(Boolean);
   if (targetIds.length > 0) return targetIds;
-
   if (report.house_id) return [report.house_id];
-
   return [];
 }
 
@@ -356,6 +441,7 @@ export default function ReportsPage() {
   const [savedReportsTab, setSavedReportsTab] = useState<ReportType>("annual_fire_drill");
   const [selectedHouseIds, setSelectedHouseIds] = useState<string[]>([]);
   const [residentAttendance, setResidentAttendance] = useState<Record<string, boolean>>({});
+  const [selectedViewReport, setSelectedViewReport] = useState<ProviderHouseReport | null>(null);
   const [form, setForm] = useState<ReportForm>(initialForm);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -391,11 +477,9 @@ export default function ReportsPage() {
 
     setResidentAttendance((current) => {
       const next: Record<string, boolean> = {};
-
       selectedHouseResidents.forEach((resident) => {
         next[resident.id] = current[resident.id] ?? true;
       });
-
       return next;
     });
   }, [selectedReportType, selectedHouseResidents]);
@@ -403,35 +487,15 @@ export default function ReportsPage() {
   async function loadReports(activeProviderId: string) {
     const supabase = getSupabaseClient();
 
-    const providerResult = await supabase
-      .from("providers")
-      .select("legal_name")
-      .eq("id", activeProviderId)
-      .single();
-
-    const housesResult = await supabase
-      .from("houses")
-      .select("id, name, total_beds, status")
-      .eq("provider_id", activeProviderId)
-      .order("name", { ascending: true });
-
-    const staffResult = await supabase
-      .from("staff_profiles")
-      .select("id")
-      .eq("provider_id", activeProviderId);
-
+    const providerResult = await supabase.from("providers").select("legal_name").eq("id", activeProviderId).single();
+    const housesResult = await supabase.from("houses").select("id, name, total_beds, status").eq("provider_id", activeProviderId).order("name", { ascending: true });
+    const staffResult = await supabase.from("staff_profiles").select("id").eq("provider_id", activeProviderId);
     const residentsResult = await supabase
       .from("residents")
       .select("id, first_name, last_name, house_id, resident_status")
       .eq("provider_id", activeProviderId)
       .order("last_name", { ascending: true })
       .order("first_name", { ascending: true });
-
-    const documentsResult = await supabase
-      .from("documents")
-      .select("id, status")
-      .eq("provider_id", activeProviderId);
-
     const reportsResult = await supabase
       .from("provider_house_reports")
       .select(`
@@ -448,14 +512,12 @@ export default function ReportsPage() {
     if (housesResult.error) throw housesResult.error;
     if (staffResult.error) throw staffResult.error;
     if (residentsResult.error) throw residentsResult.error;
-    if (documentsResult.error) throw documentsResult.error;
     if (reportsResult.error) throw reportsResult.error;
 
     const loadedHouses = (housesResult.data ?? []) as HouseRow[];
     const loadedResidents = (residentsResult.data ?? []) as ResidentRow[];
-    const staff = staffResult.data ?? [];
-    const documents = documentsResult.data ?? [];
     const loadedReports = (reportsResult.data ?? []) as ProviderHouseReport[];
+    const staff = staffResult.data ?? [];
 
     setHouses(loadedHouses);
     setResidents(loadedResidents);
@@ -466,9 +528,8 @@ export default function ReportsPage() {
       beds: loadedHouses.reduce((sum, house) => sum + Number(house.total_beds || 0), 0),
       staff: staff.length,
       residents: loadedResidents.length,
-      documents: documents.length,
-      uploadedDocuments: documents.filter((doc) => doc.status === "uploaded").length,
       providerReports: loadedReports.length,
+      openFollowUps: loadedReports.filter((report) => report.follow_up_needed && !report.follow_up_resolved).length,
     });
   }
 
@@ -476,16 +537,10 @@ export default function ReportsPage() {
     async function initialize() {
       try {
         const supabase = getSupabaseClient();
-
         let activeProviderId = localStorage.getItem("current_provider_id");
 
         if (!activeProviderId) {
-          const latestProviderResult = await supabase
-            .from("providers")
-            .select("id")
-            .order("created_at", { ascending: false })
-            .limit(1);
-
+          const latestProviderResult = await supabase.from("providers").select("id").order("created_at", { ascending: false }).limit(1);
           activeProviderId = latestProviderResult.data?.[0]?.id as string | undefined;
         }
 
@@ -498,8 +553,7 @@ export default function ReportsPage() {
         setProviderId(activeProviderId);
         await loadReports(activeProviderId);
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Could not load reports.";
-        setError(message);
+        setError(err instanceof Error ? err.message : "Could not load reports.");
       } finally {
         setLoading(false);
       }
@@ -508,14 +562,25 @@ export default function ReportsPage() {
     void initialize();
   }, []);
 
-  function updateForm<K extends keyof ReportForm>(field: K, value: ReportForm[K]) {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
+  function getTextValue(key: string) {
+    const value = form.report_data[key];
+    return typeof value === "string" ? value : "";
   }
 
-  function updateReportDataField(field: string, value: string) {
+  function getBoolValue(key: string) {
+    return Boolean(form.report_data[key]);
+  }
+
+  function getArrayValue(key: string) {
+    const value = form.report_data[key];
+    return Array.isArray(value) ? value.map(String) : [];
+  }
+
+  function updateForm<K extends keyof ReportForm>(field: K, value: ReportForm[K]) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateReportDataField(field: string, value: unknown) {
     setForm((current) => ({
       ...current,
       report_data: {
@@ -525,11 +590,18 @@ export default function ReportsPage() {
     }));
   }
 
+  function toggleArrayValue(field: string, value: string) {
+    const currentValues = getArrayValue(field);
+    const nextValues = currentValues.includes(value)
+      ? currentValues.filter((item) => item !== value)
+      : [...currentValues, value];
+
+    updateReportDataField(field, nextValues);
+  }
+
   function toggleHouse(houseId: string) {
     setSelectedHouseIds((current) =>
-      current.includes(houseId)
-        ? current.filter((id) => id !== houseId)
-        : [...current, houseId]
+      current.includes(houseId) ? current.filter((id) => id !== houseId) : [...current, houseId]
     );
   }
 
@@ -543,37 +615,22 @@ export default function ReportsPage() {
   }
 
   function toggleResidentAttendance(residentId: string) {
-    setResidentAttendance((current) => ({
-      ...current,
-      [residentId]: !current[residentId],
-    }));
+    setResidentAttendance((current) => ({ ...current, [residentId]: !current[residentId] }));
   }
 
   function getHouseName(houseId: string | null) {
     if (!houseId) return "Multiple houses";
-
     return houses.find((house) => house.id === houseId)?.name ?? "Selected house";
   }
 
   function getReportHouseNames(report: ProviderHouseReport) {
     const targetIds = getReportTargetHouseIds(report);
 
-    if (targetIds.length === 0 && report.applies_to_scope === "all_houses") {
-      return "All houses";
-    }
+    if (targetIds.length === 0 && report.applies_to_scope === "all_houses") return "All houses";
+    if (targetIds.length === 0) return getHouseName(report.house_id);
+    if (targetIds.length === activeHouses.length) return "All houses";
 
-    if (targetIds.length === 0) {
-      return getHouseName(report.house_id);
-    }
-
-    if (targetIds.length === activeHouses.length) {
-      return "All houses";
-    }
-
-    return targetIds
-      .map((houseId) => houses.find((house) => house.id === houseId)?.name)
-      .filter(Boolean)
-      .join(", ");
+    return targetIds.map((houseId) => houses.find((house) => house.id === houseId)?.name).filter(Boolean).join(", ");
   }
 
   function getLastReportForHouse(houseId: string, reportType: ReportType) {
@@ -582,11 +639,7 @@ export default function ReportsPage() {
         .filter((report) => report.report_type === reportType)
         .filter((report) => {
           const targetIds = getReportTargetHouseIds(report);
-
-          if (targetIds.length > 0) {
-            return targetIds.includes(houseId);
-          }
-
+          if (targetIds.length > 0) return targetIds.includes(houseId);
           return report.applies_to_scope === "all_houses" || report.house_id === houseId;
         })
         .sort((first, second) => second.report_date.localeCompare(first.report_date))[0] ?? null
@@ -606,7 +659,7 @@ export default function ReportsPage() {
 
     if (!selectedReportType) {
       setSaving(false);
-      setError("Select a report type before saving.");
+      setError("Select a report folder before saving.");
       return;
     }
 
@@ -639,9 +692,7 @@ export default function ReportsPage() {
 
       const fullReportData: ReportJson = {
         ...form.report_data,
-        ...(selectedReportType === "weekly_house_meeting_minutes"
-          ? { resident_attendance: residentAttendanceData }
-          : {}),
+        ...(selectedReportType === "weekly_house_meeting_minutes" ? { resident_attendance: residentAttendanceData } : {}),
       };
 
       const { data, error: insertError } = await supabase
@@ -661,9 +712,7 @@ export default function ReportsPage() {
         .select("id")
         .single();
 
-      if (insertError) {
-        throw insertError;
-      }
+      if (insertError) throw insertError;
 
       const targetInsertResult = await supabase
         .from("provider_house_report_houses")
@@ -675,16 +724,12 @@ export default function ReportsPage() {
           }))
         );
 
-      if (targetInsertResult.error) {
-        throw targetInsertResult.error;
-      }
+      if (targetInsertResult.error) throw targetInsertResult.error;
 
-      setForm({
-        ...initialForm,
-        report_date: new Date().toISOString().slice(0, 10),
-      });
+      setForm({ ...initialForm, report_date: new Date().toISOString().slice(0, 10) });
       setSelectedHouseIds([]);
       setResidentAttendance({});
+      setSavedReportsTab(selectedReportType);
       setMessage(`${getReportLabel(selectedReportType)} saved successfully.`);
       await loadReports(providerId);
     } catch (err) {
@@ -695,22 +740,44 @@ export default function ReportsPage() {
     }
   }
 
-  function exportReportsCsv() {
-    const headers = [
-      "Report Type",
-      "Report Date",
-      "Houses",
-      "Completed By",
-      "Follow Up Needed",
-      "Follow Up Notes",
-    ];
+  async function markFollowUpResolved(report: ProviderHouseReport) {
+    if (!providerId) return;
 
+    const resolutionNotes = window.prompt("Resolution notes, if any:") ?? "";
+
+    try {
+      const supabase = getSupabaseClient();
+      const { data: userData } = await supabase.auth.getUser();
+
+      const { error: updateError } = await supabase
+        .from("provider_house_reports")
+        .update({
+          follow_up_resolved: true,
+          follow_up_resolved_at: new Date().toISOString(),
+          follow_up_resolved_by_auth_user_id: userData.user?.id ?? null,
+          follow_up_resolution_notes: resolutionNotes.trim() || null,
+        })
+        .eq("id", report.id);
+
+      if (updateError) throw updateError;
+
+      setMessage("Follow-up marked resolved.");
+      await loadReports(providerId);
+    } catch (err) {
+      const resolveError = err as { message?: unknown };
+      setError(resolveError?.message ? String(resolveError.message) : "Could not resolve follow-up.");
+    }
+  }
+
+  function exportReportsCsv() {
+    const headers = ["Report Type", "Report Date", "Houses", "Completed By", "Follow Up Needed", "Resolved", "Follow Up Notes"];
     const rows = reports.map((report) => [
       getReportLabel(report.report_type),
       report.report_date,
       getReportHouseNames(report),
       report.completed_by ?? "",
       report.follow_up_needed ? "Yes" : "No",
+      report.follow_up_resolved ? "Yes" : "No",
       report.follow_up_notes ?? "",
     ]);
 
@@ -733,12 +800,206 @@ export default function ReportsPage() {
   const selectedReportFrequency = selectedReportType ? getReportFrequency(selectedReportType) : "";
   const savedReportsLabel = getReportLabel(savedReportsTab);
 
-  const overdueCount = selectedReportType
+  const overdueCount = selectedReportType && selectedReportType !== "incident_reporting"
     ? activeHouses.reduce((total, house) => {
         const latestReport = getLastReportForHouse(house.id, selectedReportType);
         return total + (getDueStatus(selectedReportType, latestReport?.report_date ?? null).label === "Overdue" ? 1 : 0);
       }, 0)
     : 0;
+
+  function renderStandardReportFields() {
+    if (!selectedReportType || selectedReportType === "monthly_self_safety_assessment" || selectedReportType === "incident_reporting") {
+      return null;
+    }
+
+    return (
+      <div className="mt-6 grid gap-4 md:grid-cols-2">
+        {reportFields[selectedReportType].map((field) => (
+          <TextAreaField
+            key={field.key}
+            label={field.label}
+            value={getTextValue(field.key)}
+            onChange={(value) => updateReportDataField(field.key, value)}
+            placeholder={field.placeholder}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  function renderSelfSafetyFields() {
+    if (selectedReportType !== "monthly_self_safety_assessment") return null;
+
+    return (
+      <div className="mt-6 space-y-4">
+        {selfSafetySections.map((section) => (
+          <div key={section.title} className="rounded-2xl border bg-slate-50 p-4">
+            <h3 className="text-sm font-semibold text-slate-950">{section.title}</h3>
+            <div className="mt-3 grid gap-2">
+              {section.items.map(([key, label]) => (
+                <label key={key} className="flex items-start gap-3 rounded-xl bg-white p-3 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={getBoolValue(key)}
+                    onChange={(event) => updateReportDataField(key, event.target.checked)}
+                    className="mt-1 h-4 w-4 rounded border-slate-300"
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        <TextAreaField
+          label="Items marked not applicable / notes"
+          value={getTextValue("not_applicable_items")}
+          onChange={(value) => updateReportDataField("not_applicable_items", value)}
+          placeholder="List any safety items marked not applicable and why."
+        />
+
+        <TextField
+          label="Person completing assessment"
+          value={getTextValue("person_completing")}
+          onChange={(value) => updateReportDataField("person_completing", value)}
+          placeholder="Typed name/signature"
+        />
+      </div>
+    );
+  }
+
+  function renderIncidentFields() {
+    if (selectedReportType !== "incident_reporting") return null;
+
+    return (
+      <div className="mt-6 space-y-5">
+        <div className="rounded-2xl border bg-slate-50 p-4">
+          <label className="flex items-center gap-3 text-sm font-medium text-slate-700">
+            <input
+              type="checkbox"
+              checked={getBoolValue("reported_to_farr")}
+              onChange={(event) => updateReportDataField("reported_to_farr", event.target.checked)}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            Incident reported to FARR
+          </label>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <TextField
+            label="Date of incident"
+            type="date"
+            value={getTextValue("incident_date")}
+            onChange={(value) => updateReportDataField("incident_date", value)}
+          />
+
+          {incidentTextFields.map(([key, label, placeholder]) => (
+            <TextField
+              key={key}
+              label={label}
+              value={getTextValue(key)}
+              onChange={(value) => updateReportDataField(key, value)}
+              placeholder={placeholder}
+            />
+          ))}
+        </div>
+
+        <div className="rounded-2xl border bg-slate-50 p-4">
+          <h3 className="text-sm font-semibold text-slate-950">FARR Reporting Incidents</h3>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {farrIncidentTypes.map((type) => (
+              <label key={type} className="flex items-start gap-2 rounded-xl bg-white p-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={getArrayValue("farr_incident_types").includes(type)}
+                  onChange={() => toggleArrayValue("farr_incident_types", type)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300"
+                />
+                <span>{type}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border bg-slate-50 p-4">
+          <h3 className="text-sm font-semibold text-slate-950">Non-FARR Internal Incident Types</h3>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {nonFarrIncidentTypes.map((type) => (
+              <label key={type} className="flex items-start gap-2 rounded-xl bg-white p-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={getArrayValue("non_farr_incident_types").includes(type)}
+                  onChange={() => toggleArrayValue("non_farr_incident_types", type)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300"
+                />
+                <span>{type}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          {incidentNarrativeFields.map(([key, label, placeholder]) => (
+            <TextAreaField
+              key={key}
+              label={label}
+              value={getTextValue(key)}
+              onChange={(value) => updateReportDataField(key, value)}
+              placeholder={placeholder}
+            />
+          ))}
+        </div>
+
+        <div className="rounded-2xl border bg-slate-50 p-4">
+          <h3 className="text-sm font-semibold text-slate-950">Narcan / Emergency Response</h3>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <label className="flex items-center gap-3 rounded-xl bg-white p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={getBoolValue("narcan_used")}
+                onChange={(event) => updateReportDataField("narcan_used", event.target.checked)}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              Narcan was used
+            </label>
+
+            <label className="flex items-center gap-3 rounded-xl bg-white p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={getBoolValue("narcan_from_farr")}
+                onChange={(event) => updateReportDataField("narcan_from_farr", event.target.checked)}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              Narcan was obtained from FARR
+            </label>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderReportDataSummary(report: ProviderHouseReport) {
+    const data = report.report_data ?? {};
+
+    if (report.report_type === "weekly_house_meeting_minutes" && Array.isArray(data.resident_attendance)) {
+      const attendance = data.resident_attendance as { resident_name?: string; present?: boolean }[];
+
+      return (
+        <div className="mt-4 rounded-2xl border bg-slate-50 p-4">
+          <h3 className="text-sm font-semibold text-slate-950">Resident Attendance</h3>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {attendance.map((item, index) => (
+              <p key={`${item.resident_name}-${index}`} className="rounded-xl bg-white p-3 text-sm">
+                {item.present ? "Present" : "Absent"}: {item.resident_name ?? "Resident"}
+              </p>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  }
 
   return (
     <PageShell>
@@ -769,17 +1030,8 @@ export default function ReportsPage() {
         </div>
       </section>
 
-      {error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-          {error}
-        </div>
-      ) : null}
-
-      {message ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-          {message}
-        </div>
-      ) : null}
+      {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}</div> : null}
+      {message ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{message}</div> : null}
 
       {loading ? (
         <div className="rounded-2xl border bg-white p-6 text-sm text-slate-500 shadow-sm">
@@ -793,8 +1045,8 @@ export default function ReportsPage() {
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard title="Houses" value={String(activeHouses.length)} subtitle="Active/pending houses" icon={Home} />
         <MetricCard title="Saved Reports" value={String(counts.providerReports)} subtitle="Provider logs on file" icon={ClipboardCheck} />
-        <MetricCard title="Overdue Items" value={String(overdueCount)} subtitle={`For ${selectedReportLabel}`} icon={AlertTriangle} />
-        <MetricCard title="Documents" value={String(counts.documents)} subtitle={`${counts.uploadedDocuments} marked uploaded`} icon={FolderOpen} />
+        <MetricCard title="Open Follow-Ups" value={String(counts.openFollowUps)} subtitle="Items needing resolution" icon={AlertTriangle} />
+        <MetricCard title="Residents" value={String(counts.residents)} subtitle="Residents on file" icon={Users} />
       </section>
 
       <section className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -808,17 +1060,12 @@ export default function ReportsPage() {
                 setSavedReportsTab(reportType.value);
                 setSelectedHouseIds([]);
                 setResidentAttendance({});
-                setForm({
-                  ...initialForm,
-                  report_date: new Date().toISOString().slice(0, 10),
-                });
+                setForm({ ...initialForm, report_date: new Date().toISOString().slice(0, 10) });
                 setMessage("");
                 setError("");
               }}
               className={`rounded-xl px-3 py-2 text-sm font-medium ${
-                selectedReportType === reportType.value
-                  ? "bg-slate-950 text-white"
-                  : "border bg-white text-slate-700 hover:bg-slate-50"
+                selectedReportType === reportType.value ? "bg-slate-950 text-white" : "border bg-white text-slate-700 hover:bg-slate-50"
               }`}
             >
               {reportType.label}
@@ -841,148 +1088,121 @@ export default function ReportsPage() {
             </div>
           </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <TextField
-            label="Report date"
-            type="date"
-            value={form.report_date}
-            onChange={(value) => updateForm("report_date", value)}
-          />
-
-          <TextField
-            label="Completed by"
-            value={form.completed_by}
-            onChange={(value) => updateForm("completed_by", value)}
-            placeholder="Staff name"
-          />
-        </div>
-
-        <div className="mt-6 rounded-2xl border bg-slate-50 p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-950">Select Houses</h3>
-              <p className="mt-1 text-sm text-slate-500">
-                Choose every house this report applies to.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={toggleAllHouses}
-              className="inline-flex items-center justify-center rounded-xl border bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50"
-            >
-              {selectedHouseIds.length === activeHouses.length ? "Clear all" : "Select all active houses"}
-            </button>
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <TextField label="Report date" type="date" value={form.report_date} onChange={(value) => updateForm("report_date", value)} />
+            <TextField label="Completed by" value={form.completed_by} onChange={(value) => updateForm("completed_by", value)} placeholder="Staff name" />
           </div>
 
-          {activeHouses.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-500">No active houses found.</p>
-          ) : (
-            <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-              {activeHouses.map((house) => (
-                <label key={house.id} className="flex items-center gap-2 rounded-xl bg-white p-3 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={selectedHouseIds.includes(house.id)}
-                    onChange={() => toggleHouse(house.id)}
-                    className="h-4 w-4 rounded border-slate-300"
-                  />
-                  <span>{house.name}</span>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {selectedReportType === "weekly_house_meeting_minutes" ? (
           <div className="mt-6 rounded-2xl border bg-slate-50 p-4">
-            <div className="flex items-start gap-3">
-              <div className="rounded-xl bg-white p-2">
-                <Users className="h-5 w-5 text-slate-700" />
-              </div>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <h3 className="text-sm font-semibold text-slate-950">Resident Attendance</h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  Residents are populated from the selected houses.
-                </p>
+                <h3 className="text-sm font-semibold text-slate-950">Select Houses</h3>
+                <p className="mt-1 text-sm text-slate-500">Choose every house this report applies to.</p>
               </div>
+
+              <button
+                type="button"
+                onClick={toggleAllHouses}
+                className="inline-flex items-center justify-center rounded-xl border bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50"
+              >
+                {selectedHouseIds.length === activeHouses.length ? "Clear all" : "Select all active houses"}
+              </button>
             </div>
 
-            {selectedHouseResidents.length === 0 ? (
-              <p className="mt-4 text-sm text-slate-500">
-                Select a house with active residents to populate attendance.
-              </p>
+            {activeHouses.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-500">No active houses found.</p>
             ) : (
               <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                {selectedHouseResidents.map((resident) => (
-                  <label key={resident.id} className="flex items-center gap-2 rounded-xl bg-white p-3 text-sm">
+                {activeHouses.map((house) => (
+                  <label key={house.id} className="flex items-center gap-2 rounded-xl bg-white p-3 text-sm">
                     <input
                       type="checkbox"
-                      checked={residentAttendance[resident.id] ?? false}
-                      onChange={() => toggleResidentAttendance(resident.id)}
+                      checked={selectedHouseIds.includes(house.id)}
+                      onChange={() => toggleHouse(house.id)}
                       className="h-4 w-4 rounded border-slate-300"
                     />
-                    <span>
-                      {resident.first_name} {resident.last_name}
-                    </span>
+                    <span>{house.name}</span>
                   </label>
                 ))}
               </div>
             )}
           </div>
-        ) : null}
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          {reportFields[selectedReportType].map((field) => (
-            <TextAreaField
-              key={field.key}
-              label={field.label}
-              value={form.report_data[field.key] ?? ""}
-              onChange={(value) => updateReportDataField(field.key, value)}
-              placeholder={field.placeholder}
-            />
-          ))}
-        </div>
+          {selectedReportType === "weekly_house_meeting_minutes" ? (
+            <div className="mt-6 rounded-2xl border bg-slate-50 p-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl bg-white p-2">
+                  <Users className="h-5 w-5 text-slate-700" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-950">Resident Attendance</h3>
+                  <p className="mt-1 text-sm text-slate-500">Residents are populated from the selected houses.</p>
+                </div>
+              </div>
 
-        <div className="mt-6 rounded-2xl border bg-slate-50 p-4">
-          <label className="flex items-start gap-3">
-            <input
-              type="checkbox"
-              checked={form.follow_up_needed}
-              onChange={(event) => updateForm("follow_up_needed", event.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-slate-300"
-            />
-            <span>
-              <span className="block text-sm font-medium text-slate-700">Follow-up needed</span>
-              <span className="mt-1 block text-sm leading-5 text-slate-500">
-                Check this when the report identifies an issue, repair, corrective action, or staff follow-up.
-              </span>
-            </span>
-          </label>
-
-          {form.follow_up_needed ? (
-            <div className="mt-4">
-              <TextAreaField
-                label="Follow-up notes"
-                value={form.follow_up_notes}
-                onChange={(value) => updateForm("follow_up_notes", value)}
-                placeholder="Document what needs to happen next, who is responsible, and the target completion date."
-              />
+              {selectedHouseResidents.length === 0 ? (
+                <p className="mt-4 text-sm text-slate-500">Select a house with active residents to populate attendance.</p>
+              ) : (
+                <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {selectedHouseResidents.map((resident) => (
+                    <label key={resident.id} className="flex items-center gap-2 rounded-xl bg-white p-3 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={residentAttendance[resident.id] ?? false}
+                        onChange={() => toggleResidentAttendance(resident.id)}
+                        className="h-4 w-4 rounded border-slate-300"
+                      />
+                      <span>{resident.first_name} {resident.last_name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           ) : null}
-        </div>
 
-        <div className="mt-6 flex justify-end">
-          <button
-            type="button"
-            onClick={saveReport}
-            disabled={saving || loading}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-            {saving ? "Saving..." : "Save Report"}
-          </button>
-        </div>
+          {renderStandardReportFields()}
+          {renderSelfSafetyFields()}
+          {renderIncidentFields()}
+
+          <div className="mt-6 rounded-2xl border bg-slate-50 p-4">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={form.follow_up_needed}
+                onChange={(event) => updateForm("follow_up_needed", event.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-slate-300"
+              />
+              <span>
+                <span className="block text-sm font-medium text-slate-700">Follow-up needed</span>
+                <span className="mt-1 block text-sm leading-5 text-slate-500">
+                  Check this when the report identifies an issue, repair, corrective action, or staff follow-up.
+                </span>
+              </span>
+            </label>
+
+            {form.follow_up_needed ? (
+              <div className="mt-4">
+                <TextAreaField
+                  label="Follow-up notes"
+                  value={form.follow_up_notes}
+                  onChange={(value) => updateForm("follow_up_notes", value)}
+                  placeholder="Document what needs to happen next, who is responsible, and the target completion date."
+                />
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            <button
+              type="button"
+              onClick={saveReport}
+              disabled={saving || loading}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              {saving ? "Saving..." : "Save Report"}
+            </button>
+          </div>
         </section>
       ) : (
         <section className="rounded-2xl border bg-white p-6 shadow-sm">
@@ -993,14 +1213,14 @@ export default function ReportsPage() {
             <div>
               <h2 className="text-lg font-semibold">Select a Report Folder</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Choose Annual Fire Drill, Weekly House Meeting Minutes, Monthly Staff/QI Meeting Minutes, or Monthly Self-Safety Assessment to open the fillable form.
+                Choose a report folder above to open the fillable form.
               </p>
             </div>
           </div>
         </section>
       )}
 
-      {selectedReportType ? (
+      {selectedReportType && selectedReportType !== "incident_reporting" ? (
         <section className="rounded-2xl border bg-white p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="rounded-2xl bg-slate-100 p-3">
@@ -1008,17 +1228,10 @@ export default function ReportsPage() {
             </div>
             <div>
               <h2 className="text-lg font-semibold">Next Due by House</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Showing due status for {selectedReportLabel}.
-            </p>
+              <p className="mt-1 text-sm text-slate-500">Showing due status for {selectedReportLabel}.</p>
+            </div>
           </div>
-        </div>
 
-        {activeHouses.length === 0 ? (
-          <div className="mt-5 rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
-            No active houses found.
-          </div>
-        ) : (
           <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {activeHouses.map((house) => {
               const latestReport = getLastReportForHouse(house.id, selectedReportType);
@@ -1029,14 +1242,9 @@ export default function ReportsPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="font-semibold text-slate-950">{house.name}</h3>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Last: {latestReport ? formatDate(latestReport.report_date) : "None"}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Next due: {formatDueDate(dueStatus.nextDueDate)}
-                      </p>
+                      <p className="mt-1 text-xs text-slate-500">Last: {latestReport ? formatDate(latestReport.report_date) : "None"}</p>
+                      <p className="mt-1 text-xs text-slate-500">Next due: {formatDueDate(dueStatus.nextDueDate)}</p>
                     </div>
-
                     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${dueStatus.className}`}>
                       {dueStatus.label}
                     </span>
@@ -1045,7 +1253,6 @@ export default function ReportsPage() {
               );
             })}
           </div>
-        )}
         </section>
       ) : null}
 
@@ -1069,9 +1276,7 @@ export default function ReportsPage() {
               type="button"
               onClick={() => setSavedReportsTab(reportType.value)}
               className={`rounded-xl px-3 py-2 text-sm font-medium ${
-                savedReportsTab === reportType.value
-                  ? "bg-slate-950 text-white"
-                  : "border bg-white text-slate-700 hover:bg-slate-50"
+                savedReportsTab === reportType.value ? "bg-slate-950 text-white" : "border bg-white text-slate-700 hover:bg-slate-50"
               }`}
             >
               {reportType.label}
@@ -1080,7 +1285,7 @@ export default function ReportsPage() {
         </div>
 
         <div className="mt-5">
-          <h3 className="text-base font-semibold text-slate-950">Saved {savedReportsLabel} Reports</h3>
+          <h3 className="text-base font-semibold text-slate-950">Saved {getReportLabel(savedReportsTab)} Reports</h3>
         </div>
 
         {filteredReports.length === 0 ? (
@@ -1103,25 +1308,120 @@ export default function ReportsPage() {
                     </p>
                   </div>
 
-                  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${
-                    report.follow_up_needed
-                      ? "bg-amber-50 text-amber-700 ring-amber-600/20"
-                      : "bg-emerald-50 text-emerald-700 ring-emerald-600/20"
-                  }`}>
-                    {report.follow_up_needed ? "Follow-up needed" : "Complete"}
-                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedViewReport(report)}
+                      className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-xs font-medium hover:bg-slate-50"
+                    >
+                      <Eye className="h-4 w-4" />
+                      View Report
+                    </button>
+
+                    {report.follow_up_needed && !report.follow_up_resolved ? (
+                      <button
+                        type="button"
+                        onClick={() => markFollowUpResolved(report)}
+                        className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Mark Resolved
+                      </button>
+                    ) : null}
+
+                    <span className={`inline-flex rounded-full px-2.5 py-2 text-xs font-medium ring-1 ${
+                      report.follow_up_needed && !report.follow_up_resolved
+                        ? "bg-amber-50 text-amber-700 ring-amber-600/20"
+                        : "bg-emerald-50 text-emerald-700 ring-emerald-600/20"
+                    }`}>
+                      {report.follow_up_needed && !report.follow_up_resolved ? "Follow-up needed" : "Complete"}
+                    </span>
+                  </div>
                 </div>
 
                 {report.follow_up_notes ? (
-                  <p className="mt-3 rounded-xl bg-white p-3 text-sm leading-6 text-slate-600">
-                    {report.follow_up_notes}
-                  </p>
+                  <p className="mt-3 rounded-xl bg-white p-3 text-sm leading-6 text-slate-600">{report.follow_up_notes}</p>
                 ) : null}
               </div>
             ))}
           </div>
         )}
       </section>
+
+      {selectedViewReport ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 p-4">
+          <div className="my-8 w-full max-w-5xl rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-slate-500">Submitted Report</p>
+                <h2 className="mt-1 text-2xl font-semibold text-slate-950">{getReportLabel(selectedViewReport.report_type)}</h2>
+                <p className="mt-2 text-sm text-slate-500">
+                  {formatDate(selectedViewReport.report_date)} • {getReportHouseNames(selectedViewReport)}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedViewReport(null)}
+                className="rounded-xl border bg-white p-2 hover:bg-slate-50"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-3 md:grid-cols-2">
+              <p className="rounded-xl bg-slate-50 p-3 text-sm">
+                <span className="font-medium text-slate-700">Completed by:</span> {selectedViewReport.completed_by ?? "Not entered"}
+              </p>
+              <p className="rounded-xl bg-slate-50 p-3 text-sm">
+                <span className="font-medium text-slate-700">Follow-up:</span>{" "}
+                {selectedViewReport.follow_up_needed
+                  ? selectedViewReport.follow_up_resolved
+                    ? "Resolved"
+                    : "Needed"
+                  : "Not needed"}
+              </p>
+            </div>
+
+            {renderReportDataSummary(selectedViewReport)}
+
+            <div className="mt-6 grid gap-3">
+              {Object.entries(selectedViewReport.report_data ?? {}).map(([key, value]) => {
+                if (key === "resident_attendance") return null;
+
+                return (
+                  <div key={key} className="rounded-xl border bg-slate-50 p-3 text-sm">
+                    <p className="font-medium text-slate-700">{key.replaceAll("_", " ")}</p>
+                    <p className="mt-1 whitespace-pre-wrap text-slate-600">
+                      {Array.isArray(value)
+                        ? value.join(", ")
+                        : typeof value === "boolean"
+                          ? value
+                            ? "Yes"
+                            : "No"
+                          : String(value ?? "")}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {selectedViewReport.follow_up_notes ? (
+              <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                <p className="font-medium">Follow-up notes</p>
+                <p className="mt-1 whitespace-pre-wrap">{selectedViewReport.follow_up_notes}</p>
+              </div>
+            ) : null}
+
+            {selectedViewReport.follow_up_resolution_notes ? (
+              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                <p className="font-medium">Resolution notes</p>
+                <p className="mt-1 whitespace-pre-wrap">{selectedViewReport.follow_up_resolution_notes}</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </PageShell>
   );
 }
