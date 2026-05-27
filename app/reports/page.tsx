@@ -769,7 +769,16 @@ export default function ReportsPage() {
   }
 
   function exportReportsCsv() {
-    const headers = ["Report Type", "Report Date", "Houses", "Completed By", "Follow Up Needed", "Resolved", "Follow Up Notes"];
+    const headers = [
+      "Report Type",
+      "Report Date",
+      "Houses",
+      "Completed By",
+      "Follow Up Needed",
+      "Resolved",
+      "Follow Up Notes",
+    ];
+
     const rows = reports.map((report) => [
       getReportLabel(report.report_type),
       report.report_date,
@@ -794,6 +803,7 @@ export default function ReportsPage() {
 
     URL.revokeObjectURL(url);
   }
+
 
   const selectedReportLabel = selectedReportType ? getReportLabel(selectedReportType) : "Select a Report";
   const selectedReportFrequency = selectedReportType ? getReportFrequency(selectedReportType) : "";
