@@ -26,8 +26,8 @@ export default function SetupNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="rounded-2xl border bg-white p-2 shadow-sm">
-      <div className="flex gap-2 overflow-x-auto">
+    <nav className="rounded-2xl border bg-white p-1.5 shadow-sm">
+      <div className="flex gap-1.5 overflow-x-auto">
         {navItems.map((item) => {
           const active =
             pathname === item.href ||
@@ -39,11 +39,11 @@ export default function SetupNav() {
               href={item.href}
               className={
                 active
-                  ? "inline-flex items-center gap-2 whitespace-nowrap rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white"
-                  : "inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                  ? "inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl bg-slate-950 px-3 py-1.5 text-xs font-medium text-white"
+                  : "inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
               }
             >
-              <item.icon className="h-4 w-4" />
+              <item.icon className="h-3.5 w-3.5" />
               {item.label}
             </Link>
           );
