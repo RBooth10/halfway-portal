@@ -122,7 +122,6 @@ const reportFields: Record<Exclude<ReportType, "monthly_self_safety_assessment" 
     { key: "safety_monitor_signature", label: "Safety monitor signature", placeholder: "Typed name/signature of safety monitor." },
   ],
   weekly_house_meeting_minutes: [
-    { key: "location", label: "Location", placeholder: "House/location where the meeting was held." },
     { key: "resident_meeting_attendance_notes", label: "Attendance notes", placeholder: "Note missing/incomplete meeting sheets or attendance follow-up." },
     { key: "sponsorship_requirement", label: "Sponsorship requirement", placeholder: "Document sponsorship status updates, challenges, noncompliance, or sponsor changes." },
     { key: "recovery_plan_review", label: "Recovery plan review", placeholder: "Document resident progress, setbacks, barriers, and assistance requested." },
@@ -135,7 +134,6 @@ const reportFields: Record<Exclude<ReportType, "monthly_self_safety_assessment" 
     { key: "facilitator", label: "Facilitator", placeholder: "Name of meeting facilitator." },
     { key: "recorder", label: "Recorder", placeholder: "Name of person recording minutes." },
     { key: "staff_present", label: "Staff present", placeholder: "List staff present." },
-    { key: "absent_staff", label: "Absent staff", placeholder: "List absent staff, if any." },
     { key: "residents_participating", label: "Residents participating, if applicable", placeholder: "List residents participating or note not applicable." },
     { key: "prior_month_action_items", label: "Review of prior month's action items", placeholder: "Action item, responsible party, status, and notes." },
     { key: "program_developments", label: "Program developments", placeholder: "Document program updates or operational changes." },
@@ -181,13 +179,6 @@ const selfSafetySections = [
     ],
   },
   {
-    title: "Gas Appliances / Carbon Monoxide",
-    items: [
-      ["co_alarms_each_level", "Carbon monoxide alarms are located on each level of the home."],
-      ["co_alarms_under_7_years", "Carbon monoxide alarms are less than 7 years old."],
-    ],
-  },
-  {
     title: "Smoking",
     items: [
       ["smoke_free_environment", "Residence is a smoke-free living environment."],
@@ -225,6 +216,14 @@ const selfSafetySections = [
       ["emergency_numbers_posted", "Emergency phone numbers are posted."],
       ["emergency_procedures_posted", "Emergency procedures are posted and staff/residents are trained."],
       ["narcan_available", "Narcan is readily available and staff/residents are trained in its use."],
+    ],
+  },
+  {
+    title: "Gas Appliances / Carbon Monoxide",
+    items: [
+      ["gas_appliances_not_applicable", "N/A - No gas appliances are present in this home."],
+      ["co_alarms_each_level", "Carbon monoxide alarms are located on each level of the home."],
+      ["co_alarms_under_7_years", "Carbon monoxide alarms are less than 7 years old."],
     ],
   },
 ];
@@ -425,7 +424,7 @@ function TextAreaField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+        className="mt-2 min-h-32 w-full rounded-xl border bg-white p-3 text-sm leading-6 outline-none ring-slate-900/10 focus:ring-4"
       />
     </label>
   );
@@ -807,22 +806,216 @@ export default function ReportsPage() {
       }, 0)
     : 0;
 
+  function calculateDrillMinutes() {
+    const startTime = getTextValue("start_time");
+    const endTime = getTextValue("end_time");
+
+    if (!startTime || !endTime || !startTime.includes(":") || !endTime.includes(":")) {
+      return null;
+    }
+
+    const [startHour, startMinute] = startTime.split(":").map(Number);
+    const [endHour, endMinute] = endTime.split(":").map(Number);
+
+    if (
+      Number.isNaN(startHour) ||
+      Number.isNaN(startMinute) ||
+      Number.isNaN(endHour) ||
+      Number.isNaN(endMinute)
+    ) {
+      return null;
+    }
+
+    const startTotal = startHour * 60 + startMinute;
+    let endTotal = endHour * 60 + endMinute;
+
+    if (endTotal < startTotal) {
+      endTotal += 24 * 60;
+    }
+
+    return endTotal - startTotal;
+  }
+
+  function renderFireDrillFields() {
+    const durationMinutes = calculateDrillMinutes();
+
+    return (
+      <div className="mt-6 space-y-4">
+        <div className="rounded-2xl border bg-slate-50 p-4">
+          <h3 className="text-sm font-semibold text-slate-950">Fire Drill Details</h3>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl bg-white p-4 md:col-span-2">
+              <TextField
+                label="House name / address"
+                value={getTextValue("house_name_address")}
+                onChange={(value) => updateReportDataField("house_name_address", value)}
+                placeholder="Confirm the house name and address where the drill occurred."
+              />
+            </div>
+
+            <div className="rounded-2xl bg-white p-4">
+              <TextField
+                label="Start time"
+                type="time"
+                value={getTextValue("start_time")}
+                onChange={(value) => updateReportDataField("start_time", value)}
+              />
+            </div>
+
+            <div className="rounded-2xl bg-white p-4">
+              <TextField
+                label="End time"
+                type="time"
+                value={getTextValue("end_time")}
+                onChange={(value) => updateReportDataField("end_time", value)}
+              />
+            </div>
+
+            <div className="rounded-2xl bg-white p-4">
+              <TextField
+                label="Safety monitor's name"
+                value={getTextValue("safety_monitor_name")}
+                onChange={(value) => updateReportDataField("safety_monitor_name", value)}
+                placeholder="Staff name"
+              />
+            </div>
+
+            <div className="rounded-2xl bg-white p-4">
+              <TextField
+                label="Number of participants"
+                type="number"
+                value={getTextValue("number_of_participants")}
+                onChange={(value) => updateReportDataField("number_of_participants", value)}
+                placeholder="Total"
+              />
+            </div>
+
+            <div className="rounded-2xl bg-white p-4">
+              <TextField
+                label="Safety monitor signature"
+                value={getTextValue("safety_monitor_signature")}
+                onChange={(value) => updateReportDataField("safety_monitor_signature", value)}
+                placeholder="Typed signature"
+              />
+            </div>
+
+            <div className="rounded-2xl bg-white p-4">
+              <p className="text-sm font-medium text-slate-700">Drill duration</p>
+              <p className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950">
+                {durationMinutes === null ? "Enter start and end time" : `${durationMinutes} minute${durationMinutes === 1 ? "" : "s"}`}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border bg-slate-50 p-4">
+          <h3 className="text-sm font-semibold text-slate-950">Fire Drill Narrative</h3>
+
+          <div className="mt-4 grid gap-4">
+            {[
+              ["meeting_point", "Meeting point", "Designated evacuation meeting location."],
+              ["summary_of_drill", "Summary of drill", "Summarize how the drill was conducted and whether everyone followed the evacuation plan."],
+              ["barriers_obstacles", "Barriers / obstacles noted", "Document blocked exits, confusion, delayed response, missing participants, or other barriers."],
+              ["areas_of_improvement", "Areas of improvement", "Document training needs, signage needs, timing concerns, or corrective steps."],
+              ["notes_to_provider", "Notes to the provider", "Provider-level notes or follow-up needed."],
+            ].map(([key, label, placeholder]) => (
+              <div key={key} className="rounded-2xl bg-white p-4">
+                <TextAreaField
+                  label={label}
+                  value={getTextValue(key)}
+                  onChange={(value) => updateReportDataField(key, value)}
+                  placeholder={placeholder}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderMonthlyStaffMeetingFields() {
+    return (
+      <div className="mt-6 space-y-4">
+        <div className="rounded-2xl border bg-slate-50 p-4">
+          <h3 className="text-sm font-semibold text-slate-950">Meeting Details</h3>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl bg-white p-4">
+              <TextField
+                label="Facilitator name"
+                value={getTextValue("facilitator")}
+                onChange={(value) => updateReportDataField("facilitator", value)}
+                placeholder="Facilitator name"
+              />
+            </div>
+
+            <div className="rounded-2xl bg-white p-4">
+              <TextField
+                label="Recorder name"
+                value={getTextValue("recorder")}
+                onChange={(value) => updateReportDataField("recorder", value)}
+                placeholder="Recorder name"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border bg-slate-50 p-4">
+          <h3 className="text-sm font-semibold text-slate-950">Monthly Staff/QI Meeting Notes</h3>
+
+          <div className="mt-4 grid gap-4">
+            {reportFields.monthly_staff_meeting_minutes
+              .filter((field) => field.key !== "facilitator" && field.key !== "recorder")
+              .map((field) => (
+                <div key={field.key} className="rounded-2xl bg-white p-4">
+                  <TextAreaField
+                    label={field.label}
+                    value={getTextValue(field.key)}
+                    onChange={(value) => updateReportDataField(field.key, value)}
+                    placeholder={field.placeholder}
+                  />
+                </div>
+              ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   function renderStandardReportFields() {
     if (!selectedReportType || selectedReportType === "monthly_self_safety_assessment" || selectedReportType === "incident_reporting") {
       return null;
     }
 
+    if (selectedReportType === "annual_fire_drill") {
+      return renderFireDrillFields();
+    }
+
+    if (selectedReportType === "monthly_staff_meeting_minutes") {
+      return renderMonthlyStaffMeetingFields();
+    }
+
     return (
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        {reportFields[selectedReportType].map((field) => (
-          <TextAreaField
-            key={field.key}
-            label={field.label}
-            value={getTextValue(field.key)}
-            onChange={(value) => updateReportDataField(field.key, value)}
-            placeholder={field.placeholder}
-          />
-        ))}
+      <div className="mt-6 rounded-2xl border bg-slate-50 p-4">
+        <h3 className="text-sm font-semibold text-slate-950">House Meeting Notes</h3>
+        <p className="mt-1 text-sm text-slate-500">
+          Complete the sections below based on the weekly house meeting format.
+        </p>
+
+        <div className="mt-4 grid gap-4">
+          {reportFields[selectedReportType].map((field) => (
+            <div key={field.key} className="rounded-2xl bg-white p-4">
+              <TextAreaField
+                label={field.label}
+                value={getTextValue(field.key)}
+                onChange={(value) => updateReportDataField(field.key, value)}
+                placeholder={field.placeholder}
+              />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -831,7 +1024,7 @@ export default function ReportsPage() {
     if (selectedReportType !== "monthly_self_safety_assessment") return null;
 
     return (
-      <div className="mt-6 space-y-4">
+      <div className="mt-6 grid gap-4 xl:grid-cols-2">
         {selfSafetySections.map((section) => (
           <div key={section.title} className="rounded-2xl border bg-slate-50 p-4">
             <h3 className="text-sm font-semibold text-slate-950">{section.title}</h3>
@@ -851,19 +1044,28 @@ export default function ReportsPage() {
           </div>
         ))}
 
-        <TextAreaField
-          label="Items marked not applicable / notes"
-          value={getTextValue("not_applicable_items")}
-          onChange={(value) => updateReportDataField("not_applicable_items", value)}
-          placeholder="List any safety items marked not applicable and why."
-        />
+        <div className="rounded-2xl border bg-slate-50 p-4 xl:col-span-2">
+          <h3 className="text-sm font-semibold text-slate-950">Completion Notes</h3>
+          <div className="mt-4 grid gap-4">
+            <div className="rounded-2xl bg-white p-4">
+              <TextAreaField
+                label="Items marked not applicable / notes"
+                value={getTextValue("not_applicable_items")}
+                onChange={(value) => updateReportDataField("not_applicable_items", value)}
+                placeholder="List any safety items marked not applicable and why."
+              />
+            </div>
 
-        <TextField
-          label="Person completing assessment"
-          value={getTextValue("person_completing")}
-          onChange={(value) => updateReportDataField("person_completing", value)}
-          placeholder="Typed name/signature"
-        />
+            <div className="rounded-2xl bg-white p-4">
+              <TextField
+                label="Person completing assessment"
+                value={getTextValue("person_completing")}
+                onChange={(value) => updateReportDataField("person_completing", value)}
+                placeholder="Typed name/signature"
+              />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -938,16 +1140,20 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          {incidentNarrativeFields.map(([key, label, placeholder]) => (
-            <TextAreaField
-              key={key}
-              label={label}
-              value={getTextValue(key)}
-              onChange={(value) => updateReportDataField(key, value)}
-              placeholder={placeholder}
-            />
-          ))}
+        <div className="rounded-2xl border bg-slate-50 p-4">
+          <h3 className="text-sm font-semibold text-slate-950">Incident Narrative</h3>
+          <div className="mt-4 grid gap-4">
+            {incidentNarrativeFields.map(([key, label, placeholder]) => (
+              <div key={key} className="rounded-2xl bg-white p-4">
+                <TextAreaField
+                  label={label}
+                  value={getTextValue(key)}
+                  onChange={(value) => updateReportDataField(key, value)}
+                  placeholder={placeholder}
+                />
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="rounded-2xl border bg-slate-50 p-4">
@@ -999,6 +1205,225 @@ export default function ReportsPage() {
     }
 
     return null;
+  }
+
+  function getReportFieldLabel(reportType: ReportType, fieldKey: string) {
+    const specialLabels: Record<string, string> = {
+      reported_to_farr: "Incident reported to FARR",
+      incident_date: "Date of incident",
+      farr_incident_types: "FARR reporting incident types",
+      non_farr_incident_types: "Non-FARR internal incident types",
+      narcan_used: "Narcan was used",
+      narcan_from_farr: "Narcan was obtained from FARR",
+      resident_attendance: "Resident Attendance",
+      not_applicable_items: "Items marked not applicable / notes",
+      person_completing: "Person completing assessment",
+    };
+
+    if (specialLabels[fieldKey]) return specialLabels[fieldKey];
+
+    if (reportType !== "monthly_self_safety_assessment" && reportType !== "incident_reporting") {
+      const standardReportType = reportType as Exclude<ReportType, "monthly_self_safety_assessment" | "incident_reporting">;
+      const field = reportFields[standardReportType].find((item) => item.key === fieldKey);
+
+      if (field) return field.label;
+    }
+
+    for (const section of selfSafetySections) {
+      const item = section.items.find(([key]) => key === fieldKey);
+
+      if (item) return item[1];
+    }
+
+    const incidentTextField = incidentTextFields.find(([key]) => key === fieldKey);
+    if (incidentTextField) return incidentTextField[1];
+
+    const incidentNarrativeField = incidentNarrativeFields.find(([key]) => key === fieldKey);
+    if (incidentNarrativeField) return incidentNarrativeField[1];
+
+    return fieldKey
+      .replaceAll("_", " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
+  function formatReportValue(value: unknown) {
+    if (Array.isArray(value)) {
+      return value.length > 0 ? value.join(", ") : "None selected";
+    }
+
+    if (typeof value === "boolean") {
+      return value ? "Yes" : "No";
+    }
+
+    if (value && typeof value === "object") {
+      return JSON.stringify(value, null, 2);
+    }
+
+    const text = String(value ?? "").trim();
+    return text || "Not entered";
+  }
+
+  function renderSelfSafetyReportView(report: ProviderHouseReport) {
+    const data = report.report_data ?? {};
+
+    return (
+      <div className="mt-6 grid gap-4 xl:grid-cols-2">
+        {selfSafetySections.map((section) => (
+          <div key={section.title} className="rounded-2xl border bg-slate-50 p-4">
+            <h3 className="text-sm font-semibold text-slate-950">{section.title}</h3>
+            <div className="mt-3 grid gap-2">
+              {section.items.map(([key, label]) => {
+                const checked = Boolean(data[key]);
+
+                return (
+                  <div key={key} className="flex items-start gap-3 rounded-xl bg-white p-3 text-sm">
+                    {checked ? (
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                    ) : (
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                    )}
+                    <div>
+                      <p className="font-medium text-slate-700">{checked ? "Checked" : "Not checked"}</p>
+                      <p className="mt-1 text-slate-600">{label}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-xl border bg-slate-50 p-3 text-sm">
+            <p className="font-medium text-slate-700">Items marked not applicable / notes</p>
+            <p className="mt-1 whitespace-pre-wrap text-slate-600">
+              {formatReportValue(data.not_applicable_items)}
+            </p>
+          </div>
+
+          <div className="rounded-xl border bg-slate-50 p-3 text-sm">
+            <p className="font-medium text-slate-700">Person completing assessment</p>
+            <p className="mt-1 whitespace-pre-wrap text-slate-600">
+              {formatReportValue(data.person_completing)}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderIncidentReportView(report: ProviderHouseReport) {
+    const data = report.report_data ?? {};
+
+    return (
+      <div className="mt-6 space-y-5">
+        <div className="rounded-2xl border bg-slate-50 p-4">
+          <h3 className="text-sm font-semibold text-slate-950">Incident Reporting Status</h3>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <p className="rounded-xl bg-white p-3 text-sm">
+              <span className="font-medium text-slate-700">Incident reported to FARR:</span>{" "}
+              {formatReportValue(data.reported_to_farr)}
+            </p>
+            <p className="rounded-xl bg-white p-3 text-sm">
+              <span className="font-medium text-slate-700">Date of incident:</span>{" "}
+              {formatReportValue(data.incident_date)}
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border bg-slate-50 p-4">
+          <h3 className="text-sm font-semibold text-slate-950">Reporting Party / Incident Details</h3>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {incidentTextFields.map(([key, label]) => (
+              <div key={key} className="rounded-xl bg-white p-3 text-sm">
+                <p className="font-medium text-slate-700">{label}</p>
+                <p className="mt-1 whitespace-pre-wrap text-slate-600">{formatReportValue(data[key])}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border bg-slate-50 p-4">
+          <h3 className="text-sm font-semibold text-slate-950">Incident Type</h3>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl bg-white p-3 text-sm">
+              <p className="font-medium text-slate-700">FARR reporting incident types</p>
+              <p className="mt-1 whitespace-pre-wrap text-slate-600">
+                {formatReportValue(data.farr_incident_types)}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-white p-3 text-sm">
+              <p className="font-medium text-slate-700">Non-FARR internal incident types</p>
+              <p className="mt-1 whitespace-pre-wrap text-slate-600">
+                {formatReportValue(data.non_farr_incident_types)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border bg-slate-50 p-4">
+          <h3 className="text-sm font-semibold text-slate-950">Narrative</h3>
+          <div className="mt-3 grid gap-3">
+            {incidentNarrativeFields.map(([key, label]) => (
+              <div key={key} className="rounded-xl bg-white p-3 text-sm">
+                <p className="font-medium text-slate-700">{label}</p>
+                <p className="mt-1 whitespace-pre-wrap text-slate-600">{formatReportValue(data[key])}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border bg-slate-50 p-4">
+          <h3 className="text-sm font-semibold text-slate-950">Narcan / Emergency Response</h3>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <p className="rounded-xl bg-white p-3 text-sm">
+              <span className="font-medium text-slate-700">Narcan used:</span>{" "}
+              {formatReportValue(data.narcan_used)}
+            </p>
+            <p className="rounded-xl bg-white p-3 text-sm">
+              <span className="font-medium text-slate-700">Narcan obtained from FARR:</span>{" "}
+              {formatReportValue(data.narcan_from_farr)}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderSubmittedReportFields(report: ProviderHouseReport) {
+    const data = report.report_data ?? {};
+
+    if (report.report_type === "monthly_self_safety_assessment") {
+      return renderSelfSafetyReportView(report);
+    }
+
+    if (report.report_type === "incident_reporting") {
+      return renderIncidentReportView(report);
+    }
+
+    const entries = Object.entries(data).filter(([key]) => key !== "resident_attendance");
+
+    if (entries.length === 0) {
+      return (
+        <div className="mt-6 rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
+          No detailed form fields were saved for this report.
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-6 grid gap-3 md:grid-cols-2">
+        {entries.map(([key, value]) => (
+          <div key={key} className="rounded-xl border bg-slate-50 p-3 text-sm">
+            <p className="font-medium text-slate-700">{getReportFieldLabel(report.report_type, key)}</p>
+            <p className="mt-1 whitespace-pre-wrap text-slate-600">
+              {formatReportValue(value)}
+            </p>
+          </div>
+        ))}
+      </div>
+    );
   }
 
   return (
@@ -1385,26 +1810,7 @@ export default function ReportsPage() {
 
             {renderReportDataSummary(selectedViewReport)}
 
-            <div className="mt-6 grid gap-3">
-              {Object.entries(selectedViewReport.report_data ?? {}).map(([key, value]) => {
-                if (key === "resident_attendance") return null;
-
-                return (
-                  <div key={key} className="rounded-xl border bg-slate-50 p-3 text-sm">
-                    <p className="font-medium text-slate-700">{key.replaceAll("_", " ")}</p>
-                    <p className="mt-1 whitespace-pre-wrap text-slate-600">
-                      {Array.isArray(value)
-                        ? value.join(", ")
-                        : typeof value === "boolean"
-                          ? value
-                            ? "Yes"
-                            : "No"
-                          : String(value ?? "")}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
+            {renderSubmittedReportFields(selectedViewReport)}
 
             {selectedViewReport.follow_up_notes ? (
               <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
