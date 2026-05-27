@@ -794,6 +794,161 @@ export default function DocumentsPage() {
         </Link>
       </div>
 
+      <section className="rounded-2xl border bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Documents</h1>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                Documents: {documents.length}
+              </span>
+              <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                Uploaded: {uploadedCount}
+              </span>
+              <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                E-Signable: {signableCount}
+              </span>
+              <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                Archived: {archivedDocuments.length}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setEditingDocumentId(null);
+              setForm({
+                ...initialForm,
+                ...getAreaDefaults(uploadAreaCategory),
+              });
+              setSelectedFile(null);
+              setSelectedTargetHouseIds([]);
+              setIsDocumentModalOpen(true);
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            <Plus className="h-4 w-4" />
+            Add Document
+          </button>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap gap-2 rounded-2xl bg-slate-100 p-1">
+          <button
+            type="button"
+            onClick={() => setSelectedAreaCategory("All")}
+            className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+              selectedAreaCategory === "All"
+                ? "bg-white text-slate-950 shadow-sm"
+                : "text-slate-600 hover:text-slate-950"
+            }`}
+          >
+            All Documents
+          </button>
+
+          {documentAreas.map((area) => (
+            <button
+              key={area.category}
+              type="button"
+              onClick={() => setSelectedAreaCategory(area.category)}
+              className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+                selectedAreaCategory === area.category
+                  ? "bg-white text-slate-950 shadow-sm"
+                  : "text-slate-600 hover:text-slate-950"
+              }`}
+            >
+              {area.title}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-slate-950">{selectedAreaLabel}</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {filteredActiveDocuments.length} active document record{filteredActiveDocuments.length === 1 ? "" : "s"}
+            </p>
+          </div>
+        </div>
+
+        {loading ? (
+          <p className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Loading documents...</p>
+        ) : filteredActiveDocuments.length === 0 ? (
+          <div className="mt-5 rounded-2xl bg-slate-50 p-5">
+            <p className="text-sm font-semibold text-slate-950">No documents in this view yet.</p>
+            <p className="mt-1 text-sm text-slate-500">Use Add Document to create the first record.</p>
+          </div>
+        ) : (
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {filteredActiveDocuments.map((doc) => (
+              <div key={doc.id} className="rounded-2xl border bg-slate-50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-slate-950">{doc.document_name}</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {getAreaForDocument(doc)} • {doc.compliance_domain ?? "No domain"}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {doc.status === "uploaded" ? "Uploaded" : doc.status ?? "Not uploaded"}
+                      {doc.is_signable ? " • E-signable" : ""}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => startEditingDocument(doc)}
+                      className="rounded-xl border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
+                    >
+                      Edit
+                    </button>
+
+                    {doc.file_url ? (
+                      <a
+                        href={doc.file_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-xl border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
+                      >
+                        View File
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {archivedDocuments.length > 0 ? (
+          <details className="mt-5 rounded-2xl border bg-slate-50 p-4">
+            <summary className="cursor-pointer text-sm font-semibold text-slate-950">
+              Archived Documents ({archivedDocuments.length})
+            </summary>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {archivedDocuments.map((doc) => (
+                <div key={doc.id} className="rounded-xl bg-white p-3 text-sm">
+                  <p className="font-medium text-slate-950">{doc.document_name}</p>
+                  <p className="mt-1 text-slate-500">
+                    {getAreaForDocument(doc)} • {doc.compliance_domain ?? "No domain"}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => startEditingDocument(doc)}
+                    className="mt-3 rounded-xl border px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
+                  >
+                    Edit
+                  </button>
+                </div>
+              ))}
+            </div>
+          </details>
+        ) : null}
+      </section>
+
       {isDocumentModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
           <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-2xl">
