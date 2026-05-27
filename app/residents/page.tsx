@@ -651,22 +651,20 @@ export default function ResidentsPage() {
               </p>
             </div>
 
-            {residents.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingResidentId(null);
-                  setForm(initialForm);
-                  setMessage("");
-                  setError("");
-                  setShowResidentForm((current) => !current);
-                }}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-              >
-                <Plus className="h-4 w-4" />
-                {showResidentForm && !editingResidentId ? "Hide Add Resident" : "Add Resident"}
-              </button>
-            ) : null}
+            <button
+              type="button"
+              onClick={() => {
+                setEditingResidentId(null);
+                setForm(initialForm);
+                setMessage("");
+                setError("");
+                setShowResidentForm(true);
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            >
+              <Plus className="h-4 w-4" />
+              Add Resident
+            </button>
           </div>
 
           <div className="mt-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -794,16 +792,32 @@ export default function ResidentsPage() {
           )}
         </div>
 
-        {residents.length === 0 || showResidentForm || editingResidentId ? (
-          <form className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">{editingResidentId ? "Edit Resident" : "Add Resident"}</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {editingResidentId
-                ? "Update the selected resident profile."
-                : residents.length === 0
-                  ? "Add the first resident for this provider."
-                  : "Add another resident under this provider."}
-            </p>
+        {showResidentForm || editingResidentId ? (
+          <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 p-4">
+            <form className="my-8 w-full max-w-5xl rounded-3xl border bg-white p-6 shadow-xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-slate-500">Resident Record</p>
+                  <h2 className="text-xl font-semibold text-slate-950">{editingResidentId ? "Edit Resident" : "Add Resident"}</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {editingResidentId ? "Update the selected resident profile." : "Add a resident under this provider."}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForm(initialForm);
+                    setEditingResidentId(null);
+                    setMessage("");
+                    setError("");
+                    setShowResidentForm(false);
+                  }}
+                  className="rounded-xl border bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50"
+                >
+                  Close
+                </button>
+              </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <Field label="First name" placeholder="First name" icon={Users} value={form.first_name} onChange={(value) => updateField("first_name", value)} required />
@@ -890,13 +904,11 @@ export default function ResidentsPage() {
                   setEditingResidentId(null);
                   setMessage("");
                   setError("");
-                  if (residents.length > 0) {
-                    setShowResidentForm(false);
-                  }
+                  setShowResidentForm(false);
                 }}
                 className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
               >
-                {residents.length > 0 ? "Cancel" : "Clear Form"}
+                Cancel
               </button>
 
               <Link
@@ -906,7 +918,8 @@ export default function ResidentsPage() {
                 Continue to Documents
               </Link>
             </div>
-          </form>
+            </form>
+          </div>
         ) : null}
       </section>
     </PageShell>
