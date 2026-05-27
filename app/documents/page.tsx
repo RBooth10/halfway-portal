@@ -122,7 +122,7 @@ const documentAreas = [
     icon: Users,
   },
   {
-    title: "Documents",
+    title: "Other / General",
     category: "Other",
     description: "",
     examples: ["", "", "", "Reference documents", "Other support files"],
@@ -148,21 +148,16 @@ function getAreaDefaults(category: string): Pick<DocumentForm, "category" | "com
     House: {
       category: "House",
       compliance_domain: "Physical Environment",
-      applies_to: "Specific house",
+      applies_to: "Provider-wide",
     },
     Resident: {
       category: "Resident",
       compliance_domain: "Recovery Support",
       applies_to: "Resident packet",
     },
-    Staff: {
-      category: "Staff",
-      compliance_domain: "Staff Training",
-      applies_to: "Staff file",
-    },
     Other: {
       category: "Other",
-      compliance_domain: "Not sure yet",
+      compliance_domain: "Administrative Operations",
       applies_to: "General documents",
     },
   };
@@ -636,8 +631,10 @@ export default function DocumentsPage() {
         status: selectedFile ? "uploaded" : form.status,
         is_signable: form.is_signable,
         signature_required_from: form.is_signable ? form.signature_required_from : "not_required",
-        signature_status: form.is_signable ? form.signature_status : "not_required",
-        signature_instructions: form.is_signable ? form.signature_instructions.trim() || null : null,
+        signature_status: form.is_signable
+          ? editingDocument?.signature_status ?? "not_sent"
+          : "not_required",
+        signature_instructions: null,
         document_source: form.document_source === "text" ? "text" : "upload",
         document_body: form.document_source === "text" ? form.document_body.trim() || null : null,
         acknowledgment_statement:
@@ -1022,8 +1019,7 @@ export default function DocumentsPage() {
                       <option value="Provider">Provider Documents</option>
                       <option value="House">House Documents</option>
                       <option value="Resident">Resident Packet</option>
-                      <option value="Staff">Documents - Staff</option>
-                      <option value="Other">Documents - Other</option>
+                      <option value="Other">Other / General</option>
                     </select>
                   </label>
 
@@ -1036,7 +1032,10 @@ export default function DocumentsPage() {
                           name="document_source"
                           value="upload"
                           checked={form.document_source !== "text"}
-                          onChange={(event) => updateField("document_source", event.target.value)}
+                          onChange={(event) => {
+                            updateField("document_source", event.target.value);
+                            setSelectedFile(null);
+                          }}
                           className="mt-1 h-4 w-4"
                         />
                         <span>
@@ -1050,7 +1049,10 @@ export default function DocumentsPage() {
                           name="document_source"
                           value="text"
                           checked={form.document_source === "text"}
-                          onChange={(event) => updateField("document_source", event.target.value)}
+                          onChange={(event) => {
+                            updateField("document_source", event.target.value);
+                            setSelectedFile(null);
+                          }}
                           className="mt-1 h-4 w-4"
                         />
                         <span>
@@ -1060,34 +1062,12 @@ export default function DocumentsPage() {
                     </div>
                   </div>
 
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Compliance domain</span>
-                    <select
-                      value={form.compliance_domain}
-                      onChange={(event) => updateField("compliance_domain", event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    >
-                      <option>Administrative Operations</option>
-                      <option>Physical Environment</option>
-                      <option>Recovery Support</option>
-                      <option>Staff Training</option>
-                      <option>Not sure yet</option>
-                    </select>
-                  </label>
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Applies to</span>
-                    <select
-                      value={form.applies_to}
-                      onChange={(event) => updateField("applies_to", event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    >
-                      <option>Provider-wide</option>
-                      <option>Resident packet</option>
-                      <option>Staff file</option>
-                      <option>General documents</option>
-                    </select>
-                  </label>
+                  <div className="rounded-2xl border bg-slate-50 p-3 md:col-span-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Auto-classified as</p>
+                    <p className="mt-1 text-sm font-medium text-slate-700">
+                      {form.compliance_domain} • {form.applies_to}
+                    </p>
+                  </div>
 
                   <Field
                     label="Version label"
@@ -1105,20 +1085,6 @@ export default function DocumentsPage() {
                     value={form.effective_date}
                     onChange={(value) => updateField("effective_date", value)}
                   />
-
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Status</span>
-                    <select
-                      value={form.status}
-                      onChange={(event) => updateField("status", event.target.value)}
-                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                    >
-                      <option value="not_uploaded">Not Uploaded</option>
-                      <option value="uploaded">Uploaded</option>
-                      <option value="needs_review">Needs Review</option>
-                      <option value="archived">Archived</option>
-                    </select>
-                  </label>
 
                   <div className="rounded-2xl border bg-slate-50 p-4 md:col-span-2">
                     <label className="flex items-start gap-3">
@@ -1147,30 +1113,6 @@ export default function DocumentsPage() {
                             <option value="provider">Provider</option>
                             <option value="house_manager">House Manager</option>
                           </select>
-                        </label>
-
-                        <label className="block">
-                          <span className="text-sm font-medium text-slate-700">Signature status</span>
-                          <select
-                            value={form.signature_status}
-                            onChange={(event) => updateField("signature_status", event.target.value)}
-                            className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                          >
-                            <option value="not_sent">Not Sent</option>
-                            <option value="pending">Pending</option>
-                            <option value="signed">Signed</option>
-                            <option value="declined">Declined</option>
-                          </select>
-                        </label>
-
-                        <label className="block md:col-span-2">
-                          <span className="text-sm font-medium text-slate-700">Signature instructions</span>
-                          <textarea
-                            value={form.signature_instructions}
-                            onChange={(event) => updateField("signature_instructions", event.target.value)}
-                            placeholder="Example: Resident must review and electronically sign during intake."
-                            className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                          />
                         </label>
 
                         {form.category === "Resident" && form.signature_required_from === "resident" ? (
