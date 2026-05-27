@@ -167,7 +167,7 @@ export default function HousesPage() {
   }
 
   async function loadHouses(activeProviderId: string) {
-    const supabase = getSupabaseClient();
+    const supabase = getSupabaseClient() as any;
 
     const providerResult = await supabase
       .from("providers")
@@ -253,7 +253,7 @@ export default function HousesPage() {
     setError("");
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       const { data, error } = await supabase
         .from("houses")
@@ -380,7 +380,7 @@ export default function HousesPage() {
     };
 
     try {
-      const supabase = getSupabaseClient();
+      const supabase = getSupabaseClient() as any;
 
       if (editingHouseId) {
         const { data, error } = await supabase
