@@ -964,7 +964,7 @@ export default function DocumentsPage() {
 
                     <button
                       type="button"
-                      onClick={() => void archiveDocument(doc)}
+                      onClick={() => void archiveDocument(doc.id, doc.document_name)}
                       className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100"
                     >
                       Archive
