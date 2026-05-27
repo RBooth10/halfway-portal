@@ -919,15 +919,15 @@ export default function HouseDetailPage() {
           </section>
 
 
-          <section className="rounded-2xl border bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap gap-2">
+          <section className="rounded-2xl border bg-white p-3 shadow-sm">
+            <div className="inline-flex rounded-2xl bg-slate-100 p-1">
               <button
                 type="button"
                 onClick={() => setActiveHouseTab("residents")}
-                className={`rounded-xl px-4 py-2 text-sm font-medium ${
+                className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
                   activeHouseTab === "residents"
-                    ? "bg-slate-950 text-white"
-                    : "border bg-white text-slate-700 hover:bg-slate-50"
+                    ? "bg-white text-slate-950 shadow-sm"
+                    : "text-slate-600 hover:text-slate-950"
                 }`}
               >
                 Residents
@@ -936,10 +936,10 @@ export default function HouseDetailPage() {
               <button
                 type="button"
                 onClick={() => setActiveHouseTab("reports")}
-                className={`rounded-xl px-4 py-2 text-sm font-medium ${
+                className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
                   activeHouseTab === "reports"
-                    ? "bg-slate-950 text-white"
-                    : "border bg-white text-slate-700 hover:bg-slate-50"
+                    ? "bg-white text-slate-950 shadow-sm"
+                    : "text-slate-600 hover:text-slate-950"
                 }`}
               >
                 Reports / Logs
@@ -975,7 +975,7 @@ export default function HouseDetailPage() {
                 {residents.map((resident) => (
                   <div
                     key={resident.id}
-                    className="rounded-2xl border bg-slate-50 p-4 transition hover:bg-slate-100"
+                    className="rounded-3xl border bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -987,20 +987,20 @@ export default function HouseDetailPage() {
                         </p>
                       </div>
 
-                      <div className="rounded-xl bg-white p-2">
-                        <BedDouble className="h-5 w-5 text-slate-400" />
+                      <div className="rounded-2xl bg-slate-100 p-2">
+                        <BedDouble className="h-5 w-5 text-slate-500" />
                       </div>
                     </div>
 
                     <div className="mt-4 grid gap-2">
-                      <div className="rounded-xl bg-white p-3">
+                      <div className="rounded-2xl bg-slate-50 p-3">
                         <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Phase</p>
                         <p className="mt-1 text-sm font-medium text-slate-950">
                           {resident.current_phase || "Not selected"}
                         </p>
                       </div>
 
-                      <div className="rounded-xl bg-white p-3">
+                      <div className="rounded-2xl bg-slate-50 p-3">
                         <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Admission</p>
                         <p className="mt-1 text-sm font-medium text-slate-950">
                           {formatDate(resident.admission_date)}
