@@ -119,13 +119,11 @@ const reportFields: Record<Exclude<ReportType, "monthly_self_safety_assessment" 
     { key: "safety_monitor_signature", label: "Safety monitor signature", placeholder: "Typed name/signature of safety monitor." },
   ],
   weekly_house_meeting_minutes: [
-    { key: "resident_meeting_attendance_notes", label: "Attendance notes", placeholder: "Note missing/incomplete meeting sheets or attendance follow-up." },
-    { key: "sponsorship_requirement", label: "Sponsorship requirement", placeholder: "Document sponsorship status updates, challenges, noncompliance, or sponsor changes." },
-    { key: "recovery_plan_review", label: "Recovery plan review", placeholder: "Document resident progress, setbacks, barriers, and assistance requested." },
-    { key: "house_maintenance_requests", label: "House maintenance requests", placeholder: "List maintenance issues reported and completion status or repair plan." },
-    { key: "general_observations", label: "General observations", placeholder: "Document chores, supply needs, upkeep concerns, and general house observations." },
-    { key: "resident_concerns_successes", label: "Resident concerns or successes", placeholder: "Document altercations, complaints, concerns, personal wins, or positive milestones." },
-    { key: "staff_concerns_acknowledgments", label: "Staff concerns or acknowledgments", placeholder: "Staff notes about the residence, individual concerns, achievements, phase-ups, or behavioral concerns." },
+    {
+      key: "meeting_minutes",
+      label: "Meeting minutes / notes",
+      placeholder: "Document attendance notes, topics discussed, sponsorship or home group updates, recovery plan progress, maintenance requests, resident concerns or successes, staff observations, action items, and follow-up needs.",
+    },
   ],
   monthly_staff_meeting_minutes: [
     { key: "facilitator", label: "Facilitator", placeholder: "Name of meeting facilitator." },
@@ -1423,7 +1421,12 @@ export default function ReportsPage() {
     return (
       <div className="mt-6 grid gap-3 md:grid-cols-2">
         {entries.map(([key, value]) => (
-          <div key={key} className="rounded-xl border bg-slate-50 p-3 text-sm">
+          <div
+            key={key}
+            className={`rounded-xl border bg-slate-50 p-3 text-sm ${
+              key === "meeting_minutes" ? "md:col-span-2" : ""
+            }`}
+          >
             <p className="font-medium text-slate-700">{getReportFieldLabel(report.report_type, key)}</p>
             <p className="mt-1 whitespace-pre-wrap text-slate-600">
               {formatReportValue(value)}
@@ -1471,7 +1474,26 @@ export default function ReportsPage() {
       ) : null}
 
       <section className="rounded-3xl border bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap gap-2 rounded-2xl bg-slate-100 p-1">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-500">Report folder</p>
+            <h2 className="mt-1 text-lg font-semibold text-slate-950">
+              {selectedReportType ? selectedReportLabel : "Select a report type"}
+            </h2>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowReportForm((current) => !current)}
+            disabled={!selectedReportType}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Plus className="h-4 w-4" />
+            {showReportForm ? "Hide Form" : "Create Report"}
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2 rounded-2xl bg-slate-100 p-1">
           {reportTypes.map((reportType) => (
             <button
               key={reportType.value}
@@ -1497,27 +1519,6 @@ export default function ReportsPage() {
           ))}
         </div>
       </section>
-
-      {selectedReportType ? (
-        <section className="rounded-2xl border bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-500">Selected report folder</p>
-              <h2 className="mt-1 text-lg font-semibold text-slate-950">{selectedReportLabel}</h2>
-              <p className="mt-1 text-sm text-slate-500">Frequency: {selectedReportFrequency}</p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowReportForm((current) => !current)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-            >
-              <Plus className="h-4 w-4" />
-              {showReportForm ? "Hide Form" : "Create Report"}
-            </button>
-          </div>
-        </section>
-      ) : null}
 
       {selectedReportType && showReportForm ? (
         <section className="rounded-2xl border bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
