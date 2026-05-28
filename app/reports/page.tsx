@@ -434,6 +434,7 @@ export default function ReportsPage() {
   const [residents, setResidents] = useState<ResidentRow[]>([]);
   const [reports, setReports] = useState<ProviderHouseReport[]>([]);
   const [selectedReportType, setSelectedReportType] = useState<ReportType | null>(null);
+  const [showReportForm, setShowReportForm] = useState(false);
   const [savedReportsTab, setSavedReportsTab] = useState<ReportType>("annual_fire_drill");
   const [selectedHouseIds, setSelectedHouseIds] = useState<string[]>([]);
   const [residentAttendance, setResidentAttendance] = useState<Record<string, boolean>>({});
@@ -1480,6 +1481,7 @@ export default function ReportsPage() {
                 setSavedReportsTab(reportType.value);
                 setSelectedHouseIds([]);
                 setResidentAttendance({});
+                setShowReportForm(false);
                 setForm({ ...initialForm, report_date: new Date().toISOString().slice(0, 10) });
                 setMessage("");
                 setError("");
@@ -1497,6 +1499,27 @@ export default function ReportsPage() {
       </section>
 
       {selectedReportType ? (
+        <section className="rounded-2xl border bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">Selected report folder</p>
+              <h2 className="mt-1 text-lg font-semibold text-slate-950">{selectedReportLabel}</h2>
+              <p className="mt-1 text-sm text-slate-500">Frequency: {selectedReportFrequency}</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowReportForm((current) => !current)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            >
+              <Plus className="h-4 w-4" />
+              {showReportForm ? "Hide Form" : "Create Report"}
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {selectedReportType && showReportForm ? (
         <section className="rounded-2xl border bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="rounded-2xl bg-slate-100 p-3">
