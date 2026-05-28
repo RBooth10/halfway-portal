@@ -646,12 +646,17 @@ export default function StaffPage() {
       </section>
 
       <section className="rounded-2xl border bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-950">Default Role Types & Custom Option</h2>
-        <div className="mt-3 grid gap-2 md:grid-cols-3 xl:grid-cols-6">
-          {roles.map((role) => (
-            <RoleCard key={role.name} role={role} />
-          ))}
-        </div>
+        <details>
+          <summary className="cursor-pointer text-sm font-semibold text-slate-950">
+            Role guide
+          </summary>
+
+          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {roles.map((role) => (
+              <RoleCard key={role.name} role={role} />
+            ))}
+          </div>
+        </details>
       </section>
     </PageShell>
   );
