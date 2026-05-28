@@ -485,14 +485,35 @@ export default function StaffPage() {
 
       <section className="space-y-6">
         {showStaffForm ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-            <form className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border bg-white p-5 shadow-xl">
-          <h2 className="text-lg font-semibold">{editingStaffId ? "Edit Staff Member" : "Invite Staff Member"}</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {editingStaffId
-              ? "Update this staff profile, role, and access level."
-              : "New users remain pending until approval and house access are finalized."}
-          </p>
+          <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 p-4">
+            <form className="my-8 w-full max-w-3xl rounded-2xl border bg-white p-5 shadow-xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-slate-500">Staff Access</p>
+                  <h2 className="text-lg font-semibold text-slate-950">
+                    {editingStaffId ? "Edit Staff Member" : "Invite Staff Member"}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {editingStaffId
+                      ? "Update this staff profile, role, and access level."
+                      : "New users remain pending until approval and house access are finalized."}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowStaffForm(false);
+                    setEditingStaffId(null);
+                    setForm(initialForm);
+                    setMessage("");
+                    setError("");
+                  }}
+                  className="rounded-xl border bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50"
+                >
+                  Close
+                </button>
+              </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <Field label="First name" placeholder="First name" icon={Users} value={form.first_name} onChange={(value) => updateField("first_name", value)} />
@@ -569,7 +590,8 @@ export default function StaffPage() {
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               {saving ? "Saving..." : editingStaffId ? "Save Changes" : "Save Staff Invite"}
-            </button>          </div>
+            </button>
+
             <button
               type="button"
               onClick={() => {
@@ -579,10 +601,11 @@ export default function StaffPage() {
                 setMessage("");
                 setError("");
               }}
-              className="mt-3 rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
+              className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
             >
-              Close
+              Cancel
             </button>
+          </div>
             </form>
           </div>
         ) : null}
