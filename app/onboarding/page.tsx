@@ -357,6 +357,7 @@ export default function ProviderOnboardingPage() {
 
   function editProviderPhase(phase: ProviderPhaseRow) {
     setEditingPhaseId(phase.id);
+    setIsPhaseFormOpen(true);
     setPhaseName(phase.phase_name);
     setPhaseOrder(String(phase.phase_order));
     setMinimumDays(phase.minimum_days === null ? "" : String(phase.minimum_days));
@@ -368,6 +369,7 @@ export default function ProviderOnboardingPage() {
 
   function cancelPhaseEdit() {
     setEditingPhaseId(null);
+    setIsPhaseFormOpen(false);
     setPhaseName("");
     setPhaseOrder("");
     setMinimumDays("");
@@ -786,15 +788,31 @@ export default function ProviderOnboardingPage() {
 
       {savedProviderId ? (
         <section className="col-span-full w-full rounded-2xl border bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <h2 className="text-xl font-semibold text-slate-950">Provider Phase Levels</h2>
               <p className="mt-1 text-sm leading-6 text-slate-500">
-                Define the number of phases this provider uses. Resident profiles will only allow staff to select from these provider-defined phases.
+                {phaseLevels.length} phase level{phaseLevels.length === 1 ? "" : "s"} saved for this provider.
               </p>
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (isPhaseFormOpen || editingPhaseId) {
+                  cancelPhaseEdit();
+                } else {
+                  setIsPhaseFormOpen(true);
+                }
+              }}
+              className="rounded-xl border bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50"
+            >
+              {isPhaseFormOpen || editingPhaseId ? "Hide Phase Form" : "Manage Phase Levels"}
+            </button>
           </div>
 
+          {isPhaseFormOpen || editingPhaseId ? (
+            <>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Phase name</span>
@@ -871,6 +889,9 @@ export default function ProviderOnboardingPage() {
               </button>
             ) : null}
           </div>
+
+            </>
+          ) : null}
 
           <div className="mt-6 space-y-3">
             {phaseLevels.length === 0 ? (
