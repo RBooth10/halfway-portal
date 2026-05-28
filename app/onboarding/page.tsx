@@ -110,6 +110,7 @@ export default function ProviderOnboardingPage() {
   const [form, setForm] = useState<ProviderForm>(initialForm);
   const [saving, setSaving] = useState(false);
   const [savedProviderId, setSavedProviderId] = useState<string | null>(null);
+  const [isProviderFormOpen, setIsProviderFormOpen] = useState(false);
   const [phaseLevels, setPhaseLevels] = useState<ProviderPhaseRow[]>([]);
   const [phaseName, setPhaseName] = useState("");
   const [phaseOrder, setPhaseOrder] = useState("");
@@ -118,6 +119,7 @@ export default function ProviderOnboardingPage() {
   const [requirementsDescription, setRequirementsDescription] = useState("");
   const [savingPhase, setSavingPhase] = useState(false);
   const [editingPhaseId, setEditingPhaseId] = useState<string | null>(null);
+  const [isPhaseFormOpen, setIsPhaseFormOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -148,6 +150,7 @@ export default function ProviderOnboardingPage() {
 
       setForm(providerToForm(data as Record<string, unknown>));
       setSavedProviderId(providerId);
+      setIsProviderFormOpen(false);
     } catch (err) {
       const providerError = err as { message?: unknown };
       setError(providerError?.message ? String(providerError.message) : "Could not load provider profile.");
@@ -256,6 +259,7 @@ export default function ProviderOnboardingPage() {
         }
 
         setSavedProviderId(data.id);
+      setIsProviderFormOpen(false);
         localStorage.setItem("current_provider_id", data.id);
         setForm(providerToForm(data as Record<string, unknown>));
         await loadProviderPhases(data.id);
@@ -445,6 +449,64 @@ export default function ProviderOnboardingPage() {
       )}
 
       <section className="space-y-6">
+        {savedProviderId ? (
+          <section className="rounded-2xl border bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-500">Provider Profile</p>
+                <h2 className="mt-1 text-xl font-semibold text-slate-950">
+                  {form.dba_name || form.legal_name || "Provider profile"}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {form.certification_status || "Certification status not set"} • {form.farr_level || "Level not set"}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsProviderFormOpen((current) => !current)}
+                className="rounded-xl border bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50"
+              >
+                {isProviderFormOpen ? "Hide Edit Form" : "Edit Provider Profile"}
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Legal name</p>
+                <p className="mt-1 text-sm font-semibold text-slate-950">{form.legal_name || "Not entered"}</p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Primary contact</p>
+                <p className="mt-1 text-sm font-semibold text-slate-950">{form.primary_contact_name || "Not entered"}</p>
+                <p className="mt-1 text-xs text-slate-500">{form.primary_contact_email || "Email not entered"}</p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Program fee</p>
+                <p className="mt-1 text-sm font-semibold text-slate-950">
+                  {form.program_fee_model === "split_rent"
+                    ? `Split rent${form.split_rent_total_amount ? `: $${form.split_rent_total_amount}` : ""}`
+                    : `Cost per client${form.cost_per_client ? `: $${form.cost_per_client}` : ""}`}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">{form.program_fee_frequency || "Frequency not set"}</p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Admission fee</p>
+                <p className="mt-1 text-sm font-semibold text-slate-950">
+                  {form.admission_fee_amount ? `$${form.admission_fee_amount}` : "Not entered"}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {form.prorate_first_period ? "Prorated first period" : "No prorate selected"}
+                </p>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {!savedProviderId || isProviderFormOpen ? (
         <form className="w-full rounded-2xl border bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold">Organization Information</h2>
           <p className="mt-1 text-sm text-slate-500">
@@ -689,6 +751,20 @@ export default function ProviderOnboardingPage() {
               {saving ? "Saving..." : savedProviderId ? "Update Provider Profile" : "Save Provider Profile"}
             </button>
 
+            {savedProviderId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsProviderFormOpen(false);
+                  setMessage("");
+                  setError("");
+                }}
+                className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            ) : null}
+
             {!savedProviderId ? (
               <button
                 type="button"
@@ -705,6 +781,7 @@ export default function ProviderOnboardingPage() {
             ) : null}
           </div>
         </form>
+        ) : null}
       </section>
 
       {savedProviderId ? (
