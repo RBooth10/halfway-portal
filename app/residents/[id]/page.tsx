@@ -47,6 +47,10 @@ type ResidentDetail = {
   discharge_date?: string | null;
   discharge_reason?: string | null;
   discharge_notes?: string | null;
+  discharge_satisfaction_survey_completed?: boolean | null;
+  discharge_satisfaction_survey_rating?: number | null;
+  discharge_satisfaction_survey_notes?: string | null;
+  discharge_satisfaction_survey_completed_at?: string | null;
   file_status: string;
   medication_status: string;
   rci_status: string;
@@ -508,6 +512,9 @@ export default function ResidentProfilePage() {
   const [dischargeDate, setDischargeDate] = useState(new Date().toISOString().slice(0, 10));
   const [dischargeReason, setDischargeReason] = useState("");
   const [dischargeNotes, setDischargeNotes] = useState("");
+  const [dischargeSatisfactionCompleted, setDischargeSatisfactionCompleted] = useState(false);
+  const [dischargeSatisfactionRating, setDischargeSatisfactionRating] = useState("");
+  const [dischargeSatisfactionNotes, setDischargeSatisfactionNotes] = useState("");
   const [selectedDischargeContactIds, setSelectedDischargeContactIds] = useState<string[]>([]);
   const [readmissionDate, setReadmissionDate] = useState(new Date().toISOString().slice(0, 10));
   const [readmissionHouseId, setReadmissionHouseId] = useState("");
@@ -2333,6 +2340,11 @@ Resident Signature Collected Electronically`;
         return;
       }
 
+      if (dischargeSatisfactionCompleted && !dischargeSatisfactionRating) {
+        setError("Select a satisfaction survey rating or uncheck Satisfaction survey completed.");
+        return;
+      }
+
       const { data, error } = await supabase.rpc("discharge_resident", {
         p_resident_id: resident.id,
         p_discharge_date: dischargeDate || new Date().toISOString().slice(0, 10),
@@ -2350,15 +2362,42 @@ Resident Signature Collected Electronically`;
         return;
       }
 
+      const satisfactionPayload = {
+        discharge_satisfaction_survey_completed: dischargeSatisfactionCompleted,
+        discharge_satisfaction_survey_rating:
+          dischargeSatisfactionCompleted && dischargeSatisfactionRating
+            ? Number(dischargeSatisfactionRating)
+            : null,
+        discharge_satisfaction_survey_notes: dischargeSatisfactionCompleted
+          ? dischargeSatisfactionNotes.trim() || null
+          : null,
+        discharge_satisfaction_survey_completed_at: dischargeSatisfactionCompleted
+          ? new Date().toISOString()
+          : null,
+      };
+
+      const satisfactionResult = await supabase
+        .from("residents")
+        .update(satisfactionPayload)
+        .eq("id", resident.id);
+
+      if (satisfactionResult.error) {
+        throw satisfactionResult.error;
+      }
+
       setResident({
         ...resident,
         resident_status: "discharged",
         discharge_date: dischargeDate || new Date().toISOString().slice(0, 10),
         discharge_reason: dischargeReason,
         discharge_notes: dischargeNotes,
+        ...satisfactionPayload,
       });
 
       setSelectedDischargeContactIds([]);
+      setDischargeSatisfactionCompleted(false);
+      setDischargeSatisfactionRating("");
+      setDischargeSatisfactionNotes("");
       setShowLifecycleModal(false);
       setMessage("Resident discharged. Future program fees will stop.");
     } catch (err) {
