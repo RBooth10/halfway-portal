@@ -455,6 +455,7 @@ export default function ReportsPage() {
   const [feeChargeStatusFilter, setFeeChargeStatusFilter] = useState("open");
   const [feeDueStart, setFeeDueStart] = useState("");
   const [feeDueEnd, setFeeDueEnd] = useState("");
+  const [showRollingFeeList, setShowRollingFeeList] = useState(false);
   const [selectedReportType, setSelectedReportType] = useState<ReportType | null>(null);
   const [showReportForm, setShowReportForm] = useState(false);
   const [savedReportsTab, setSavedReportsTab] = useState<ReportType>("annual_fire_drill");
@@ -1967,7 +1968,26 @@ export default function ReportsPage() {
         </section>
       ) : null}
 
-      {renderRollingFeeList()}
+      <section className="rounded-2xl border bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">Rolling Fee List</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Open this when you need to filter, review, or print resident fee charges.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowRollingFeeList((current) => !current)}
+            className="inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            {showRollingFeeList ? "Hide Fee List" : "Open Fee List"}
+          </button>
+        </div>
+      </section>
+
+      {showRollingFeeList ? renderRollingFeeList() : null}
 
       <section className="rounded-2xl border bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
         <div className="flex items-start gap-3">
