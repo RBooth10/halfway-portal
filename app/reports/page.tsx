@@ -1866,14 +1866,16 @@ export default function ReportsPage() {
       const selectedHouseId = maintenanceFormHouseId || selectedResident?.house_id || null;
 
       const { data, error: insertError } = await supabase.rpc("create_staff_maintenance_request", {
-        p_provider_id: providerId,
-        p_house_id: selectedHouseId || null,
-        p_resident_id: maintenanceFormResidentId || null,
-        p_request_title: maintenanceFormTitle.trim(),
-        p_request_description: maintenanceFormDescription.trim(),
-        p_location_area: maintenanceFormLocation.trim() || null,
-        p_priority: maintenanceFormPriority,
-        p_provider_notes: maintenanceFormNotes.trim() || null,
+        p_payload: {
+          provider_id: providerId,
+          house_id: selectedHouseId || null,
+          resident_id: maintenanceFormResidentId || null,
+          request_title: maintenanceFormTitle.trim(),
+          request_description: maintenanceFormDescription.trim(),
+          location_area: maintenanceFormLocation.trim() || null,
+          priority: maintenanceFormPriority,
+          provider_notes: maintenanceFormNotes.trim() || null,
+        },
       });
 
       if (insertError) {
