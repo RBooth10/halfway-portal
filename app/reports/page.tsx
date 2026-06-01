@@ -1865,14 +1865,14 @@ export default function ReportsPage() {
       const selectedResident = residents.find((resident) => resident.id === maintenanceFormResidentId);
       const selectedHouseId = maintenanceFormHouseId || selectedResident?.house_id || null;
 
-      const { error: insertError } = await supabase
+      const { data, error: insertError } = await supabase
         .from("resident_maintenance_requests")
         .insert({
           provider_id: providerId,
           house_id: selectedHouseId,
           resident_id: maintenanceFormResidentId || null,
           submitted_by_name: selectedResident
-            ? `${selectedResident.first_name} ${selectedResident.last_name}`
+            ? `${selectedResident.first_name ?? ""} ${selectedResident.last_name ?? ""}`.trim() || "Staff entry"
             : "Staff entry",
           request_title: maintenanceFormTitle.trim(),
           request_description: maintenanceFormDescription.trim(),
@@ -1880,16 +1880,18 @@ export default function ReportsPage() {
           priority: maintenanceFormPriority,
           status: "open",
           provider_notes: maintenanceFormNotes.trim() || null,
-        });
+        })
+        .select("*")
+        .single();
 
       if (insertError) {
         throw insertError;
       }
 
+      setMaintenanceRequests((current) => [data as MaintenanceRequestRow, ...current]);
       resetMaintenanceForm();
       setShowMaintenanceForm(false);
       setMessage("Maintenance request created.");
-      await loadReports(providerId);
     } catch (err) {
       const maintenanceError = err as { message?: unknown };
       setError(maintenanceError?.message ? String(maintenanceError.message) : "Could not create maintenance request.");
