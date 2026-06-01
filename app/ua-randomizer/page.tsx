@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
+  Download,
   Home,
   Loader2,
   RefreshCw,
@@ -94,6 +95,9 @@ export default function UaRandomizerPage() {
   const [houses, setHouses] = useState<HouseRow[]>([]);
   const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([]);
   const [selectedHouseId, setSelectedHouseId] = useState("");
+  const [selectedPhaseFilter, setSelectedPhaseFilter] = useState("all");
+  const [scheduleDateStart, setScheduleDateStart] = useState("");
+  const [scheduleDateEnd, setScheduleDateEnd] = useState("");
   const [windowDays, setWindowDays] = useState(30);
   const [minTests, setMinTests] = useState(1);
   const [maxTests, setMaxTests] = useState(2);
@@ -108,11 +112,37 @@ export default function UaRandomizerPage() {
       (!selectedHouseId || resident.house_id === selectedHouseId)
   );
 
+  const phaseOptions = Array.from(
+    new Map(
+      activeResidents.map((resident) => {
+        const value = resident.current_phase_id || resident.current_phase || "not_selected";
+        return [
+          value,
+          {
+            value,
+            label: resident.current_phase || "Not selected",
+          },
+        ];
+      })
+    ).values()
+  ).sort((first, second) => first.label.localeCompare(second.label));
+
   const visibleScheduleRows = scheduleRows.filter((row) => {
     if (row.status !== "scheduled") return false;
-    if (!selectedHouseId) return true;
+    if (selectedHouseId && row.house_id !== selectedHouseId) return false;
+    if (scheduleDateStart && row.scheduled_date < scheduleDateStart) return false;
+    if (scheduleDateEnd && row.scheduled_date > scheduleDateEnd) return false;
 
-    return row.house_id === selectedHouseId;
+    if (selectedPhaseFilter !== "all") {
+      const resident = residents.find((item) => item.id === row.resident_id);
+      const residentPhaseValue = resident?.current_phase_id || resident?.current_phase || "not_selected";
+
+      if (residentPhaseValue !== selectedPhaseFilter) {
+        return false;
+      }
+    }
+
+    return true;
   });
 
   function getResident(residentId: string) {
@@ -123,6 +153,46 @@ export default function UaRandomizerPage() {
     if (!houseId) return "No house assigned";
 
     return houses.find((house) => house.id === houseId)?.name ?? "Unknown house";
+  }
+
+  function exportVisibleScheduleCsv() {
+    const headers = [
+      "Resident",
+      "House",
+      "Phase",
+      "Days With Provider",
+      "Scheduled Date",
+      "Status",
+      "Reason",
+    ];
+
+    const rows = visibleScheduleRows.map((row) => {
+      const resident = getResident(row.resident_id);
+
+      return [
+        residentName(resident),
+        getHouseName(row.house_id),
+        resident?.current_phase || "Not selected",
+        String(daysSinceAdmission(resident?.admission_date ?? null)),
+        formatDate(row.scheduled_date),
+        row.status,
+        row.reason ?? "",
+      ];
+    });
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `rolling-ua-schedule-${todayDate()}.csv`;
+    link.click();
+
+    URL.revokeObjectURL(url);
   }
 
   async function refreshSchedule(activeProviderId: string) {
@@ -464,6 +534,72 @@ export default function UaRandomizerPage() {
               <Shuffle className="h-3.5 w-3.5" />
               Rolling schedule
             </span>
+          </div>
+
+          <div className="mt-5 rounded-2xl border bg-slate-50 p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div className="grid flex-1 gap-3 md:grid-cols-3">
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">Phase</span>
+                  <select
+                    value={selectedPhaseFilter}
+                    onChange={(event) => setSelectedPhaseFilter(event.target.value)}
+                    className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                  >
+                    <option value="all">All phases</option>
+                    {phaseOptions.map((phase) => (
+                      <option key={phase.value} value={phase.value}>
+                        {phase.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">Scheduled from</span>
+                  <input
+                    type="date"
+                    value={scheduleDateStart}
+                    onChange={(event) => setScheduleDateStart(event.target.value)}
+                    className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">Scheduled through</span>
+                  <input
+                    type="date"
+                    value={scheduleDateEnd}
+                    onChange={(event) => setScheduleDateEnd(event.target.value)}
+                    className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                  />
+                </label>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedPhaseFilter("all");
+                    setScheduleDateStart("");
+                    setScheduleDateEnd("");
+                  }}
+                  className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50"
+                >
+                  Clear Filters
+                </button>
+
+                <button
+                  type="button"
+                  onClick={exportVisibleScheduleCsv}
+                  disabled={visibleScheduleRows.length === 0}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Download className="h-4 w-4" />
+                  Export Schedule
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="mt-5 grid gap-3 md:grid-cols-3">
