@@ -50,6 +50,11 @@ type ResidentDetail = {
   file_status: string;
   medication_status: string;
   rci_status: string;
+  high_alert: boolean;
+  high_alert_detail: string | null;
+  active_probation_officer: boolean;
+  active_mental_health_court: boolean;
+  active_drug_court: boolean;
   current_phase_id: string | null;
   current_phase: string | null;
   has_sponsor: boolean;
@@ -2671,6 +2676,43 @@ Resident Signature Collected Electronically`;
 
                       <h2 className="mt-4 text-2xl font-semibold text-slate-950">{residentName}</h2>
                       <p className="mt-1 text-sm text-slate-500">Resident Profile</p>
+
+                      <div className="mt-4 flex flex-wrap justify-center gap-2">
+                        {resident.high_alert ? (
+                          <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
+                            High Alert
+                          </span>
+                        ) : null}
+
+                        {resident.active_probation_officer ? (
+                          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                            Active PO
+                          </span>
+                        ) : null}
+
+                        {resident.active_mental_health_court ? (
+                          <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+                            Mental Health Court
+                          </span>
+                        ) : null}
+
+                        {resident.active_drug_court ? (
+                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                            Drug Court
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {resident.high_alert && resident.high_alert_detail ? (
+                        <div className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-left">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">
+                            High Alert Detail
+                          </p>
+                          <p className="mt-1 text-sm font-medium text-rose-800">
+                            {resident.high_alert_detail}
+                          </p>
+                        </div>
+                      ) : null}
 
                       <div className="mt-5 divide-y rounded-2xl border text-left">
                         <div className="flex items-center justify-between gap-4 p-3">

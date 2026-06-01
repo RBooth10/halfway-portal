@@ -792,6 +792,12 @@ export default function ResidentsPage() {
                           ) : null}
                         </div>
 
+                        {resident.high_alert && resident.high_alert_detail ? (
+                          <p className="mt-2 rounded-xl border border-rose-100 bg-white px-3 py-2 text-xs font-medium text-rose-700">
+                            {resident.high_alert_detail}
+                          </p>
+                        ) : null}
+
                         <p className="mt-1 text-sm text-slate-500">
                           Medication: {resident.medication_status}
                         </p>
