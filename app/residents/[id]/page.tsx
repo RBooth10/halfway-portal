@@ -62,6 +62,9 @@ type ResidentDetail = {
   current_phase_id: string | null;
   current_phase: string | null;
   has_sponsor: boolean;
+  sponsor_name: string | null;
+  sponsor_phone: string | null;
+  current_step: string | null;
   has_home_group: boolean;
   attending_required_meetings: boolean;
   recovery_plan_started: boolean;
@@ -2472,6 +2475,9 @@ Resident Signature Collected Electronically`;
     fieldName:
       | "current_phase"
       | "has_sponsor"
+      | "sponsor_name"
+      | "sponsor_phone"
+      | "current_step"
       | "has_home_group"
       | "attending_required_meetings"
       | "recovery_plan_started"
@@ -2868,6 +2874,63 @@ Resident Signature Collected Electronically`;
                                 {String(label)}
                               </label>
                             ))}
+                          </div>
+
+                          <div className="mt-5 rounded-2xl border bg-white p-4">
+                            <p className="text-sm font-semibold text-slate-950">Sponsor Details</p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              These fields will be provider-visible now and can later be updated from the resident portal.
+                            </p>
+
+                            <div className="mt-4 grid gap-4 md:grid-cols-3">
+                              <label className="block">
+                                <span className="text-sm font-medium text-slate-700">Sponsor name</span>
+                                <input
+                                  defaultValue={resident.sponsor_name ?? ""}
+                                  disabled={savingSnapshotStatus}
+                                  onBlur={(event) => {
+                                    const nextValue = event.target.value.trim();
+                                    if (nextValue !== (resident.sponsor_name ?? "")) {
+                                      updateResidentSnapshotField("sponsor_name", nextValue || null);
+                                    }
+                                  }}
+                                  placeholder="Sponsor name"
+                                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4 disabled:opacity-60"
+                                />
+                              </label>
+
+                              <label className="block">
+                                <span className="text-sm font-medium text-slate-700">Sponsor phone</span>
+                                <input
+                                  defaultValue={resident.sponsor_phone ?? ""}
+                                  disabled={savingSnapshotStatus}
+                                  onBlur={(event) => {
+                                    const nextValue = event.target.value.trim();
+                                    if (nextValue !== (resident.sponsor_phone ?? "")) {
+                                      updateResidentSnapshotField("sponsor_phone", nextValue || null);
+                                    }
+                                  }}
+                                  placeholder="Sponsor phone"
+                                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4 disabled:opacity-60"
+                                />
+                              </label>
+
+                              <label className="block">
+                                <span className="text-sm font-medium text-slate-700">Current step</span>
+                                <input
+                                  defaultValue={resident.current_step ?? ""}
+                                  disabled={savingSnapshotStatus}
+                                  onBlur={(event) => {
+                                    const nextValue = event.target.value.trim();
+                                    if (nextValue !== (resident.current_step ?? "")) {
+                                      updateResidentSnapshotField("current_step", nextValue || null);
+                                    }
+                                  }}
+                                  placeholder="Current step"
+                                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4 disabled:opacity-60"
+                                />
+                              </label>
+                            </div>
                           </div>
                         </div>
 
