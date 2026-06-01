@@ -1513,6 +1513,64 @@ export default function ReportsPage() {
     );
   }
 
+  function exportRollingFeeListCsv() {
+    const headers = [
+      "Resident",
+      "House",
+      "Charge Type",
+      "Billing Frequency",
+      "Period",
+      "Due Date",
+      "Amount",
+      "Paid",
+      "Balance",
+      "Status",
+      "Notes",
+    ];
+
+    const rows = filteredFeeCharges.map((charge) => [
+      getResidentName(charge.resident_id),
+      getFeeHouseName(charge),
+      formatFeeLabel(charge.charge_type),
+      formatFeeLabel(charge.billing_frequency),
+      formatFeePeriod(charge),
+      formatDate(charge.due_date),
+      formatCurrency(charge.amount),
+      formatCurrency(charge.amount_paid),
+      formatCurrency(charge.balance_due),
+      formatFeeLabel(charge.status),
+      charge.notes ?? "",
+    ]);
+
+    const totalsRow = [
+      "TOTALS",
+      "",
+      "",
+      "",
+      "",
+      "",
+      formatCurrency(filteredFeeTotals.amount),
+      formatCurrency(filteredFeeTotals.paid),
+      formatCurrency(filteredFeeTotals.balance),
+      "",
+      "",
+    ];
+
+    const csv = [headers, ...rows, totalsRow]
+      .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `rolling-fee-list-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+
+    URL.revokeObjectURL(url);
+  }
+
   function renderRollingFeeList() {
     return (
       <section id="rolling-fee-list-print" className="rounded-2xl border bg-white p-5 shadow-sm">
@@ -1526,14 +1584,15 @@ export default function ReportsPage() {
 
           <button
             type="button"
-            onClick={() => window.print()}
-            className="fee-print-hidden inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            onClick={exportRollingFeeListCsv}
+            disabled={filteredFeeCharges.length === 0}
+            className="inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Print Fee List
+            Export Fee List
           </button>
         </div>
 
-        <div className="fee-print-hidden mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <label className="block">
             <span className="text-sm font-medium text-slate-700">House</span>
             <select
@@ -1693,32 +1752,6 @@ export default function ReportsPage() {
 
   return (
     <PageShell>
-      <style>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-
-          #rolling-fee-list-print,
-          #rolling-fee-list-print * {
-            visibility: visible;
-          }
-
-          #rolling-fee-list-print {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            border: 0;
-            box-shadow: none;
-          }
-
-          .fee-print-hidden {
-            display: none !important;
-          }
-        }
-      `}</style>
-
       <section className="rounded-2xl border bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex gap-4">
