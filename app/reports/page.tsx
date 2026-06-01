@@ -478,6 +478,15 @@ export default function ReportsPage() {
   const [maintenanceHouseFilter, setMaintenanceHouseFilter] = useState("all");
   const [maintenanceStatusFilter, setMaintenanceStatusFilter] = useState("open");
   const [maintenancePriorityFilter, setMaintenancePriorityFilter] = useState("all");
+  const [showMaintenanceForm, setShowMaintenanceForm] = useState(false);
+  const [maintenanceFormHouseId, setMaintenanceFormHouseId] = useState("");
+  const [maintenanceFormResidentId, setMaintenanceFormResidentId] = useState("");
+  const [maintenanceFormTitle, setMaintenanceFormTitle] = useState("");
+  const [maintenanceFormDescription, setMaintenanceFormDescription] = useState("");
+  const [maintenanceFormLocation, setMaintenanceFormLocation] = useState("");
+  const [maintenanceFormPriority, setMaintenanceFormPriority] = useState("normal");
+  const [maintenanceFormNotes, setMaintenanceFormNotes] = useState("");
+  const [savingMaintenanceRequest, setSavingMaintenanceRequest] = useState(false);
   const [selectedReportType, setSelectedReportType] = useState<ReportType | null>(null);
   const [showReportForm, setShowReportForm] = useState(false);
   const [savedReportsTab, setSavedReportsTab] = useState<ReportType>("annual_fire_drill");
@@ -1821,6 +1830,117 @@ export default function ReportsPage() {
     );
   }
 
+  function resetMaintenanceForm() {
+    setMaintenanceFormHouseId("");
+    setMaintenanceFormResidentId("");
+    setMaintenanceFormTitle("");
+    setMaintenanceFormDescription("");
+    setMaintenanceFormLocation("");
+    setMaintenanceFormPriority("normal");
+    setMaintenanceFormNotes("");
+  }
+
+  async function createStaffMaintenanceRequest() {
+    if (!providerId) {
+      setError("No provider selected.");
+      return;
+    }
+
+    if (!maintenanceFormTitle.trim()) {
+      setError("Enter a maintenance request title.");
+      return;
+    }
+
+    if (maintenanceFormDescription.trim().length < 10) {
+      setError("Enter a maintenance description.");
+      return;
+    }
+
+    try {
+      setSavingMaintenanceRequest(true);
+      setError("");
+      setMessage("");
+
+      const supabase = getSupabaseClient() as any;
+      const selectedResident = residents.find((resident) => resident.id === maintenanceFormResidentId);
+      const selectedHouseId = maintenanceFormHouseId || selectedResident?.house_id || null;
+
+      const { error: insertError } = await supabase
+        .from("resident_maintenance_requests")
+        .insert({
+          provider_id: providerId,
+          house_id: selectedHouseId,
+          resident_id: maintenanceFormResidentId || null,
+          submitted_by_name: selectedResident
+            ? `${selectedResident.first_name} ${selectedResident.last_name}`
+            : "Staff entry",
+          request_title: maintenanceFormTitle.trim(),
+          request_description: maintenanceFormDescription.trim(),
+          location_area: maintenanceFormLocation.trim() || null,
+          priority: maintenanceFormPriority,
+          status: "open",
+          provider_notes: maintenanceFormNotes.trim() || null,
+        });
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      resetMaintenanceForm();
+      setShowMaintenanceForm(false);
+      setMessage("Maintenance request created.");
+      await loadReports(providerId);
+    } catch (err) {
+      const maintenanceError = err as { message?: unknown };
+      setError(maintenanceError?.message ? String(maintenanceError.message) : "Could not create maintenance request.");
+    } finally {
+      setSavingMaintenanceRequest(false);
+    }
+  }
+
+  async function updateMaintenanceRequestStatus(request: MaintenanceRequestRow, nextStatus: string) {
+    if (!providerId) {
+      setError("No provider selected.");
+      return;
+    }
+
+    const providerNotes = window.prompt("Provider notes or follow-up details:", request.provider_notes ?? "");
+
+    if (providerNotes === null) {
+      return;
+    }
+
+    try {
+      setSavingMaintenanceRequest(true);
+      setError("");
+      setMessage("");
+
+      const supabase = getSupabaseClient() as any;
+
+      const { error: updateError } = await supabase
+        .from("resident_maintenance_requests")
+        .update({
+          status: nextStatus,
+          provider_notes: providerNotes.trim() || null,
+          completed_at: nextStatus === "completed" ? new Date().toISOString() : request.completed_at,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", request.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      setMessage("Maintenance request updated.");
+      await loadReports(providerId);
+    } catch (err) {
+      const maintenanceError = err as { message?: unknown };
+      setError(maintenanceError?.message ? String(maintenanceError.message) : "Could not update maintenance request.");
+    } finally {
+      setSavingMaintenanceRequest(false);
+    }
+  }
+
   function renderMaintenanceLog() {
     return (
       <section className="rounded-2xl border bg-white p-5 shadow-sm">
@@ -1832,16 +1952,154 @@ export default function ReportsPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={exportMaintenanceLogCsv}
-            disabled={filteredMaintenanceRequests.length === 0}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Download className="h-4 w-4" />
-            Export Maintenance Log
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setShowMaintenanceForm((current) => !current)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50"
+            >
+              <Plus className="h-4 w-4" />
+              {showMaintenanceForm ? "Hide Form" : "Create Request"}
+            </button>
+
+            <button
+              type="button"
+              onClick={exportMaintenanceLogCsv}
+              disabled={filteredMaintenanceRequests.length === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Download className="h-4 w-4" />
+              Export Maintenance Log
+            </button>
+          </div>
         </div>
+
+        {showMaintenanceForm ? (
+          <div className="mt-5 rounded-2xl border bg-slate-50 p-4">
+            <h3 className="text-sm font-semibold text-slate-950">Create Maintenance Request</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Staff can create requests here when an issue is reported outside the resident portal.
+            </p>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">House</span>
+                <select
+                  value={maintenanceFormHouseId}
+                  onChange={(event) => setMaintenanceFormHouseId(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="">Select house, if applicable</option>
+                  {activeHouses.map((house) => (
+                    <option key={house.id} value={house.id}>
+                      {house.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Resident</span>
+                <select
+                  value={maintenanceFormResidentId}
+                  onChange={(event) => {
+                    setMaintenanceFormResidentId(event.target.value);
+                    const selectedResident = residents.find((resident) => resident.id === event.target.value);
+                    if (selectedResident?.house_id) {
+                      setMaintenanceFormHouseId(selectedResident.house_id);
+                    }
+                  }}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="">No resident selected</option>
+                  {residents
+                    .filter((resident) => String(resident.resident_status ?? "active").toLowerCase() !== "discharged")
+                    .map((resident) => (
+                      <option key={resident.id} value={resident.id}>
+                        {resident.first_name} {resident.last_name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Priority</span>
+                <select
+                  value={maintenanceFormPriority}
+                  onChange={(event) => setMaintenanceFormPriority(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                >
+                  <option value="low">Low</option>
+                  <option value="normal">Normal</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </label>
+
+              <label className="block md:col-span-2">
+                <span className="text-sm font-medium text-slate-700">Request title</span>
+                <input
+                  value={maintenanceFormTitle}
+                  onChange={(event) => setMaintenanceFormTitle(event.target.value)}
+                  placeholder="Example: Bathroom sink leaking"
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Location / area</span>
+                <input
+                  value={maintenanceFormLocation}
+                  onChange={(event) => setMaintenanceFormLocation(event.target.value)}
+                  placeholder="Example: Kitchen, bedroom 2"
+                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block md:col-span-2 xl:col-span-3">
+                <span className="text-sm font-medium text-slate-700">Description</span>
+                <textarea
+                  value={maintenanceFormDescription}
+                  onChange={(event) => setMaintenanceFormDescription(event.target.value)}
+                  placeholder="Describe the maintenance issue and what staff should know."
+                  className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+
+              <label className="block md:col-span-2 xl:col-span-3">
+                <span className="text-sm font-medium text-slate-700">Provider notes</span>
+                <textarea
+                  value={maintenanceFormNotes}
+                  onChange={(event) => setMaintenanceFormNotes(event.target.value)}
+                  placeholder="Optional internal notes."
+                  className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                />
+              </label>
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  resetMaintenanceForm();
+                  setShowMaintenanceForm(false);
+                }}
+                className="rounded-xl border bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={createStaffMaintenanceRequest}
+                disabled={savingMaintenanceRequest}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savingMaintenanceRequest ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {savingMaintenanceRequest ? "Saving..." : "Save Request"}
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           <label className="block">
@@ -1915,16 +2173,53 @@ export default function ReportsPage() {
                     ) : null}
                   </div>
 
-                  <div className="flex flex-wrap gap-2 md:justify-end">
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                      {formatFeeLabel(request.status)}
-                    </span>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                      {formatFeeLabel(request.priority)}
-                    </span>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500">
-                      {formatDateTime(request.created_at)}
-                    </span>
+                  <div className="flex flex-col gap-2 md:items-end">
+                    <div className="flex flex-wrap gap-2 md:justify-end">
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                        {formatFeeLabel(request.status)}
+                      </span>
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                        {formatFeeLabel(request.priority)}
+                      </span>
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500">
+                        {formatDateTime(request.created_at)}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 md:justify-end">
+                      {request.status === "open" ? (
+                        <button
+                          type="button"
+                          onClick={() => updateMaintenanceRequestStatus(request, "in_progress")}
+                          disabled={savingMaintenanceRequest}
+                          className="rounded-lg border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50 disabled:opacity-60"
+                        >
+                          Start
+                        </button>
+                      ) : null}
+
+                      {request.status !== "completed" ? (
+                        <button
+                          type="button"
+                          onClick={() => updateMaintenanceRequestStatus(request, "completed")}
+                          disabled={savingMaintenanceRequest}
+                          className="rounded-lg bg-slate-950 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                        >
+                          Mark Complete
+                        </button>
+                      ) : null}
+
+                      {request.status !== "cancelled" && request.status !== "completed" ? (
+                        <button
+                          type="button"
+                          onClick={() => updateMaintenanceRequestStatus(request, "cancelled")}
+                          disabled={savingMaintenanceRequest}
+                          className="rounded-lg border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50 disabled:opacity-60"
+                        >
+                          Cancel
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               </div>
