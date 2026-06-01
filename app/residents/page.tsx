@@ -44,6 +44,11 @@ type ResidentForm = {
   file_status: string;
   medication_status: string;
   rci_status: string;
+  high_alert: boolean;
+  high_alert_detail: string;
+  active_probation_officer: boolean;
+  active_mental_health_court: boolean;
+  active_drug_court: boolean;
   notes: string;
 };
 
@@ -66,6 +71,11 @@ type ResidentRow = {
   file_status: string;
   medication_status: string;
   rci_status: string;
+  high_alert: boolean;
+  high_alert_detail: string | null;
+  active_probation_officer: boolean;
+  active_mental_health_court: boolean;
+  active_drug_court: boolean;
   notes: string | null;
 };
 
@@ -94,6 +104,11 @@ const initialForm: ResidentForm = {
   file_status: "needs_onboarding_packet",
   medication_status: "not_completed",
   rci_status: "not_started",
+  high_alert: false,
+  high_alert_detail: "",
+  active_probation_officer: false,
+  active_mental_health_court: false,
+  active_drug_court: false,
   notes: "",
 };
 
@@ -177,7 +192,7 @@ export default function ResidentsPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  function updateField(field: keyof ResidentForm, value: string) {
+  function updateField<K extends keyof ResidentForm>(field: K, value: ResidentForm[K]) {
     setForm((current) => ({
       ...current,
       [field]: value,
@@ -341,10 +356,15 @@ export default function ResidentsPage() {
       referral_resource: resident.referral_resource ?? "",
       prior_address: resident.prior_address ?? "",
       house_id: resident.house_id ?? "",
-      resident_status: resident.resident_status ?? "pending_admission",
+      resident_status: resident.resident_status ?? "active",
       file_status: resident.file_status ?? "needs_onboarding_packet",
       medication_status: resident.medication_status ?? "not_completed",
       rci_status: resident.rci_status ?? "not_started",
+      high_alert: Boolean(resident.high_alert),
+      high_alert_detail: resident.high_alert_detail ?? "",
+      active_probation_officer: Boolean(resident.active_probation_officer),
+      active_mental_health_court: Boolean(resident.active_mental_health_court),
+      active_drug_court: Boolean(resident.active_drug_court),
       notes: resident.notes ?? "",
     });
 
@@ -471,10 +491,15 @@ export default function ResidentsPage() {
       drug_of_choice: form.drug_of_choice.trim() || null,
       referral_resource: form.referral_resource.trim() || null,
       prior_address: form.prior_address.trim() || null,
-      resident_status: form.resident_status,
+      resident_status: form.resident_status || "active",
       file_status: form.file_status || "needs_onboarding_packet",
       medication_status: form.medication_status || "not_completed",
       rci_status: form.rci_status || "not_started",
+      high_alert: form.high_alert,
+      high_alert_detail: form.high_alert ? form.high_alert_detail.trim() || null : null,
+      active_probation_officer: form.active_probation_officer,
+      active_mental_health_court: form.active_mental_health_court,
+      active_drug_court: form.active_drug_court,
       notes: form.notes.trim() || null,
     };
 
@@ -737,6 +762,36 @@ export default function ResidentsPage() {
                         <p className="mt-1 text-sm text-slate-500">
                           Status: {resident.resident_status}
                         </p>
+
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {resident.high_alert ? (
+                            <span
+                              className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700"
+                              title={resident.high_alert_detail ?? undefined}
+                            >
+                              High Alert
+                            </span>
+                          ) : null}
+
+                          {resident.active_probation_officer ? (
+                            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                              Active PO
+                            </span>
+                          ) : null}
+
+                          {resident.active_mental_health_court ? (
+                            <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+                              Mental Health Court
+                            </span>
+                          ) : null}
+
+                          {resident.active_drug_court ? (
+                            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                              Drug Court
+                            </span>
+                          ) : null}
+                        </div>
+
                         <p className="mt-1 text-sm text-slate-500">
                           Medication: {resident.medication_status}
                         </p>
@@ -857,6 +912,65 @@ export default function ResidentsPage() {
                   className="mt-2 min-h-20 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                 />
               </label>
+
+              <div className="rounded-2xl border bg-slate-50 p-4 md:col-span-2 xl:col-span-3">
+                <h3 className="text-sm font-semibold text-slate-950">Resident Alerts</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Use these indicators for resident-specific compliance, supervision, or safety needs.
+                </p>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={form.high_alert}
+                      onChange={(event) => updateField("high_alert", event.target.checked)}
+                    />
+                    High Alert
+                  </label>
+
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={form.active_probation_officer}
+                      onChange={(event) => updateField("active_probation_officer", event.target.checked)}
+                    />
+                    Active PO
+                  </label>
+
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={form.active_mental_health_court}
+                      onChange={(event) => updateField("active_mental_health_court", event.target.checked)}
+                    />
+                    Active Mental Health Court
+                  </label>
+
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={form.active_drug_court}
+                      onChange={(event) => updateField("active_drug_court", event.target.checked)}
+                    />
+                    Active Drug Court
+                  </label>
+                </div>
+
+                {form.high_alert ? (
+                  <label className="mt-4 block">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      High Alert Detail
+                    </span>
+                    <textarea
+                      value={form.high_alert_detail}
+                      onChange={(event) => updateField("high_alert_detail", event.target.value)}
+                      className="mt-2 min-h-24 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                      placeholder="Add the alert reason, precautions, or staff instructions."
+                    />
+                  </label>
+                ) : null}
+              </div>
 
               <label className="block">
                 <span className="text-sm font-medium text-slate-700">Assigned house</span>
