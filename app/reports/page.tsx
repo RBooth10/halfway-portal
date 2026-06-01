@@ -1578,18 +1578,11 @@ export default function ReportsPage() {
           <div>
             <h2 className="text-lg font-semibold text-slate-950">Rolling Fee List</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Filter and print resident fee charges across houses, residents, due dates, and charge statuses.
+              Filter and export resident fee charges across houses, residents, due dates, and charge statuses.
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={exportRollingFeeListCsv}
-            disabled={filteredFeeCharges.length === 0}
-            className="inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Export Fee List
-          </button>
+
         </div>
 
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -1791,19 +1784,31 @@ export default function ReportsPage() {
           <div>
             <p className="text-sm font-medium text-slate-500">Report folder</p>
             <h2 className="mt-1 text-lg font-semibold text-slate-950">
-              {selectedReportType ? selectedReportLabel : "Select a report type"}
+              {showRollingFeeList ? "Rolling Fee List" : selectedReportType ? selectedReportLabel : "Select a report type"}
             </h2>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowReportForm((current) => !current)}
-            disabled={!selectedReportType}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Plus className="h-4 w-4" />
-            {showReportForm ? "Hide Form" : "Create Report"}
-          </button>
+          {showRollingFeeList ? (
+            <button
+              type="button"
+              onClick={exportRollingFeeListCsv}
+              disabled={filteredFeeCharges.length === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Download className="h-4 w-4" />
+              Export Fee List
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowReportForm((current) => !current)}
+              disabled={!selectedReportType}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Plus className="h-4 w-4" />
+              {showReportForm ? "Hide Form" : "Create Report"}
+            </button>
+          )}
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2 rounded-2xl bg-slate-100 p-1">
@@ -1814,6 +1819,7 @@ export default function ReportsPage() {
               onClick={() => {
                 setSelectedReportType(reportType.value);
                 setSavedReportsTab(reportType.value);
+                setShowRollingFeeList(false);
                 setSelectedHouseIds([]);
                 setResidentAttendance({});
                 setShowReportForm(false);
@@ -1822,7 +1828,7 @@ export default function ReportsPage() {
                 setError("");
               }}
               className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
-                selectedReportType === reportType.value
+                !showRollingFeeList && selectedReportType === reportType.value
                   ? "bg-white text-slate-950 shadow-sm"
                   : "text-slate-600 hover:text-slate-950"
               }`}
@@ -1830,6 +1836,24 @@ export default function ReportsPage() {
               {reportType.label}
             </button>
           ))}
+
+          <button
+            type="button"
+            onClick={() => {
+              setShowRollingFeeList(true);
+              setSelectedReportType(null);
+              setShowReportForm(false);
+              setMessage("");
+              setError("");
+            }}
+            className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+              showRollingFeeList
+                ? "bg-white text-slate-950 shadow-sm"
+                : "text-slate-600 hover:text-slate-950"
+            }`}
+          >
+            Rolling Fee List
+          </button>
         </div>
       </section>
 
@@ -2000,25 +2024,6 @@ export default function ReportsPage() {
           </div>
         </section>
       ) : null}
-
-      <section className="rounded-2xl border bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-950">Rolling Fee List</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Open this when you need to filter, review, or print resident fee charges.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowRollingFeeList((current) => !current)}
-            className="inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-          >
-            {showRollingFeeList ? "Hide Fee List" : "Open Fee List"}
-          </button>
-        </div>
-      </section>
 
       {showRollingFeeList ? renderRollingFeeList() : null}
 
