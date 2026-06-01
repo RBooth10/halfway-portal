@@ -510,6 +510,8 @@ export default function ResidentProfilePage() {
   const [generatingRciLink, setGeneratingRciLink] = useState(false);
   const [clientIntakeLink, setClientIntakeLink] = useState("");
   const [generatingIntakeLink, setGeneratingIntakeLink] = useState(false);
+  const [clientPortalLink, setClientPortalLink] = useState("");
+  const [generatingPortalLink, setGeneratingPortalLink] = useState(false);
   const [showRciActionModal, setShowRciActionModal] = useState(false);
   const [savingSnapshotStatus, setSavingSnapshotStatus] = useState(false);
   const [dischargeDate, setDischargeDate] = useState(new Date().toISOString().slice(0, 10));
@@ -931,6 +933,18 @@ export default function ResidentProfilePage() {
 
       if (!intakeLinkResult.error && intakeLinkResult.data?.[0]?.access_token) {
         setClientIntakeLink(`${window.location.origin}/client/intake/${intakeLinkResult.data[0].access_token}`);
+      }
+
+      const portalLinkResult = await supabase
+        .from("resident_portal_links")
+        .select("access_token, status")
+        .eq("resident_id", residentData.id)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (!portalLinkResult.error && portalLinkResult.data?.[0]?.access_token) {
+        setClientPortalLink(`${window.location.origin}/client/portal/${portalLinkResult.data[0].access_token}`);
       }
 
       const notesResult = await supabase
@@ -1889,6 +1903,91 @@ By signing below, I confirm that I have read and understand this Release of Info
 
 Resident Signature Collected Electronically`;
   }
+
+  async function generateResidentPortalLink() {
+    setGeneratingPortalLink(true);
+    setMessage("");
+    setError("");
+
+    if (!resident) {
+      setGeneratingPortalLink(false);
+      setError("Resident profile is not loaded yet.");
+      return;
+    }
+
+    try {
+      const supabase = getResidentSupabase();
+      const { data: userData } = await supabase.auth.getUser();
+
+      if (!userData.user) {
+        throw new Error("You must be signed in before generating a resident portal link.");
+      }
+
+      const existingLinkResult = await supabase
+        .from("resident_portal_links")
+        .select("*")
+        .eq("resident_id", resident.id)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (existingLinkResult.error) {
+        throw existingLinkResult.error;
+      }
+
+      const existingLink = existingLinkResult.data?.[0];
+
+      if (existingLink?.access_token) {
+        const link = `${window.location.origin}/client/portal/${existingLink.access_token}`;
+        setClientPortalLink(link);
+        await navigator.clipboard.writeText(link).catch(() => undefined);
+        setMessage("Existing resident portal link copied.");
+        return;
+      }
+
+      const token = crypto.randomUUID();
+
+      const { data, error } = await supabase
+        .from("resident_portal_links")
+        .insert({
+          provider_id: resident.provider_id,
+          resident_id: resident.id,
+          house_id: resident.house_id,
+          created_by_auth_user_id: userData.user.id,
+          access_token: token,
+          status: "active",
+          expires_at: null,
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      const link = `${window.location.origin}/client/portal/${token}`;
+
+      setClientPortalLink(link);
+      await navigator.clipboard.writeText(link).catch(() => undefined);
+      setMessage("Resident portal link generated and copied.");
+
+      await createAuditLog({
+        providerId: resident.provider_id,
+        action: "resident_portal_link_generated",
+        tableName: "resident_portal_links",
+        recordId: data.id,
+        oldValues: null,
+        newValues: data as Record<string, unknown>,
+        reason: "Persistent resident portal link generated from resident profile.",
+      });
+    } catch (err) {
+      const portalLinkError = err as { message?: unknown };
+      setError(portalLinkError?.message ? String(portalLinkError.message) : "Could not generate resident portal link.");
+    } finally {
+      setGeneratingPortalLink(false);
+    }
+  }
+
 
   async function saveRoiAuthorization() {
     if (!resident) {
@@ -3673,6 +3772,40 @@ Resident Signature Collected Electronically`;
                       {generatingIntakeLink ? "Generating..." : "Generate Intake Signing Link"}
                     </button>
                   </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl border bg-slate-50 p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-950">Resident Portal Link</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Generate once at intake. This gives the resident ongoing access to documents, fee records, and request forms.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={generateResidentPortalLink}
+                      disabled={generatingPortalLink}
+                      className="inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {generatingPortalLink ? "Generating..." : clientPortalLink ? "Copy Portal Link" : "Generate Portal Link"}
+                    </button>
+                  </div>
+
+                  {clientPortalLink ? (
+                    <div className="mt-3 rounded-xl bg-white p-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Client Portal Link</p>
+                      <p className="mt-2 break-all text-sm text-slate-600">{clientPortalLink}</p>
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard.writeText(clientPortalLink)}
+                        className="mt-2 rounded-lg border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
+                      >
+                        Copy Link
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
 
                 {clientIntakeLink ? (
