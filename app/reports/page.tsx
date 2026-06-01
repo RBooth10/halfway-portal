@@ -1867,7 +1867,7 @@ export default function ReportsPage() {
 
       const { data, error: insertError } = await supabase.rpc("create_staff_maintenance_request", {
         p_provider_id: providerId,
-        p_house_id: selectedHouseId,
+        p_house_id: selectedHouseId || null,
         p_resident_id: maintenanceFormResidentId || null,
         p_request_title: maintenanceFormTitle.trim(),
         p_request_description: maintenanceFormDescription.trim(),
