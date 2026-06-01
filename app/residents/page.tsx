@@ -76,6 +76,7 @@ type ResidentRow = {
   active_probation_officer: boolean;
   active_mental_health_court: boolean;
   active_drug_court: boolean;
+  has_active_mat_mar?: boolean;
   notes: string | null;
 };
 
@@ -290,7 +291,34 @@ export default function ResidentsPage() {
       throw residentsResult.error;
     }
 
-    setResidents((residentsResult.data ?? []) as ResidentRow[]);
+    const residentRows = (residentsResult.data ?? []) as ResidentRow[];
+    const activeMatMarResidentIds = new Set<string>();
+
+    if (residentRows.length > 0) {
+      const medicationResult = await supabase
+        .from("medication_records")
+        .select("resident_id")
+        .eq("provider_id", activeProviderId)
+        .eq("status", "active")
+        .eq("mat_mar_related", true);
+
+      if (medicationResult.error) {
+        throw medicationResult.error;
+      }
+
+      ((medicationResult.data ?? []) as { resident_id: string | null }[]).forEach((record) => {
+        if (record.resident_id) {
+          activeMatMarResidentIds.add(record.resident_id);
+        }
+      });
+    }
+
+    setResidents(
+      residentRows.map((resident) => ({
+        ...resident,
+        has_active_mat_mar: activeMatMarResidentIds.has(resident.id),
+      }))
+    );
   }
 
   useEffect(() => {
@@ -770,6 +798,12 @@ export default function ResidentsPage() {
                               title={resident.high_alert_detail ?? undefined}
                             >
                               High Alert
+                            </span>
+                          ) : null}
+
+                          {resident.has_active_mat_mar ? (
+                            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                              MAT/MAR
                             </span>
                           ) : null}
 

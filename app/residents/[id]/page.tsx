@@ -2513,6 +2513,9 @@ Resident Signature Collected Electronically`;
   }
 
   const residentName = resident ? `${resident.first_name} ${resident.last_name}` : "Resident Profile";
+  const hasActiveMatMar = medicationRecords.some(
+    (medication) => medication.status === "active" && medication.mat_mar_related
+  );
 
   return (
     <PageShell>
@@ -2681,6 +2684,12 @@ Resident Signature Collected Electronically`;
                         {resident.high_alert ? (
                           <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
                             High Alert
+                          </span>
+                        ) : null}
+
+                        {hasActiveMatMar ? (
+                          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                            MAT/MAR
                           </span>
                         ) : null}
 
