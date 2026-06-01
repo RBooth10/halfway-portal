@@ -1865,33 +1865,29 @@ export default function ReportsPage() {
       const selectedResident = residents.find((resident) => resident.id === maintenanceFormResidentId);
       const selectedHouseId = maintenanceFormHouseId || selectedResident?.house_id || null;
 
-      const { data, error: insertError } = await supabase
-        .from("resident_maintenance_requests")
-        .insert({
-          provider_id: providerId,
-          house_id: selectedHouseId,
-          resident_id: maintenanceFormResidentId || null,
-          submitted_by_name: selectedResident
-            ? `${selectedResident.first_name ?? ""} ${selectedResident.last_name ?? ""}`.trim() || "Staff entry"
-            : "Staff entry",
-          request_title: maintenanceFormTitle.trim(),
-          request_description: maintenanceFormDescription.trim(),
-          location_area: maintenanceFormLocation.trim() || null,
-          priority: maintenanceFormPriority,
-          status: "open",
-          provider_notes: maintenanceFormNotes.trim() || null,
-        })
-        .select("*")
-        .single();
+      const { data, error: insertError } = await supabase.rpc("create_staff_maintenance_request", {
+        p_provider_id: providerId,
+        p_house_id: selectedHouseId,
+        p_resident_id: maintenanceFormResidentId || null,
+        p_request_title: maintenanceFormTitle.trim(),
+        p_request_description: maintenanceFormDescription.trim(),
+        p_location_area: maintenanceFormLocation.trim() || null,
+        p_priority: maintenanceFormPriority,
+        p_provider_notes: maintenanceFormNotes.trim() || null,
+      });
 
       if (insertError) {
         throw insertError;
       }
 
-      setMaintenanceRequests((current) => [data as MaintenanceRequestRow, ...current]);
+      if (!data?.ok) {
+        throw new Error(data?.message ?? "Could not create maintenance request.");
+      }
+
       resetMaintenanceForm();
       setShowMaintenanceForm(false);
       setMessage("Maintenance request created.");
+      await loadReports(providerId);
     } catch (err) {
       const maintenanceError = err as { message?: unknown };
       setError(maintenanceError?.message ? String(maintenanceError.message) : "Could not create maintenance request.");
