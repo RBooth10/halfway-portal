@@ -78,6 +78,24 @@ type ProviderHouseReport = {
   provider_house_report_houses?: ReportHouseTarget[] | null;
 };
 
+type ResidentFeeChargeRow = {
+  id: string;
+  provider_id: string;
+  resident_id: string;
+  house_id: string | null;
+  charge_type: string;
+  billing_frequency: string;
+  period_start: string | null;
+  period_end: string | null;
+  due_date: string | null;
+  amount: number | string | null;
+  amount_paid: number | string | null;
+  balance_due: number | string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+};
+
 type ReportForm = {
   report_date: string;
   completed_by: string;
@@ -431,6 +449,12 @@ export default function ReportsPage() {
   const [houses, setHouses] = useState<HouseRow[]>([]);
   const [residents, setResidents] = useState<ResidentRow[]>([]);
   const [reports, setReports] = useState<ProviderHouseReport[]>([]);
+  const [feeCharges, setFeeCharges] = useState<ResidentFeeChargeRow[]>([]);
+  const [feeHouseFilter, setFeeHouseFilter] = useState("all");
+  const [feeResidentStatusFilter, setFeeResidentStatusFilter] = useState("active");
+  const [feeChargeStatusFilter, setFeeChargeStatusFilter] = useState("open");
+  const [feeDueStart, setFeeDueStart] = useState("");
+  const [feeDueEnd, setFeeDueEnd] = useState("");
   const [selectedReportType, setSelectedReportType] = useState<ReportType | null>(null);
   const [showReportForm, setShowReportForm] = useState(false);
   const [savedReportsTab, setSavedReportsTab] = useState<ReportType>("annual_fire_drill");
@@ -462,6 +486,53 @@ export default function ReportsPage() {
   const filteredReports = useMemo(
     () => reports.filter((report) => report.report_type === savedReportsTab),
     [reports, savedReportsTab]
+  );
+
+  const filteredFeeCharges = useMemo(() => {
+    return feeCharges
+      .filter((charge) => {
+        const resident = residents.find((item) => item.id === charge.resident_id);
+        const residentHouseId = resident?.house_id ?? null;
+        const residentStatus = String(resident?.resident_status ?? "unknown").toLowerCase();
+        const chargeStatus = String(charge.status ?? "").toLowerCase();
+        const dueDate = charge.due_date ?? "";
+
+        const matchesHouse =
+          feeHouseFilter === "all" ||
+          charge.house_id === feeHouseFilter ||
+          residentHouseId === feeHouseFilter;
+
+        const matchesResidentStatus =
+          feeResidentStatusFilter === "all" ||
+          residentStatus === feeResidentStatusFilter;
+
+        const matchesChargeStatus =
+          feeChargeStatusFilter === "all" ||
+          chargeStatus === feeChargeStatusFilter;
+
+        const matchesStart = !feeDueStart || (dueDate && dueDate >= feeDueStart);
+        const matchesEnd = !feeDueEnd || (dueDate && dueDate <= feeDueEnd);
+
+        return matchesHouse && matchesResidentStatus && matchesChargeStatus && matchesStart && matchesEnd;
+      })
+      .sort((first, second) => {
+        const firstDue = first.due_date ?? "9999-12-31";
+        const secondDue = second.due_date ?? "9999-12-31";
+        return firstDue.localeCompare(secondDue);
+      });
+  }, [feeCharges, residents, feeHouseFilter, feeResidentStatusFilter, feeChargeStatusFilter, feeDueStart, feeDueEnd]);
+
+  const filteredFeeTotals = useMemo(
+    () =>
+      filteredFeeCharges.reduce(
+        (totals, charge) => ({
+          amount: totals.amount + Number(charge.amount || 0),
+          paid: totals.paid + Number(charge.amount_paid || 0),
+          balance: totals.balance + Number(charge.balance_due || 0),
+        }),
+        { amount: 0, paid: 0, balance: 0 }
+      ),
+    [filteredFeeCharges]
   );
 
   useEffect(() => {
@@ -503,20 +574,30 @@ export default function ReportsPage() {
       .order("report_date", { ascending: false })
       .order("created_at", { ascending: false });
 
+    const feeChargesResult = await supabase
+      .from("resident_fee_charges")
+      .select("id, provider_id, resident_id, house_id, charge_type, billing_frequency, period_start, period_end, due_date, amount, amount_paid, balance_due, status, notes, created_at")
+      .eq("provider_id", activeProviderId)
+      .order("due_date", { ascending: true })
+      .order("created_at", { ascending: false });
+
     if (providerResult.error) throw providerResult.error;
     if (housesResult.error) throw housesResult.error;
     if (staffResult.error) throw staffResult.error;
     if (residentsResult.error) throw residentsResult.error;
     if (reportsResult.error) throw reportsResult.error;
+    if (feeChargesResult.error) throw feeChargesResult.error;
 
     const loadedHouses = (housesResult.data ?? []) as HouseRow[];
     const loadedResidents = (residentsResult.data ?? []) as ResidentRow[];
     const loadedReports = (reportsResult.data ?? []) as ProviderHouseReport[];
+    const loadedFeeCharges = (feeChargesResult.data ?? []) as ResidentFeeChargeRow[];
     const staff = staffResult.data ?? [];
 
     setHouses(loadedHouses);
     setResidents(loadedResidents);
     setReports(loadedReports);
+    setFeeCharges(loadedFeeCharges);
     setCounts({
       providerName: providerResult.data?.legal_name ?? "Current Provider",
       houses: loadedHouses.length,
@@ -616,6 +697,40 @@ export default function ReportsPage() {
   function getHouseName(houseId: string | null) {
     if (!houseId) return "Multiple houses";
     return houses.find((house) => house.id === houseId)?.name ?? "Selected house";
+  }
+
+  function getResidentName(residentId: string) {
+    const resident = residents.find((item) => item.id === residentId);
+    if (!resident) return "Unknown resident";
+    return `${resident.first_name} ${resident.last_name}`;
+  }
+
+  function getFeeHouseName(charge: ResidentFeeChargeRow) {
+    const resident = residents.find((item) => item.id === charge.resident_id);
+    const houseId = charge.house_id || resident?.house_id || null;
+    if (!houseId) return "Not assigned";
+    return houses.find((house) => house.id === houseId)?.name ?? "Unknown house";
+  }
+
+  function formatCurrency(value: number | string | null | undefined) {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(Number(value || 0));
+  }
+
+  function formatFeeLabel(value: string | null | undefined) {
+    return String(value ?? "")
+      .replaceAll("_", " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase()) || "Not entered";
+  }
+
+  function formatFeePeriod(charge: ResidentFeeChargeRow) {
+    if (charge.period_start || charge.period_end) {
+      return `${formatDate(charge.period_start)} - ${formatDate(charge.period_end)}`;
+    }
+
+    return "One-time";
   }
 
   function getReportHouseNames(report: ProviderHouseReport) {
@@ -1397,6 +1512,144 @@ export default function ReportsPage() {
     );
   }
 
+  function renderRollingFeeList() {
+    return (
+      <section id="rolling-fee-list-print" className="rounded-2xl border bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">Rolling Fee List</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Filter and print resident fee charges across houses, residents, due dates, and charge statuses.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="fee-print-hidden inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            Print Fee List
+          </button>
+        </div>
+
+        <div className="fee-print-hidden mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">House</span>
+            <select
+              value={feeHouseFilter}
+              onChange={(event) => setFeeHouseFilter(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+            >
+              <option value="all">All houses</option>
+              {activeHouses.map((house) => (
+                <option key={house.id} value={house.id}>
+                  {house.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">Resident status</span>
+            <select
+              value={feeResidentStatusFilter}
+              onChange={(event) => setFeeResidentStatusFilter(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+            >
+              <option value="active">Active residents</option>
+              <option value="discharged">Discharged residents</option>
+              <option value="all">All residents</option>
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">Charge status</span>
+            <select
+              value={feeChargeStatusFilter}
+              onChange={(event) => setFeeChargeStatusFilter(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+            >
+              <option value="open">Open</option>
+              <option value="paid">Paid</option>
+              <option value="all">All statuses</option>
+            </select>
+          </label>
+
+          <TextField
+            label="Due start"
+            type="date"
+            value={feeDueStart}
+            onChange={setFeeDueStart}
+          />
+
+          <TextField
+            label="Due end"
+            type="date"
+            value={feeDueEnd}
+            onChange={setFeeDueEnd}
+          />
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total Charges</p>
+            <p className="mt-1 text-xl font-semibold text-slate-950">{formatCurrency(filteredFeeTotals.amount)}</p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total Paid</p>
+            <p className="mt-1 text-xl font-semibold text-slate-950">{formatCurrency(filteredFeeTotals.paid)}</p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Balance Due</p>
+            <p className="mt-1 text-xl font-semibold text-slate-950">{formatCurrency(filteredFeeTotals.balance)}</p>
+          </div>
+        </div>
+
+        <div className="mt-5 overflow-x-auto">
+          {filteredFeeCharges.length === 0 ? (
+            <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
+              No fee charges match the selected filters.
+            </div>
+          ) : (
+            <table className="min-w-full divide-y text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-3 py-3 font-semibold">Resident</th>
+                  <th className="px-3 py-3 font-semibold">House</th>
+                  <th className="px-3 py-3 font-semibold">Charge</th>
+                  <th className="px-3 py-3 font-semibold">Period</th>
+                  <th className="px-3 py-3 font-semibold">Due</th>
+                  <th className="px-3 py-3 text-right font-semibold">Amount</th>
+                  <th className="px-3 py-3 text-right font-semibold">Paid</th>
+                  <th className="px-3 py-3 text-right font-semibold">Balance</th>
+                  <th className="px-3 py-3 font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {filteredFeeCharges.map((charge) => (
+                  <tr key={charge.id} className="bg-white">
+                    <td className="px-3 py-3 font-medium text-slate-950">{getResidentName(charge.resident_id)}</td>
+                    <td className="px-3 py-3 text-slate-600">{getFeeHouseName(charge)}</td>
+                    <td className="px-3 py-3 text-slate-600">
+                      {formatFeeLabel(charge.charge_type)}
+                      <span className="block text-xs text-slate-400">{formatFeeLabel(charge.billing_frequency)}</span>
+                    </td>
+                    <td className="px-3 py-3 text-slate-600">{formatFeePeriod(charge)}</td>
+                    <td className="px-3 py-3 text-slate-600">{formatDate(charge.due_date)}</td>
+                    <td className="px-3 py-3 text-right text-slate-600">{formatCurrency(charge.amount)}</td>
+                    <td className="px-3 py-3 text-right text-slate-600">{formatCurrency(charge.amount_paid)}</td>
+                    <td className="px-3 py-3 text-right font-semibold text-slate-950">{formatCurrency(charge.balance_due)}</td>
+                    <td className="px-3 py-3 text-slate-600">{formatFeeLabel(charge.status)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
+    );
+  }
+
   function renderSubmittedReportFields(report: ProviderHouseReport) {
     const data = report.report_data ?? {};
 
@@ -1439,6 +1692,32 @@ export default function ReportsPage() {
 
   return (
     <PageShell>
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+
+          #rolling-fee-list-print,
+          #rolling-fee-list-print * {
+            visibility: visible;
+          }
+
+          #rolling-fee-list-print {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            border: 0;
+            box-shadow: none;
+          }
+
+          .fee-print-hidden {
+            display: none !important;
+          }
+        }
+      `}</style>
+
       <section className="rounded-2xl border bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex gap-4">
@@ -1687,6 +1966,8 @@ export default function ReportsPage() {
           </div>
         </section>
       ) : null}
+
+      {renderRollingFeeList()}
 
       <section className="rounded-2xl border bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
         <div className="flex items-start gap-3">
