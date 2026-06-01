@@ -372,7 +372,7 @@ export default function UaRandomizerPage() {
 
       await saveDefaultRollingRule(providerId);
 
-      const { data, error: syncError } = await supabase.rpc("ensure_provider_rolling_ua_schedule", {
+      const { data, error: syncError } = await supabase.rpc("repopulate_provider_rolling_ua_schedule", {
         p_provider_id: providerId,
         p_window_days: windowDays,
         p_min_tests: minTests,
@@ -385,7 +385,7 @@ export default function UaRandomizerPage() {
 
       await refreshSchedule(providerId);
 
-      setMessage(`Rolling UA schedule initialized. ${Number(data ?? 0)} new scheduled item(s) added. Future resident and phase changes will update automatically.`);
+      setMessage(`Rolling UA schedule repopulated. ${Number(data ?? 0)} scheduled item(s) generated. Completed UA records were not changed.`);
     } catch (err) {
       const syncError = err as { message?: unknown };
       setError(syncError?.message ? String(syncError.message) : "Could not sync rolling UA schedule.");
@@ -451,7 +451,7 @@ export default function UaRandomizerPage() {
         <div className="rounded-2xl border bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold">Rolling Schedule Rule</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Set the rolling UA rule once. After initialization, resident additions, phase changes, house moves, readmissions, and discharges update the future UA list automatically.
+            Set the rolling UA rule, then repopulate whenever you need a fresh future UA list. Completed UA records are not changed.
           </p>
 
           <div className="mt-5 grid gap-4">
@@ -516,7 +516,7 @@ export default function UaRandomizerPage() {
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              {syncing ? "Initializing..." : "Initialize Rolling Schedule"}
+              {syncing ? "Repopulating..." : "Repopulate Rolling Schedule"}
             </button>
           </div>
         </div>
@@ -662,9 +662,8 @@ export default function UaRandomizerPage() {
           <div>
             <h2 className="text-lg font-semibold">How rolling UA scheduling works</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Initialize the schedule once. After that, the database trigger runs when a resident is added, readmitted,
-              discharged, assigned to a house, or moved to a new phase. The system only updates future scheduled
-              UA items. Completed UA records are not changed.
+              Repopulate the schedule whenever you need a fresh future UA list. The system cancels future scheduled
+              UA items and regenerates the current rolling window. Completed UA records are not changed.
             </p>
           </div>
         </div>
