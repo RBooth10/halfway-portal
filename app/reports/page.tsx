@@ -96,6 +96,23 @@ type ResidentFeeChargeRow = {
   created_at: string;
 };
 
+type MaintenanceRequestRow = {
+  id: string;
+  provider_id: string;
+  house_id: string | null;
+  resident_id: string | null;
+  submitted_by_name: string | null;
+  request_title: string;
+  request_description: string;
+  location_area: string | null;
+  priority: string;
+  status: string;
+  provider_notes: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type ReportForm = {
   report_date: string;
   completed_by: string;
@@ -456,6 +473,11 @@ export default function ReportsPage() {
   const [feeDueStart, setFeeDueStart] = useState("");
   const [feeDueEnd, setFeeDueEnd] = useState("");
   const [showRollingFeeList, setShowRollingFeeList] = useState(false);
+  const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequestRow[]>([]);
+  const [showMaintenanceLog, setShowMaintenanceLog] = useState(false);
+  const [maintenanceHouseFilter, setMaintenanceHouseFilter] = useState("all");
+  const [maintenanceStatusFilter, setMaintenanceStatusFilter] = useState("open");
+  const [maintenancePriorityFilter, setMaintenancePriorityFilter] = useState("all");
   const [selectedReportType, setSelectedReportType] = useState<ReportType | null>(null);
   const [showReportForm, setShowReportForm] = useState(false);
   const [savedReportsTab, setSavedReportsTab] = useState<ReportType>("annual_fire_drill");
@@ -536,6 +558,26 @@ export default function ReportsPage() {
     [filteredFeeCharges]
   );
 
+  const filteredMaintenanceRequests = useMemo(() => {
+    return maintenanceRequests
+      .filter((request) => {
+        const matchesHouse =
+          maintenanceHouseFilter === "all" ||
+          request.house_id === maintenanceHouseFilter;
+
+        const matchesStatus =
+          maintenanceStatusFilter === "all" ||
+          request.status === maintenanceStatusFilter;
+
+        const matchesPriority =
+          maintenancePriorityFilter === "all" ||
+          request.priority === maintenancePriorityFilter;
+
+        return matchesHouse && matchesStatus && matchesPriority;
+      })
+      .sort((first, second) => second.created_at.localeCompare(first.created_at));
+  }, [maintenanceRequests, maintenanceHouseFilter, maintenanceStatusFilter, maintenancePriorityFilter]);
+
   useEffect(() => {
     if (!selectedReportType || selectedReportType !== "weekly_house_meeting_minutes") {
       setResidentAttendance({});
@@ -582,23 +624,32 @@ export default function ReportsPage() {
       .order("due_date", { ascending: true })
       .order("created_at", { ascending: false });
 
+    const maintenanceResult = await supabase
+      .from("resident_maintenance_requests")
+      .select("id, provider_id, house_id, resident_id, submitted_by_name, request_title, request_description, location_area, priority, status, provider_notes, completed_at, created_at, updated_at")
+      .eq("provider_id", activeProviderId)
+      .order("created_at", { ascending: false });
+
     if (providerResult.error) throw providerResult.error;
     if (housesResult.error) throw housesResult.error;
     if (staffResult.error) throw staffResult.error;
     if (residentsResult.error) throw residentsResult.error;
     if (reportsResult.error) throw reportsResult.error;
     if (feeChargesResult.error) throw feeChargesResult.error;
+    if (maintenanceResult.error) throw maintenanceResult.error;
 
     const loadedHouses = (housesResult.data ?? []) as HouseRow[];
     const loadedResidents = (residentsResult.data ?? []) as ResidentRow[];
     const loadedReports = (reportsResult.data ?? []) as ProviderHouseReport[];
     const loadedFeeCharges = (feeChargesResult.data ?? []) as ResidentFeeChargeRow[];
+    const loadedMaintenanceRequests = (maintenanceResult.data ?? []) as MaintenanceRequestRow[];
     const staff = staffResult.data ?? [];
 
     setHouses(loadedHouses);
     setResidents(loadedResidents);
     setReports(loadedReports);
     setFeeCharges(loadedFeeCharges);
+    setMaintenanceRequests(loadedMaintenanceRequests);
     setCounts({
       providerName: providerResult.data?.legal_name ?? "Current Provider",
       houses: loadedHouses.length,
@@ -732,6 +783,73 @@ export default function ReportsPage() {
     }
 
     return "One-time";
+  }
+
+  function formatDateTime(value: string | null | undefined) {
+    if (!value) return "Not entered";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Not entered";
+
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(date);
+  }
+
+  function getMaintenanceResidentName(request: MaintenanceRequestRow) {
+    if (request.resident_id) {
+      return getResidentName(request.resident_id);
+    }
+
+    return request.submitted_by_name || "Not entered";
+  }
+
+  function getMaintenanceHouseName(request: MaintenanceRequestRow) {
+    if (!request.house_id) return "Not assigned";
+    return houses.find((house) => house.id === request.house_id)?.name ?? "Unknown house";
+  }
+
+  function exportMaintenanceLogCsv() {
+    const headers = [
+      "Created",
+      "Title",
+      "House",
+      "Resident / Submitted By",
+      "Location",
+      "Priority",
+      "Status",
+      "Description",
+      "Provider Notes",
+    ];
+
+    const rows = filteredMaintenanceRequests.map((request) => [
+      formatDateTime(request.created_at),
+      request.request_title,
+      getMaintenanceHouseName(request),
+      getMaintenanceResidentName(request),
+      request.location_area ?? "",
+      formatFeeLabel(request.priority),
+      formatFeeLabel(request.status),
+      request.request_description,
+      request.provider_notes ?? "",
+    ]);
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `maintenance-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+
+    URL.revokeObjectURL(url);
   }
 
   function getReportHouseNames(report: ProviderHouseReport) {
@@ -1703,6 +1821,120 @@ export default function ReportsPage() {
     );
   }
 
+  function renderMaintenanceLog() {
+    return (
+      <section className="rounded-2xl border bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">Maintenance Log</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Review maintenance requests submitted by residents or entered by staff.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={exportMaintenanceLogCsv}
+            disabled={filteredMaintenanceRequests.length === 0}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Download className="h-4 w-4" />
+            Export Maintenance Log
+          </button>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-3">
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">House</span>
+            <select
+              value={maintenanceHouseFilter}
+              onChange={(event) => setMaintenanceHouseFilter(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+            >
+              <option value="all">All houses</option>
+              {activeHouses.map((house) => (
+                <option key={house.id} value={house.id}>
+                  {house.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">Status</span>
+            <select
+              value={maintenanceStatusFilter}
+              onChange={(event) => setMaintenanceStatusFilter(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+            >
+              <option value="open">Open</option>
+              <option value="in_progress">In progress</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="all">All statuses</option>
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">Priority</span>
+            <select
+              value={maintenancePriorityFilter}
+              onChange={(event) => setMaintenancePriorityFilter(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+            >
+              <option value="all">All priorities</option>
+              <option value="urgent">Urgent</option>
+              <option value="normal">Normal</option>
+              <option value="low">Low</option>
+            </select>
+          </label>
+        </div>
+
+        {filteredMaintenanceRequests.length === 0 ? (
+          <div className="mt-5 rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
+            No maintenance requests match the selected filters.
+          </div>
+        ) : (
+          <div className="mt-5 grid gap-3">
+            {filteredMaintenanceRequests.map((request) => (
+              <div key={request.id} className="rounded-2xl border bg-slate-50 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h3 className="font-semibold text-slate-950">{request.request_title}</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {getMaintenanceHouseName(request)} • {getMaintenanceResidentName(request)}
+                      {request.location_area ? ` • ${request.location_area}` : ""}
+                    </p>
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                      {request.request_description}
+                    </p>
+                    {request.provider_notes ? (
+                      <p className="mt-2 whitespace-pre-wrap rounded-xl bg-white p-3 text-sm text-slate-600">
+                        Provider notes: {request.provider_notes}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 md:justify-end">
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                      {formatFeeLabel(request.status)}
+                    </span>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                      {formatFeeLabel(request.priority)}
+                    </span>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500">
+                      {formatDateTime(request.created_at)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    );
+  }
+
   function renderSubmittedReportFields(report: ProviderHouseReport) {
     const data = report.report_data ?? {};
 
@@ -1784,11 +2016,27 @@ export default function ReportsPage() {
           <div>
             <p className="text-sm font-medium text-slate-500">Report folder</p>
             <h2 className="mt-1 text-lg font-semibold text-slate-950">
-              {showRollingFeeList ? "Rolling Fee List" : selectedReportType ? selectedReportLabel : "Select a report type"}
+              {showMaintenanceLog
+                ? "Maintenance Log"
+                : showRollingFeeList
+                  ? "Rolling Fee List"
+                  : selectedReportType
+                    ? selectedReportLabel
+                    : "Select a report type"}
             </h2>
           </div>
 
-          {showRollingFeeList ? (
+          {showMaintenanceLog ? (
+            <button
+              type="button"
+              onClick={exportMaintenanceLogCsv}
+              disabled={filteredMaintenanceRequests.length === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Download className="h-4 w-4" />
+              Export Maintenance Log
+            </button>
+          ) : showRollingFeeList ? (
             <button
               type="button"
               onClick={exportRollingFeeListCsv}
@@ -1820,6 +2068,7 @@ export default function ReportsPage() {
                 setSelectedReportType(reportType.value);
                 setSavedReportsTab(reportType.value);
                 setShowRollingFeeList(false);
+                setShowMaintenanceLog(false);
                 setSelectedHouseIds([]);
                 setResidentAttendance({});
                 setShowReportForm(false);
@@ -1828,7 +2077,7 @@ export default function ReportsPage() {
                 setError("");
               }}
               className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
-                !showRollingFeeList && selectedReportType === reportType.value
+                !showRollingFeeList && !showMaintenanceLog && selectedReportType === reportType.value
                   ? "bg-white text-slate-950 shadow-sm"
                   : "text-slate-600 hover:text-slate-950"
               }`}
@@ -2026,6 +2275,7 @@ export default function ReportsPage() {
       ) : null}
 
       {showRollingFeeList ? renderRollingFeeList() : null}
+      {showMaintenanceLog ? renderMaintenanceLog() : null}
 
       <section className="rounded-2xl border bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
         <div className="flex items-start gap-3">
