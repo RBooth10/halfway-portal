@@ -2090,6 +2090,7 @@ export default function ReportsPage() {
             type="button"
             onClick={() => {
               setShowRollingFeeList(true);
+              setShowMaintenanceLog(false);
               setSelectedReportType(null);
               setShowReportForm(false);
               setMessage("");
@@ -2102,6 +2103,25 @@ export default function ReportsPage() {
             }`}
           >
             Rolling Fee List
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setShowMaintenanceLog(true);
+              setShowRollingFeeList(false);
+              setSelectedReportType(null);
+              setShowReportForm(false);
+              setMessage("");
+              setError("");
+            }}
+            className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+              showMaintenanceLog
+                ? "bg-white text-slate-950 shadow-sm"
+                : "text-slate-600 hover:text-slate-950"
+            }`}
+          >
+            Maintenance Log
           </button>
         </div>
       </section>
