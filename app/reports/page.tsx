@@ -113,6 +113,25 @@ type MaintenanceRequestRow = {
   updated_at: string;
 };
 
+type PassRequestRow = {
+  id: string;
+  provider_id: string;
+  house_id: string | null;
+  resident_id: string;
+  requested_departure_at: string;
+  requested_return_at: string;
+  destination: string;
+  reason: string | null;
+  transportation_plan: string | null;
+  emergency_contact_plan: string | null;
+  status: string;
+  provider_notes: string | null;
+  reviewed_by_auth_user_id: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type ReportForm = {
   report_date: string;
   completed_by: string;
@@ -478,6 +497,10 @@ export default function ReportsPage() {
   const [maintenanceHouseFilter, setMaintenanceHouseFilter] = useState("all");
   const [maintenanceStatusFilter, setMaintenanceStatusFilter] = useState("open");
   const [maintenancePriorityFilter, setMaintenancePriorityFilter] = useState("all");
+  const [passRequests, setPassRequests] = useState<PassRequestRow[]>([]);
+  const [showPassRequests, setShowPassRequests] = useState(false);
+  const [passHouseFilter, setPassHouseFilter] = useState("all");
+  const [passStatusFilter, setPassStatusFilter] = useState("pending");
   const [showMaintenanceForm, setShowMaintenanceForm] = useState(false);
   const [maintenanceFormHouseId, setMaintenanceFormHouseId] = useState("");
   const [maintenanceFormResidentId, setMaintenanceFormResidentId] = useState("");
@@ -587,6 +610,22 @@ export default function ReportsPage() {
       .sort((first, second) => second.created_at.localeCompare(first.created_at));
   }, [maintenanceRequests, maintenanceHouseFilter, maintenanceStatusFilter, maintenancePriorityFilter]);
 
+  const filteredPassRequests = useMemo(() => {
+    return passRequests
+      .filter((request) => {
+        const matchesHouse =
+          passHouseFilter === "all" ||
+          request.house_id === passHouseFilter;
+
+        const matchesStatus =
+          passStatusFilter === "all" ||
+          request.status === passStatusFilter;
+
+        return matchesHouse && matchesStatus;
+      })
+      .sort((first, second) => second.created_at.localeCompare(first.created_at));
+  }, [passRequests, passHouseFilter, passStatusFilter]);
+
   useEffect(() => {
     if (!selectedReportType || selectedReportType !== "weekly_house_meeting_minutes") {
       setResidentAttendance({});
@@ -639,6 +678,12 @@ export default function ReportsPage() {
       .eq("provider_id", activeProviderId)
       .order("created_at", { ascending: false });
 
+    const passRequestsResult = await supabase
+      .from("resident_pass_requests")
+      .select("id, provider_id, house_id, resident_id, requested_departure_at, requested_return_at, destination, reason, transportation_plan, emergency_contact_plan, status, provider_notes, reviewed_by_auth_user_id, reviewed_at, created_at, updated_at")
+      .eq("provider_id", activeProviderId)
+      .order("created_at", { ascending: false });
+
     if (providerResult.error) throw providerResult.error;
     if (housesResult.error) throw housesResult.error;
     if (staffResult.error) throw staffResult.error;
@@ -646,12 +691,14 @@ export default function ReportsPage() {
     if (reportsResult.error) throw reportsResult.error;
     if (feeChargesResult.error) throw feeChargesResult.error;
     if (maintenanceResult.error) throw maintenanceResult.error;
+    if (passRequestsResult.error) throw passRequestsResult.error;
 
     const loadedHouses = (housesResult.data ?? []) as HouseRow[];
     const loadedResidents = (residentsResult.data ?? []) as ResidentRow[];
     const loadedReports = (reportsResult.data ?? []) as ProviderHouseReport[];
     const loadedFeeCharges = (feeChargesResult.data ?? []) as ResidentFeeChargeRow[];
     const loadedMaintenanceRequests = (maintenanceResult.data ?? []) as MaintenanceRequestRow[];
+    const loadedPassRequests = (passRequestsResult.data ?? []) as PassRequestRow[];
     const staff = staffResult.data ?? [];
 
     setHouses(loadedHouses);
@@ -659,6 +706,7 @@ export default function ReportsPage() {
     setReports(loadedReports);
     setFeeCharges(loadedFeeCharges);
     setMaintenanceRequests(loadedMaintenanceRequests);
+    setPassRequests(loadedPassRequests);
     setCounts({
       providerName: providerResult.data?.legal_name ?? "Current Provider",
       houses: loadedHouses.length,
@@ -1830,6 +1878,212 @@ export default function ReportsPage() {
     );
   }
 
+  function getPassResidentName(request: PassRequestRow) {
+    return getResidentName(request.resident_id);
+  }
+
+  function getPassHouseName(request: PassRequestRow) {
+    if (!request.house_id) return "Not assigned";
+    return houses.find((house) => house.id === request.house_id)?.name ?? "Unknown house";
+  }
+
+  async function updatePassRequestStatus(request: PassRequestRow, nextStatus: string) {
+    if (!providerId) {
+      setError("No provider selected.");
+      return;
+    }
+
+    const providerNotes = window.prompt("Provider notes or review details:", request.provider_notes ?? "");
+
+    if (providerNotes === null) {
+      return;
+    }
+
+    try {
+      setSavingMaintenanceRequest(true);
+      setError("");
+      setMessage("");
+
+      const supabase = getSupabaseClient() as any;
+      const { data: userData } = await supabase.auth.getUser();
+
+      const { error: updateError } = await supabase
+        .from("resident_pass_requests")
+        .update({
+          status: nextStatus,
+          provider_notes: providerNotes.trim() || null,
+          reviewed_by_auth_user_id: userData.user?.id ?? null,
+          reviewed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", request.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      setMessage("Pass request updated.");
+      await loadReports(providerId);
+    } catch (err) {
+      const passError = err as { message?: unknown };
+      setError(passError?.message ? String(passError.message) : "Could not update pass request.");
+    } finally {
+      setSavingMaintenanceRequest(false);
+    }
+  }
+
+  function renderPassRequests() {
+    return (
+      <section className="rounded-2xl border bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">Pass Requests</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Review pass requests submitted from the resident portal.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">House</span>
+            <select
+              value={passHouseFilter}
+              onChange={(event) => setPassHouseFilter(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+            >
+              <option value="all">All houses</option>
+              {activeHouses.map((house) => (
+                <option key={house.id} value={house.id}>
+                  {house.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">Status</span>
+            <select
+              value={passStatusFilter}
+              onChange={(event) => setPassStatusFilter(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+            >
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="denied">Denied</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="completed">Completed</option>
+              <option value="all">All statuses</option>
+            </select>
+          </label>
+        </div>
+
+        {filteredPassRequests.length === 0 ? (
+          <div className="mt-5 rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
+            No pass requests match the selected filters.
+          </div>
+        ) : (
+          <div className="mt-5 grid gap-3">
+            {filteredPassRequests.map((request) => (
+              <div key={request.id} className="rounded-2xl border bg-slate-50 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h3 className="font-semibold text-slate-950">{getPassResidentName(request)}</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {getPassHouseName(request)} • {request.destination}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-700">
+                      Departure: {formatDateTime(request.requested_departure_at)}
+                    </p>
+                    <p className="text-sm text-slate-700">
+                      Return: {formatDateTime(request.requested_return_at)}
+                    </p>
+                    {request.reason ? (
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                        Reason: {request.reason}
+                      </p>
+                    ) : null}
+                    {request.transportation_plan ? (
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                        Transportation: {request.transportation_plan}
+                      </p>
+                    ) : null}
+                    {request.emergency_contact_plan ? (
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                        Safety plan: {request.emergency_contact_plan}
+                      </p>
+                    ) : null}
+                    {request.provider_notes ? (
+                      <p className="mt-2 whitespace-pre-wrap rounded-xl bg-white p-3 text-sm text-slate-600">
+                        Provider notes: {request.provider_notes}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-col gap-2 md:items-end">
+                    <div className="flex flex-wrap gap-2 md:justify-end">
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                        {formatFeeLabel(request.status)}
+                      </span>
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500">
+                        Submitted {formatDateTime(request.created_at)}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 md:justify-end">
+                      {request.status === "pending" ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => updatePassRequestStatus(request, "approved")}
+                            disabled={savingMaintenanceRequest}
+                            className="rounded-lg bg-slate-950 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updatePassRequestStatus(request, "denied")}
+                            disabled={savingMaintenanceRequest}
+                            className="rounded-lg border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50 disabled:opacity-60"
+                          >
+                            Deny
+                          </button>
+                        </>
+                      ) : null}
+
+                      {request.status === "approved" ? (
+                        <button
+                          type="button"
+                          onClick={() => updatePassRequestStatus(request, "completed")}
+                          disabled={savingMaintenanceRequest}
+                          className="rounded-lg bg-slate-950 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                        >
+                          Mark Complete
+                        </button>
+                      ) : null}
+
+                      {request.status !== "completed" && request.status !== "cancelled" ? (
+                        <button
+                          type="button"
+                          onClick={() => updatePassRequestStatus(request, "cancelled")}
+                          disabled={savingMaintenanceRequest}
+                          className="rounded-lg border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50 disabled:opacity-60"
+                        >
+                          Cancel
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    );
+  }
+
   function resetMaintenanceForm() {
     setMaintenanceFormHouseId("");
     setMaintenanceFormResidentId("");
@@ -2311,13 +2565,15 @@ export default function ReportsPage() {
           <div>
             <p className="text-sm font-medium text-slate-500">Report folder</p>
             <h2 className="mt-1 text-lg font-semibold text-slate-950">
-              {showMaintenanceLog
-                ? "Maintenance Log"
-                : showRollingFeeList
-                  ? "Rolling Fee List"
-                  : selectedReportType
-                    ? selectedReportLabel
-                    : "Select a report type"}
+              {showPassRequests
+                ? "Pass Requests"
+                : showMaintenanceLog
+                  ? "Maintenance Log"
+                  : showRollingFeeList
+                    ? "Rolling Fee List"
+                    : selectedReportType
+                      ? selectedReportLabel
+                      : "Select a report type"}
             </h2>
           </div>
 
@@ -2364,6 +2620,7 @@ export default function ReportsPage() {
                 setSavedReportsTab(reportType.value);
                 setShowRollingFeeList(false);
                 setShowMaintenanceLog(false);
+                setShowPassRequests(false);
                 setSelectedHouseIds([]);
                 setResidentAttendance({});
                 setShowReportForm(false);
@@ -2372,7 +2629,7 @@ export default function ReportsPage() {
                 setError("");
               }}
               className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
-                !showRollingFeeList && !showMaintenanceLog && selectedReportType === reportType.value
+                !showRollingFeeList && !showMaintenanceLog && !showPassRequests && selectedReportType === reportType.value
                   ? "bg-white text-slate-950 shadow-sm"
                   : "text-slate-600 hover:text-slate-950"
               }`}
@@ -2405,6 +2662,7 @@ export default function ReportsPage() {
             onClick={() => {
               setShowMaintenanceLog(true);
               setShowRollingFeeList(false);
+              setShowPassRequests(false);
               setSelectedReportType(null);
               setShowReportForm(false);
               setMessage("");
@@ -2417,6 +2675,26 @@ export default function ReportsPage() {
             }`}
           >
             Maintenance Log
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setShowPassRequests(true);
+              setShowMaintenanceLog(false);
+              setShowRollingFeeList(false);
+              setSelectedReportType(null);
+              setShowReportForm(false);
+              setMessage("");
+              setError("");
+            }}
+            className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+              showPassRequests
+                ? "bg-white text-slate-950 shadow-sm"
+                : "text-slate-600 hover:text-slate-950"
+            }`}
+          >
+            Pass Requests
           </button>
         </div>
       </section>
@@ -2591,6 +2869,7 @@ export default function ReportsPage() {
 
       {showRollingFeeList ? renderRollingFeeList() : null}
       {showMaintenanceLog ? renderMaintenanceLog() : null}
+      {showPassRequests ? renderPassRequests() : null}
 
       <section className="rounded-2xl border bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
         <div className="flex items-start gap-3">
