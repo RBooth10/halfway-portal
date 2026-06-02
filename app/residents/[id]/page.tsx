@@ -65,6 +65,7 @@ type ResidentDetail = {
   sponsor_name: string | null;
   sponsor_phone: string | null;
   current_step: string | null;
+  sponsor_info_updated_at: string | null;
   has_home_group: boolean;
   attending_required_meetings: boolean;
   recovery_plan_started: boolean;
@@ -2982,6 +2983,20 @@ Resident Signature Collected Electronically`;
 
                           <div className="mt-5 rounded-2xl border bg-white p-4">
                             <p className="text-sm font-semibold text-slate-950">Sponsor Details</p>
+                            {resident.sponsor_info_updated_at ? (
+                              <div className="mt-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                                <p className="font-semibold">Resident portal sponsor update</p>
+                                <p className="mt-1">
+                                  Last updated {new Intl.DateTimeFormat("en-US", {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                  }).format(new Date(resident.sponsor_info_updated_at))}
+                                </p>
+                              </div>
+                            ) : null}
                             <p className="mt-1 text-xs text-slate-500">
                               These fields will be provider-visible now and can later be updated from the resident portal.
                             </p>

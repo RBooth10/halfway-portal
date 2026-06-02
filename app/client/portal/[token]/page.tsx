@@ -300,7 +300,7 @@ export default function ClientPortalPage() {
 
       const supabase = getSupabaseClient() as any;
 
-      const { data, error } = await supabase.rpc("submit_client_portal_pass_request", {
+      const { data, error } = await supabase.rpc("submit_client_portal_pass_request_v2", {
         p_payload: {
           access_token: token,
           requested_departure_at: new Date(passDepartureAt).toISOString(),
