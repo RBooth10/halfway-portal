@@ -13,7 +13,6 @@ import {
   ShieldCheck,
   UserPlus,
 } from "lucide-react";
-import Link from "next/link";
 import PageShell from "@/components/PageShell";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -409,14 +408,7 @@ export default function ProviderOnboardingPage() {
 
   return (
     <PageShell maxWidth="max-w-7xl">
-      <Link
-        href="/"
-        className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-slate-50"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to dashboard
-      </Link>
-
+      
       <section className="col-span-full w-full rounded-2xl border bg-white p-5 shadow-sm">
         <div className="flex gap-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-100">

@@ -817,14 +817,7 @@ export default function DocumentsPage() {
   return (
     <PageShell>
       <div className="flex flex-wrap gap-3">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-slate-50"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to dashboard
-        </Link>
-
+        
         <Link
           href="/residents"
           className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-slate-50"

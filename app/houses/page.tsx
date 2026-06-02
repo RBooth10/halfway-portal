@@ -468,14 +468,7 @@ export default function HousesPage() {
   return (
     <PageShell>
       <div className="flex flex-wrap gap-3">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-slate-50"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to dashboard
-        </Link>
-      </div>
+              </div>
 
       <section className="rounded-2xl border bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
