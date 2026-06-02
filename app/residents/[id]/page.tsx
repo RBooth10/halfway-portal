@@ -2709,8 +2709,9 @@ Resident Signature Collected Electronically`;
                   <TabButton active={activeTab === "rci"} label="RCI / Plan" status={latestCompletedRci ? `Complete • ${rciCompletedLabel}` : "Needs RCI"} onClick={() => setActiveTab("rci")} />
                 </div>
               </div>
+            </div>
 
-              <div className="space-y-6">
+              <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
                 <div className={activeTab === "contacts" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
