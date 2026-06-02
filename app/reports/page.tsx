@@ -639,6 +639,16 @@ export default function ReportsPage() {
       .sort((first, second) => second.created_at.localeCompare(first.created_at));
   }, [passRequests, passHouseFilter, passStatusFilter]);
 
+  const openMaintenanceCount = useMemo(
+    () => maintenanceRequests.filter((request) => request.status === "open").length,
+    [maintenanceRequests]
+  );
+
+  const pendingPassRequestCount = useMemo(
+    () => passRequests.filter((request) => request.status === "pending").length,
+    [passRequests]
+  );
+
   useEffect(() => {
     if (!selectedReportType || selectedReportType !== "weekly_house_meeting_minutes") {
       setResidentAttendance({});
@@ -2808,7 +2818,7 @@ export default function ReportsPage() {
                 : "text-slate-600 hover:text-slate-950"
             }`}
           >
-            Maintenance Log
+            Maintenance Log{openMaintenanceCount > 0 ? ` (${openMaintenanceCount} open)` : ""}
           </button>
 
           <button
@@ -2828,7 +2838,7 @@ export default function ReportsPage() {
                 : "text-slate-600 hover:text-slate-950"
             }`}
           >
-            Pass Requests
+            Pass Requests{pendingPassRequestCount > 0 ? ` (${pendingPassRequestCount} pending)` : ""}
           </button>
         </div>
       </section>
