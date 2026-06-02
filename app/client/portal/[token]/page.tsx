@@ -18,6 +18,8 @@ type PortalDocument = {
   assignment_id: string;
   assignment_status: string;
   signature_status: string;
+  signature_required_from: string;
+  signature_instructions: string | null;
   signed_by_name: string | null;
   signed_at: string | null;
   document_id: string;
@@ -85,6 +87,8 @@ export default function ClientPortalPage() {
   const [residentName, setResidentName] = useState("");
   const [houseName, setHouseName] = useState("");
   const [documents, setDocuments] = useState<PortalDocument[]>([]);
+  const [signatureNames, setSignatureNames] = useState<Record<string, string>>({});
+  const [signingAssignmentId, setSigningAssignmentId] = useState<string | null>(null);
   const [feeCharges, setFeeCharges] = useState<FeeCharge[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [requestTitle, setRequestTitle] = useState("");
@@ -165,6 +169,72 @@ export default function ClientPortalPage() {
     } catch (err) {
       const fileError = err as { message?: unknown };
       setError(fileError?.message ? String(fileError.message) : "Could not open document.");
+    }
+  }
+
+
+  function updateSignatureName(assignmentId: string, value: string) {
+    setSignatureNames((current) => ({
+      ...current,
+      [assignmentId]: value,
+    }));
+  }
+
+  async function signDocument(document: PortalDocument) {
+    const typedName = signatureNames[document.assignment_id]?.trim();
+
+    if (!typedName) {
+      setError("Please type your full name before signing.");
+      return;
+    }
+
+    try {
+      setSigningAssignmentId(document.assignment_id);
+      setMessage("");
+      setError("");
+
+      const supabase = getSupabaseClient() as any;
+
+      const { data, error } = await supabase.rpc("submit_client_portal_document_signature", {
+        p_access_token: token,
+        p_assignment_id: document.assignment_id,
+        p_signed_by_name: typedName,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.ok) {
+        setError(data?.message ?? "This document could not be signed.");
+        return;
+      }
+
+      setDocuments((current) =>
+        current.map((item) =>
+          item.assignment_id === document.assignment_id
+            ? {
+                ...item,
+                assignment_status: "completed",
+                signature_status: "signed",
+                signed_by_name: typedName,
+                signed_at: new Date().toISOString(),
+              }
+            : item
+        )
+      );
+
+      setSignatureNames((current) => ({
+        ...current,
+        [document.assignment_id]: "",
+      }));
+
+      setMessage(`${document.document_name} was signed successfully.`);
+    } catch (err) {
+      const signatureError = err as { message?: unknown };
+      setError(signatureError?.message ? String(signatureError.message) : "Could not sign document.");
+    } finally {
+      setSigningAssignmentId(null);
     }
   }
 
@@ -304,6 +374,13 @@ export default function ClientPortalPage() {
                             {document.notes ? (
                               <p className="mt-2 text-sm text-slate-600">{document.notes}</p>
                             ) : null}
+
+                            {document.signature_status === "signed" ? (
+                              <p className="mt-2 text-xs font-medium text-emerald-700">
+                                Signed by {document.signed_by_name || "resident"}
+                                {document.signed_at ? ` on ${formatDateTime(document.signed_at)}` : ""}
+                              </p>
+                            ) : null}
                           </div>
 
                           {document.file_url ? (
@@ -317,6 +394,38 @@ export default function ClientPortalPage() {
                             </button>
                           ) : null}
                         </div>
+
+                        {document.signature_required_from === "resident" && document.signature_status !== "signed" ? (
+                          <div className="mt-4 rounded-2xl bg-white p-4">
+                            <p className="text-sm font-semibold text-slate-950">Electronic Signature Required</p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {document.signature_instructions || "Type your full legal name to electronically sign this document."}
+                            </p>
+
+                            <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+                              <input
+                                value={signatureNames[document.assignment_id] ?? ""}
+                                onChange={(event) => updateSignatureName(document.assignment_id, event.target.value)}
+                                placeholder="Type your full name"
+                                className="h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                              />
+
+                              <button
+                                type="button"
+                                onClick={() => signDocument(document)}
+                                disabled={signingAssignmentId === document.assignment_id}
+                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {signingAssignmentId === document.assignment_id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <CheckCircle2 className="h-4 w-4" />
+                                )}
+                                {signingAssignmentId === document.assignment_id ? "Signing..." : "Sign Document"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>
