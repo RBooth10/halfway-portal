@@ -2693,20 +2693,24 @@ Resident Signature Collected Electronically`;
             <div className="space-y-6">
               {/* Resident Profile Tabs */}
 
+              <div className="rounded-2xl border bg-white p-3 shadow-sm">
+                <p className="px-2 pb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Resident sections
+                </p>
 
-              <div className="flex flex-wrap border-b bg-white">
-                  <TabButton active={activeTab === "snapshot"} label="Snapshot" status="Add or review" onClick={() => setActiveTab("snapshot")} />
-                  <TabButton active={activeTab === "fees"} label="Fee Ledger" status={`Balance $${currentBalance.toFixed(2)} • ${residentPayments.length} payment${residentPayments.length === 1 ? "" : "s"}`} onClick={() => setActiveTab("fees")} />
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  <TabButton active={activeTab === "snapshot"} label="Profile" status="Snapshot & phase" onClick={() => setActiveTab("snapshot")} />
+                  <TabButton active={activeTab === "documents"} label="Documents" status={`${assignedDocuments.length} assigned • ${documents.length} uploads`} onClick={() => setActiveTab("documents")} />
+                  <TabButton active={activeTab === "fees"} label="Fees" status={`Balance $${currentBalance.toFixed(2)}`} onClick={() => setActiveTab("fees")} />
+                  <TabButton active={activeTab === "ua"} label="UA / BA" status={uaBaLogs.length > 0 ? `${uaBaLogs.length} logged` : "Needs log"} onClick={() => setActiveTab("ua")} />
+                  <TabButton active={activeTab === "medication"} label="Medications" status={medicationRecords.length > 0 ? "Complete" : "Needs meds"} onClick={() => setActiveTab("medication")} />
                   <TabButton active={activeTab === "notes"} label="Progress Notes" status={`${progressNotes.length} saved`} onClick={() => setActiveTab("notes")} />
-                  <TabButton active={activeTab === "ua"} label="UA/BA Records" status={uaBaLogs.length > 0 ? `${uaBaLogs.length} logged` : "Needs log"} onClick={() => setActiveTab("ua")} />
-                  <TabButton active={activeTab === "medication"} label="Medication Records" status={medicationRecords.length > 0 ? "Complete" : "Needs meds"} onClick={() => setActiveTab("medication")} />
-                  <TabButton active={activeTab === "rci"} label="RCI & Plan" status={latestCompletedRci ? `Complete • ${rciCompletedLabel}` : "Needs RCI"} onClick={() => setActiveTab("rci")} />
-                  <TabButton active={activeTab === "contacts"} label="ROI & Contacts" status={`${emergencyContacts.length} saved`} onClick={() => setActiveTab("contacts")} />
-                  <TabButton active={activeTab === "documents"} label="Documents" status={`${assignedDocuments.length} intake • ${documents.length} uploads`} onClick={() => setActiveTab("documents")} />
+                  <TabButton active={activeTab === "contacts"} label="Contacts / ROI" status={`${emergencyContacts.length} saved`} onClick={() => setActiveTab("contacts")} />
+                  <TabButton active={activeTab === "rci"} label="RCI / Plan" status={latestCompletedRci ? `Complete • ${rciCompletedLabel}` : "Needs RCI"} onClick={() => setActiveTab("rci")} />
                 </div>
               </div>
 
-              <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+              <div className="space-y-6">
                 <div className={activeTab === "contacts" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
