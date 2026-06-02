@@ -3767,25 +3767,19 @@ Resident Signature Collected Electronically`;
                       {assigningIntakeDocuments ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                       {assigningIntakeDocuments ? "Assigning..." : "Assign Intake Documents"}
                     </button>
-                    <button
-                      type="button"
-                      onClick={generateClientIntakeLink}
-                      disabled={generatingIntakeLink || assignedDocuments.length === 0}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {generatingIntakeLink ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                      {generatingIntakeLink ? "Generating..." : "Generate Intake Signing Link"}
-                    </button>
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-2xl border bg-slate-50 p-4">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                <div className="mt-4 rounded-2xl border bg-slate-50 p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
-                      <p className="text-sm font-medium text-slate-950">Resident Portal Link</p>
+                      <p className="text-sm font-medium text-slate-950">Resident portal</p>
                       <p className="mt-1 text-sm text-slate-500">
-                        Generate once at intake. This gives the resident ongoing access to documents, fee records, and request forms.
+                        One permanent link for signing documents, viewing fee records, and submitting requests.
                       </p>
+                      {clientPortalLink ? (
+                        <p className="mt-2 text-xs font-medium text-emerald-700">Portal link is ready.</p>
+                      ) : null}
                     </div>
 
                     <button
@@ -3794,38 +3788,11 @@ Resident Signature Collected Electronically`;
                       disabled={generatingPortalLink}
                       className="inline-flex items-center justify-center rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {generatingPortalLink ? "Generating..." : clientPortalLink ? "Copy Portal Link" : "Generate Portal Link"}
+                      {generatingPortalLink ? "Working..." : clientPortalLink ? "Copy Portal Link" : "Generate Portal Link"}
                     </button>
                   </div>
-
-                  {clientPortalLink ? (
-                    <div className="mt-3 rounded-xl bg-white p-3">
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Client Portal Link</p>
-                      <p className="mt-2 break-all text-sm text-slate-600">{clientPortalLink}</p>
-                      <button
-                        type="button"
-                        onClick={() => navigator.clipboard.writeText(clientPortalLink)}
-                        className="mt-2 rounded-lg border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
-                      >
-                        Copy Link
-                      </button>
-                    </div>
-                  ) : null}
                 </div>
 
-                {clientIntakeLink ? (
-                  <div className="mt-4 rounded-2xl border bg-slate-50 p-4">
-                    <p className="text-sm font-medium text-slate-950">Resident intake signing link</p>
-                    <p className="mt-2 break-all text-sm text-slate-600">{clientIntakeLink}</p>
-                    <button
-                      type="button"
-                      onClick={() => navigator.clipboard.writeText(clientIntakeLink)}
-                      className="mt-3 rounded-xl border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
-                    >
-                      Copy Link
-                    </button>
-                  </div>
-                ) : null}
 
                 {assignedDocuments.length === 0 ? (
                   <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
