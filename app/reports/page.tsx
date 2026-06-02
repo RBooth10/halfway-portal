@@ -121,9 +121,22 @@ type PassRequestRow = {
   requested_departure_at: string;
   requested_return_at: string;
   destination: string;
+  destination_address: string | null;
   reason: string | null;
   transportation_plan: string | null;
   emergency_contact_plan: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_relationship: string | null;
+  emergency_contact_phone: string | null;
+  resident_agreed_to_terms: boolean | null;
+  resident_signature_name: string | null;
+  resident_signed_at: string | null;
+  requires_court_order: boolean | null;
+  requires_clinical_clearance: boolean | null;
+  requires_emergency_travel_docs: boolean | null;
+  requires_other_attachment: boolean | null;
+  other_attachment_note: string | null;
+  denial_reason: string | null;
   status: string;
   provider_notes: string | null;
   reviewed_by_auth_user_id: string | null;
@@ -680,7 +693,7 @@ export default function ReportsPage() {
 
     const passRequestsResult = await supabase
       .from("resident_pass_requests")
-      .select("id, provider_id, house_id, resident_id, requested_departure_at, requested_return_at, destination, reason, transportation_plan, emergency_contact_plan, status, provider_notes, reviewed_by_auth_user_id, reviewed_at, created_at, updated_at")
+      .select("id, provider_id, house_id, resident_id, requested_departure_at, requested_return_at, destination, destination_address, reason, transportation_plan, emergency_contact_plan, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, resident_agreed_to_terms, resident_signature_name, resident_signed_at, requires_court_order, requires_clinical_clearance, requires_emergency_travel_docs, requires_other_attachment, other_attachment_note, denial_reason, status, provider_notes, reviewed_by_auth_user_id, reviewed_at, created_at, updated_at")
       .eq("provider_id", activeProviderId)
       .order("created_at", { ascending: false });
 
@@ -1893,10 +1906,46 @@ export default function ReportsPage() {
       return;
     }
 
-    const providerNotes = window.prompt("Provider notes or review details:", request.provider_notes ?? "");
+    const providerNotes = window.prompt("Follow-up action or notes:", request.provider_notes ?? "");
 
     if (providerNotes === null) {
       return;
+    }
+
+    let denialReason = request.denial_reason ?? null;
+    let requiresCourtOrder = Boolean(request.requires_court_order);
+    let requiresClinicalClearance = Boolean(request.requires_clinical_clearance);
+    let requiresEmergencyTravelDocs = Boolean(request.requires_emergency_travel_docs);
+    let requiresOtherAttachment = Boolean(request.requires_other_attachment);
+    let otherAttachmentNote = request.other_attachment_note ?? null;
+
+    if (nextStatus === "denied") {
+      const denialInput = window.prompt("Reason for denial:", request.denial_reason ?? "");
+
+      if (denialInput === null) {
+        return;
+      }
+
+      denialReason = denialInput.trim() || null;
+    }
+
+    if (nextStatus === "approved" || nextStatus === "denied") {
+      requiresCourtOrder = window.confirm("Attachment required: Court Order?");
+      requiresClinicalClearance = window.confirm("Attachment required: Clinical Clearance?");
+      requiresEmergencyTravelDocs = window.confirm("Attachment required: Emergency Travel Docs?");
+      requiresOtherAttachment = window.confirm("Attachment required: Other?");
+
+      if (requiresOtherAttachment) {
+        const otherInput = window.prompt("Other attachment note:", request.other_attachment_note ?? "");
+
+        if (otherInput === null) {
+          return;
+        }
+
+        otherAttachmentNote = otherInput.trim() || null;
+      } else {
+        otherAttachmentNote = null;
+      }
     }
 
     try {
@@ -1912,6 +1961,12 @@ export default function ReportsPage() {
         .update({
           status: nextStatus,
           provider_notes: providerNotes.trim() || null,
+          denial_reason: nextStatus === "denied" ? denialReason : null,
+          requires_court_order: requiresCourtOrder,
+          requires_clinical_clearance: requiresClinicalClearance,
+          requires_emergency_travel_docs: requiresEmergencyTravelDocs,
+          requires_other_attachment: requiresOtherAttachment,
+          other_attachment_note: otherAttachmentNote,
           reviewed_by_auth_user_id: userData.user?.id ?? null,
           reviewed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -1931,6 +1986,7 @@ export default function ReportsPage() {
       setSavingMaintenanceRequest(false);
     }
   }
+
 
   function renderPassRequests() {
     return (
@@ -1990,34 +2046,112 @@ export default function ReportsPage() {
                   <div>
                     <h3 className="font-semibold text-slate-950">{getPassResidentName(request)}</h3>
                     <p className="mt-1 text-sm text-slate-500">
-                      {getPassHouseName(request)} • {request.destination}
+                      {getPassHouseName(request)} • Date of request: {formatDateTime(request.created_at)}
                     </p>
-                    <p className="mt-2 text-sm text-slate-700">
-                      Departure: {formatDateTime(request.requested_departure_at)}
-                    </p>
-                    <p className="text-sm text-slate-700">
-                      Return: {formatDateTime(request.requested_return_at)}
-                    </p>
-                    {request.reason ? (
-                      <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
-                        Reason: {request.reason}
-                      </p>
-                    ) : null}
-                    {request.transportation_plan ? (
-                      <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
-                        Transportation: {request.transportation_plan}
-                      </p>
-                    ) : null}
-                    {request.emergency_contact_plan ? (
-                      <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
-                        Safety plan: {request.emergency_contact_plan}
-                      </p>
-                    ) : null}
-                    {request.provider_notes ? (
-                      <p className="mt-2 whitespace-pre-wrap rounded-xl bg-white p-3 text-sm text-slate-600">
-                        Provider notes: {request.provider_notes}
-                      </p>
-                    ) : null}
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <div className="rounded-xl bg-white p-3 text-sm">
+                        <p className="font-medium text-slate-700">Destination Address</p>
+                        <p className="mt-1 whitespace-pre-wrap text-slate-600">
+                          {request.destination_address || request.destination}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-white p-3 text-sm">
+                        <p className="font-medium text-slate-700">Travel / Curfew Details</p>
+                        <p className="mt-1 text-slate-600">Departure: {formatDateTime(request.requested_departure_at)}</p>
+                        <p className="text-slate-600">Return: {formatDateTime(request.requested_return_at)}</p>
+                      </div>
+
+                      <div className="rounded-xl bg-white p-3 text-sm md:col-span-2">
+                        <p className="font-medium text-slate-700">Purpose of Request</p>
+                        <p className="mt-1 whitespace-pre-wrap text-slate-600">
+                          {request.reason || "Not entered"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-white p-3 text-sm md:col-span-2">
+                        <p className="font-medium text-slate-700">Emergency Contact for Trip</p>
+                        <p className="mt-1 text-slate-600">
+                          Contact: {request.emergency_contact_name || "Not entered"}
+                        </p>
+                        <p className="text-slate-600">
+                          Relationship: {request.emergency_contact_relationship || "Not entered"}
+                        </p>
+                        <p className="text-slate-600">
+                          Phone: {request.emergency_contact_phone || "Not entered"}
+                        </p>
+                        <p className="mt-2 text-xs text-slate-500">
+                          Resident authorized staff to verify this pass with the identified individual.
+                        </p>
+                      </div>
+
+                      {request.transportation_plan ? (
+                        <div className="rounded-xl bg-white p-3 text-sm md:col-span-2">
+                          <p className="font-medium text-slate-700">Transportation Plan</p>
+                          <p className="mt-1 whitespace-pre-wrap text-slate-600">{request.transportation_plan}</p>
+                        </div>
+                      ) : null}
+
+                      {request.emergency_contact_plan ? (
+                        <div className="rounded-xl bg-white p-3 text-sm md:col-span-2">
+                          <p className="font-medium text-slate-700">Additional Safety Plan / Notes</p>
+                          <p className="mt-1 whitespace-pre-wrap text-slate-600">{request.emergency_contact_plan}</p>
+                        </div>
+                      ) : null}
+
+                      <div className="rounded-xl bg-white p-3 text-sm md:col-span-2">
+                        <p className="font-medium text-slate-700">Resident Agreement</p>
+                        <p className="mt-1 text-slate-600">
+                          Agreement confirmed: {request.resident_agreed_to_terms ? "Yes" : "No"}
+                        </p>
+                        <p className="text-slate-600">
+                          Signature: {request.resident_signature_name || "Not entered"}
+                        </p>
+                        <p className="text-slate-600">
+                          Signed: {formatDateTime(request.resident_signed_at)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-white p-3 text-sm md:col-span-2">
+                        <p className="font-medium text-slate-700">Staff Review</p>
+                        <p className="mt-1 text-slate-600">Reviewed: {formatDateTime(request.reviewed_at)}</p>
+                        <p className="text-slate-600">Status: {formatFeeLabel(request.status)}</p>
+                        {request.denial_reason ? (
+                          <p className="mt-2 whitespace-pre-wrap text-slate-600">
+                            Denial reason: {request.denial_reason}
+                          </p>
+                        ) : null}
+                        {request.provider_notes ? (
+                          <p className="mt-2 whitespace-pre-wrap text-slate-600">
+                            Follow-up action or notes: {request.provider_notes}
+                          </p>
+                        ) : null}
+
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {request.requires_court_order ? (
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">Court Order</span>
+                          ) : null}
+                          {request.requires_clinical_clearance ? (
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">Clinical Clearance</span>
+                          ) : null}
+                          {request.requires_emergency_travel_docs ? (
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">Emergency Travel Docs</span>
+                          ) : null}
+                          {request.requires_other_attachment ? (
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                              Other: {request.other_attachment_note || "Required"}
+                            </span>
+                          ) : null}
+                          {!request.requires_court_order &&
+                          !request.requires_clinical_clearance &&
+                          !request.requires_emergency_travel_docs &&
+                          !request.requires_other_attachment ? (
+                            <span className="text-xs text-slate-500">No attachments marked required.</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex flex-col gap-2 md:items-end">
