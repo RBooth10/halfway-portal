@@ -99,9 +99,15 @@ export default function ClientPortalPage() {
   const [passDepartureAt, setPassDepartureAt] = useState("");
   const [passReturnAt, setPassReturnAt] = useState("");
   const [passDestination, setPassDestination] = useState("");
+  const [passDestinationAddress, setPassDestinationAddress] = useState("");
   const [passReason, setPassReason] = useState("");
   const [passTransportationPlan, setPassTransportationPlan] = useState("");
+  const [passEmergencyContactName, setPassEmergencyContactName] = useState("");
+  const [passEmergencyContactRelationship, setPassEmergencyContactRelationship] = useState("");
+  const [passEmergencyContactPhone, setPassEmergencyContactPhone] = useState("");
   const [passEmergencyContactPlan, setPassEmergencyContactPlan] = useState("");
+  const [passResidentAgreed, setPassResidentAgreed] = useState(false);
+  const [passResidentSignatureName, setPassResidentSignatureName] = useState("");
   const [submittingPassRequest, setSubmittingPassRequest] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submittingMaintenance, setSubmittingMaintenance] = useState(false);
@@ -252,8 +258,28 @@ export default function ClientPortalPage() {
       return;
     }
 
-    if (!passDestination.trim()) {
-      setError("Enter the pass destination.");
+    if (!passDestinationAddress.trim()) {
+      setError("Enter the full destination address.");
+      return;
+    }
+
+    if (!passReason.trim()) {
+      setError("Enter the purpose of the pass request.");
+      return;
+    }
+
+    if (!passEmergencyContactName.trim() || !passEmergencyContactRelationship.trim() || !passEmergencyContactPhone.trim()) {
+      setError("Enter the emergency contact name, relationship, and phone number.");
+      return;
+    }
+
+    if (!passResidentAgreed) {
+      setError("Confirm the resident agreement before submitting.");
+      return;
+    }
+
+    if (!passResidentSignatureName.trim()) {
+      setError("Type your full name as the resident signature.");
       return;
     }
 
@@ -268,10 +294,16 @@ export default function ClientPortalPage() {
         p_access_token: token,
         p_requested_departure_at: new Date(passDepartureAt).toISOString(),
         p_requested_return_at: new Date(passReturnAt).toISOString(),
-        p_destination: passDestination,
+        p_destination: passDestination || passDestinationAddress,
         p_reason: passReason,
         p_transportation_plan: passTransportationPlan,
         p_emergency_contact_plan: passEmergencyContactPlan,
+        p_destination_address: passDestinationAddress,
+        p_emergency_contact_name: passEmergencyContactName,
+        p_emergency_contact_relationship: passEmergencyContactRelationship,
+        p_emergency_contact_phone: passEmergencyContactPhone,
+        p_resident_agreed_to_terms: passResidentAgreed,
+        p_resident_signature_name: passResidentSignatureName,
       });
 
       if (error) {
@@ -286,9 +318,15 @@ export default function ClientPortalPage() {
       setPassDepartureAt("");
       setPassReturnAt("");
       setPassDestination("");
+      setPassDestinationAddress("");
       setPassReason("");
       setPassTransportationPlan("");
+      setPassEmergencyContactName("");
+      setPassEmergencyContactRelationship("");
+      setPassEmergencyContactPhone("");
       setPassEmergencyContactPlan("");
+      setPassResidentAgreed(false);
+      setPassResidentSignatureName("");
       setMessage("Pass request submitted successfully.");
     } catch (err) {
       const passError = err as { message?: unknown };
@@ -615,17 +653,27 @@ export default function ClientPortalPage() {
                 </label>
 
                 <label className="block">
-                  <span className="text-sm font-medium text-slate-700">Destination</span>
+                  <span className="text-sm font-medium text-slate-700">Destination address, full</span>
+                  <textarea
+                    value={passDestinationAddress}
+                    onChange={(event) => setPassDestinationAddress(event.target.value)}
+                    placeholder="Enter the full destination address."
+                    className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm leading-6 outline-none ring-slate-900/10 focus:ring-4"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">Destination name or place</span>
                   <input
                     value={passDestination}
                     onChange={(event) => setPassDestination(event.target.value)}
-                    placeholder="Where are you requesting to go?"
+                    placeholder="Optional. Example: Court, work, family visit"
                     className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                   />
                 </label>
 
                 <label className="block">
-                  <span className="text-sm font-medium text-slate-700">Reason</span>
+                  <span className="text-sm font-medium text-slate-700">Purpose of request</span>
                   <textarea
                     value={passReason}
                     onChange={(event) => setPassReason(event.target.value)}
@@ -633,6 +681,42 @@ export default function ClientPortalPage() {
                     className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm leading-6 outline-none ring-slate-900/10 focus:ring-4"
                   />
                 </label>
+
+                <div className="rounded-2xl border bg-slate-50 p-4">
+                  <p className="text-sm font-semibold text-slate-950">Emergency Contact for Trip</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    By listing the contact below, the resident authorizes staff to verify the details of this pass with the identified individual.
+                  </p>
+
+                  <div className="mt-4 grid gap-3">
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">Contact name</span>
+                      <input
+                        value={passEmergencyContactName}
+                        onChange={(event) => setPassEmergencyContactName(event.target.value)}
+                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">Relationship to you</span>
+                      <input
+                        value={passEmergencyContactRelationship}
+                        onChange={(event) => setPassEmergencyContactRelationship(event.target.value)}
+                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">Phone number</span>
+                      <input
+                        value={passEmergencyContactPhone}
+                        onChange={(event) => setPassEmergencyContactPhone(event.target.value)}
+                        className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                      />
+                    </label>
+                  </div>
+                </div>
 
                 <label className="block">
                   <span className="text-sm font-medium text-slate-700">Transportation plan</span>
@@ -645,14 +729,41 @@ export default function ClientPortalPage() {
                 </label>
 
                 <label className="block">
-                  <span className="text-sm font-medium text-slate-700">Emergency contact / safety plan</span>
+                  <span className="text-sm font-medium text-slate-700">Additional safety plan or notes</span>
                   <textarea
                     value={passEmergencyContactPlan}
                     onChange={(event) => setPassEmergencyContactPlan(event.target.value)}
-                    placeholder="Who can staff contact or what should staff know?"
+                    placeholder="Optional additional safety information."
                     className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm leading-6 outline-none ring-slate-900/10 focus:ring-4"
                   />
                 </label>
+
+                <div className="rounded-2xl border bg-slate-50 p-4">
+                  <p className="text-sm font-semibold text-slate-950">Resident Agreement</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    I confirm that the above information is accurate. I understand that approval of this pass is contingent upon program compliance, and I agree to submit to a drug screen prior to departure and upon return, follow all program expectations while away from the residence, and communicate any changes to this request immediately.
+                  </p>
+
+                  <label className="mt-4 flex items-start gap-3 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={passResidentAgreed}
+                      onChange={(event) => setPassResidentAgreed(event.target.checked)}
+                      className="mt-1 h-4 w-4"
+                    />
+                    <span>I agree to the resident pass terms above.</span>
+                  </label>
+
+                  <label className="mt-4 block">
+                    <span className="text-sm font-medium text-slate-700">Resident signature</span>
+                    <input
+                      value={passResidentSignatureName}
+                      onChange={(event) => setPassResidentSignatureName(event.target.value)}
+                      placeholder="Type your full name"
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+                </div>
 
                 <button
                   type="button"
