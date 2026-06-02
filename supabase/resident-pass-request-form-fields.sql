@@ -178,3 +178,71 @@ grant execute on function public.submit_client_portal_pass_request(
   boolean,
   text
 ) to anon, authenticated;
+
+-- Compatibility wrapper for resident portal pass request payload submission.
+-- The client portal currently calls submit_client_portal_pass_request_v2(p_payload jsonb).
+-- This wrapper maps that payload to the expanded submit_client_portal_pass_request function.
+
+create or replace function public.submit_client_portal_pass_request_v2(
+  p_payload jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  return public.submit_client_portal_pass_request(
+    p_payload ->> 'access_token',
+    nullif(p_payload ->> 'requested_departure_at', '')::timestamptz,
+    nullif(p_payload ->> 'requested_return_at', '')::timestamptz,
+    p_payload ->> 'destination',
+    p_payload ->> 'reason',
+    p_payload ->> 'transportation_plan',
+    p_payload ->> 'emergency_contact_plan',
+    p_payload ->> 'destination_address',
+    p_payload ->> 'emergency_contact_name',
+    p_payload ->> 'emergency_contact_relationship',
+    p_payload ->> 'emergency_contact_phone',
+    coalesce((p_payload ->> 'resident_agreed_to_terms')::boolean, false),
+    p_payload ->> 'resident_signature_name'
+  );
+end;
+$$;
+
+grant execute on function public.submit_client_portal_pass_request_v2(jsonb)
+to anon, authenticated;
+
+-- Compatibility wrapper for resident portal pass request payload submission.
+-- The client portal currently calls submit_client_portal_pass_request_v2(p_payload jsonb).
+-- This wrapper maps that payload to the expanded submit_client_portal_pass_request function.
+
+create or replace function public.submit_client_portal_pass_request_v2(
+  p_payload jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  return public.submit_client_portal_pass_request(
+    p_payload ->> 'access_token',
+    nullif(p_payload ->> 'requested_departure_at', '')::timestamptz,
+    nullif(p_payload ->> 'requested_return_at', '')::timestamptz,
+    p_payload ->> 'destination',
+    p_payload ->> 'reason',
+    p_payload ->> 'transportation_plan',
+    p_payload ->> 'emergency_contact_plan',
+    p_payload ->> 'destination_address',
+    p_payload ->> 'emergency_contact_name',
+    p_payload ->> 'emergency_contact_relationship',
+    p_payload ->> 'emergency_contact_phone',
+    coalesce((p_payload ->> 'resident_agreed_to_terms')::boolean, false),
+    p_payload ->> 'resident_signature_name'
+  );
+end;
+$$;
+
+grant execute on function public.submit_client_portal_pass_request_v2(jsonb)
+to anon, authenticated;
