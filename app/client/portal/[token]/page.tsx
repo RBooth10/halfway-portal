@@ -301,19 +301,21 @@ export default function ClientPortalPage() {
       const supabase = getSupabaseClient() as any;
 
       const { data, error } = await supabase.rpc("submit_client_portal_pass_request", {
-        p_access_token: token,
-        p_requested_departure_at: new Date(passDepartureAt).toISOString(),
-        p_requested_return_at: new Date(passReturnAt).toISOString(),
-        p_destination: passDestination || passDestinationAddress,
-        p_reason: passReason,
-        p_transportation_plan: passTransportationPlan,
-        p_emergency_contact_plan: passEmergencyContactPlan,
-        p_destination_address: passDestinationAddress,
-        p_emergency_contact_name: passEmergencyContactName,
-        p_emergency_contact_relationship: passEmergencyContactRelationship,
-        p_emergency_contact_phone: passEmergencyContactPhone,
-        p_resident_agreed_to_terms: passResidentAgreed,
-        p_resident_signature_name: passResidentSignatureName,
+        p_payload: {
+          access_token: token,
+          requested_departure_at: new Date(passDepartureAt).toISOString(),
+          requested_return_at: new Date(passReturnAt).toISOString(),
+          destination: passDestination || passDestinationAddress,
+          reason: passReason,
+          transportation_plan: passTransportationPlan,
+          emergency_contact_plan: passEmergencyContactPlan,
+          destination_address: passDestinationAddress,
+          emergency_contact_name: passEmergencyContactName,
+          emergency_contact_relationship: passEmergencyContactRelationship,
+          emergency_contact_phone: passEmergencyContactPhone,
+          resident_agreed_to_terms: passResidentAgreed,
+          resident_signature_name: passResidentSignatureName,
+        },
       });
 
       if (error) {
