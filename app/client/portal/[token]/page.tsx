@@ -10,6 +10,7 @@ import {
   Home,
   Loader2,
   ShieldCheck,
+  Send,
   Wrench,
 } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -95,6 +96,13 @@ export default function ClientPortalPage() {
   const [requestDescription, setRequestDescription] = useState("");
   const [locationArea, setLocationArea] = useState("");
   const [priority, setPriority] = useState("normal");
+  const [passDepartureAt, setPassDepartureAt] = useState("");
+  const [passReturnAt, setPassReturnAt] = useState("");
+  const [passDestination, setPassDestination] = useState("");
+  const [passReason, setPassReason] = useState("");
+  const [passTransportationPlan, setPassTransportationPlan] = useState("");
+  const [passEmergencyContactPlan, setPassEmergencyContactPlan] = useState("");
+  const [submittingPassRequest, setSubmittingPassRequest] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submittingMaintenance, setSubmittingMaintenance] = useState(false);
   const [message, setMessage] = useState("");
@@ -235,6 +243,58 @@ export default function ClientPortalPage() {
       setError(signatureError?.message ? String(signatureError.message) : "Could not sign document.");
     } finally {
       setSigningAssignmentId(null);
+    }
+  }
+
+  async function submitPassRequest() {
+    if (!passDepartureAt || !passReturnAt) {
+      setError("Enter the requested departure and return times.");
+      return;
+    }
+
+    if (!passDestination.trim()) {
+      setError("Enter the pass destination.");
+      return;
+    }
+
+    try {
+      setSubmittingPassRequest(true);
+      setMessage("");
+      setError("");
+
+      const supabase = getSupabaseClient() as any;
+
+      const { data, error } = await supabase.rpc("submit_client_portal_pass_request", {
+        p_access_token: token,
+        p_requested_departure_at: new Date(passDepartureAt).toISOString(),
+        p_requested_return_at: new Date(passReturnAt).toISOString(),
+        p_destination: passDestination,
+        p_reason: passReason,
+        p_transportation_plan: passTransportationPlan,
+        p_emergency_contact_plan: passEmergencyContactPlan,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.ok) {
+        setError(data?.message ?? "Could not submit pass request.");
+        return;
+      }
+
+      setPassDepartureAt("");
+      setPassReturnAt("");
+      setPassDestination("");
+      setPassReason("");
+      setPassTransportationPlan("");
+      setPassEmergencyContactPlan("");
+      setMessage("Pass request submitted successfully.");
+    } catch (err) {
+      const passError = err as { message?: unknown };
+      setError(passError?.message ? String(passError.message) : "Could not submit pass request.");
+    } finally {
+      setSubmittingPassRequest(false);
     }
   }
 
@@ -521,6 +581,90 @@ export default function ClientPortalPage() {
                 ) : null}
               </section>
             </div>
+
+            <section className="rounded-2xl border bg-white p-5 shadow-sm">
+              <div className="flex items-start gap-3">
+                <Send className="mt-1 h-5 w-5 text-slate-600" />
+                <div>
+                  <h2 className="text-lg font-semibold">Pass Request</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Submit a pass request for staff review.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-4">
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">Requested departure</span>
+                  <input
+                    type="datetime-local"
+                    value={passDepartureAt}
+                    onChange={(event) => setPassDepartureAt(event.target.value)}
+                    className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">Requested return</span>
+                  <input
+                    type="datetime-local"
+                    value={passReturnAt}
+                    onChange={(event) => setPassReturnAt(event.target.value)}
+                    className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">Destination</span>
+                  <input
+                    value={passDestination}
+                    onChange={(event) => setPassDestination(event.target.value)}
+                    placeholder="Where are you requesting to go?"
+                    className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">Reason</span>
+                  <textarea
+                    value={passReason}
+                    onChange={(event) => setPassReason(event.target.value)}
+                    placeholder="Briefly explain the purpose of the pass request."
+                    className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm leading-6 outline-none ring-slate-900/10 focus:ring-4"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">Transportation plan</span>
+                  <textarea
+                    value={passTransportationPlan}
+                    onChange={(event) => setPassTransportationPlan(event.target.value)}
+                    placeholder="How will you get there and back?"
+                    className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm leading-6 outline-none ring-slate-900/10 focus:ring-4"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700">Emergency contact / safety plan</span>
+                  <textarea
+                    value={passEmergencyContactPlan}
+                    onChange={(event) => setPassEmergencyContactPlan(event.target.value)}
+                    placeholder="Who can staff contact or what should staff know?"
+                    className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm leading-6 outline-none ring-slate-900/10 focus:ring-4"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={submitPassRequest}
+                  disabled={submittingPassRequest}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submittingPassRequest ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  {submittingPassRequest ? "Submitting..." : "Submit Pass Request"}
+                </button>
+              </div>
+            </section>
 
             <section className="rounded-2xl border bg-white p-5 shadow-sm">
               <div className="flex items-start gap-3">
