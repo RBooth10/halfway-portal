@@ -87,11 +87,17 @@ export default function ClientPortalPage() {
 
   const [residentName, setResidentName] = useState("");
   const [houseName, setHouseName] = useState("");
+  const [activePortalTab, setActivePortalTab] = useState<"documents" | "rent" | "requests" | "sponsor">("documents");
   const [documents, setDocuments] = useState<PortalDocument[]>([]);
   const [signatureNames, setSignatureNames] = useState<Record<string, string>>({});
   const [signingAssignmentId, setSigningAssignmentId] = useState<string | null>(null);
   const [feeCharges, setFeeCharges] = useState<FeeCharge[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [sponsorName, setSponsorName] = useState("");
+  const [sponsorPhone, setSponsorPhone] = useState("");
+  const [currentStep, setCurrentStep] = useState("");
+  const [sponsorInfoUpdatedAt, setSponsorInfoUpdatedAt] = useState<string | null>(null);
+  const [savingSponsorInfo, setSavingSponsorInfo] = useState(false);
   const [requestTitle, setRequestTitle] = useState("");
   const [requestDescription, setRequestDescription] = useState("");
   const [locationArea, setLocationArea] = useState("");
@@ -144,6 +150,10 @@ export default function ClientPortalPage() {
       setDocuments((data.documents ?? []) as PortalDocument[]);
       setFeeCharges((data.fee_charges ?? []) as FeeCharge[]);
       setPayments((data.payments ?? []) as Payment[]);
+      setSponsorName(data.sponsor_name ?? "");
+      setSponsorPhone(data.sponsor_phone ?? "");
+      setCurrentStep(data.current_step ?? "");
+      setSponsorInfoUpdatedAt(data.sponsor_info_updated_at ?? null);
     } catch (err) {
       const portalError = err as { message?: unknown };
       setError(portalError?.message ? String(portalError.message) : "Could not load resident portal.");
@@ -336,6 +346,40 @@ export default function ClientPortalPage() {
     }
   }
 
+  async function saveSponsorInfo() {
+    try {
+      setSavingSponsorInfo(true);
+      setMessage("");
+      setError("");
+
+      const supabase = getSupabaseClient() as any;
+
+      const { data, error } = await supabase.rpc("update_client_portal_sponsor_info", {
+        p_access_token: token,
+        p_sponsor_name: sponsorName,
+        p_sponsor_phone: sponsorPhone,
+        p_current_step: currentStep,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.ok) {
+        setError(data?.message ?? "Could not update sponsor and step information.");
+        return;
+      }
+
+      setSponsorInfoUpdatedAt(new Date().toISOString());
+      setMessage("Sponsor and step information updated successfully.");
+    } catch (err) {
+      const sponsorError = err as { message?: unknown };
+      setError(sponsorError?.message ? String(sponsorError.message) : "Could not update sponsor and step information.");
+    } finally {
+      setSavingSponsorInfo(false);
+    }
+  }
+
   async function submitMaintenanceRequest() {
     if (!requestTitle.trim()) {
       setError("Enter a short title for the maintenance request.");
@@ -441,9 +485,38 @@ export default function ClientPortalPage() {
         ) : null}
 
         {!loading && !error ? (
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-            <div className="space-y-6">
-              <section className="rounded-2xl border bg-white p-5 shadow-sm">
+          <section className="rounded-2xl border bg-white p-3 shadow-sm">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                ["documents", "Documents", `${documents.length} assigned`],
+                ["rent", "Rent Records", formatCurrency(balanceDue)],
+                ["requests", "Requests", "Pass + maintenance"],
+                ["sponsor", "Sponsor / Step", sponsorInfoUpdatedAt ? "Recently updated" : "Update info"],
+              ].map(([tab, label, status]) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActivePortalTab(tab as "documents" | "rent" | "requests" | "sponsor")}
+                  className={`rounded-xl border px-3 py-3 text-left transition ${
+                    activePortalTab === tab
+                      ? "border-slate-950 bg-slate-950 text-white"
+                      : "bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="block text-sm font-semibold">{label}</span>
+                  <span className={`mt-1 block text-xs ${activePortalTab === tab ? "text-slate-200" : "text-slate-500"}`}>
+                    {status}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {!loading && !error ? (
+          <div className={activePortalTab === "requests" ? "grid gap-6 xl:grid-cols-2" : "space-y-6"}>
+            <div className={activePortalTab === "requests" || activePortalTab === "sponsor" ? "hidden" : "space-y-6"}>
+              <section className={activePortalTab === "documents" ? "rounded-2xl border bg-white p-5 shadow-sm" : "hidden"}>
                 <div className="flex items-start gap-3">
                   <FileText className="mt-1 h-5 w-5 text-slate-600" />
                   <div>
@@ -530,7 +603,7 @@ export default function ClientPortalPage() {
                 )}
               </section>
 
-              <section className="rounded-2xl border bg-white p-5 shadow-sm">
+              <section className={activePortalTab === "rent" ? "rounded-2xl border bg-white p-5 shadow-sm" : "hidden"}>
                 <div className="flex items-start gap-3">
                   <CreditCard className="mt-1 h-5 w-5 text-slate-600" />
                   <div>
@@ -620,7 +693,66 @@ export default function ClientPortalPage() {
               </section>
             </div>
 
-            <section className="rounded-2xl border bg-white p-5 shadow-sm">
+            {activePortalTab === "sponsor" ? (
+              <section className="rounded-2xl border bg-white p-5 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <ShieldCheck className="mt-1 h-5 w-5 text-slate-600" />
+                  <div>
+                    <h2 className="text-lg font-semibold">Sponsor / Step Information</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Keep your sponsor contact information and current step updated for staff.
+                    </p>
+                    {sponsorInfoUpdatedAt ? (
+                      <p className="mt-2 text-xs font-medium text-emerald-700">
+                        Last updated {formatDateTime(sponsorInfoUpdatedAt)}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Sponsor name</span>
+                    <input
+                      value={sponsorName}
+                      onChange={(event) => setSponsorName(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">Sponsor phone</span>
+                    <input
+                      value={sponsorPhone}
+                      onChange={(event) => setSponsorPhone(event.target.value)}
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+
+                  <label className="block md:col-span-2">
+                    <span className="text-sm font-medium text-slate-700">Current step</span>
+                    <input
+                      value={currentStep}
+                      onChange={(event) => setCurrentStep(event.target.value)}
+                      placeholder="Example: Step 4"
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={saveSponsorInfo}
+                  disabled={savingSponsorInfo}
+                  className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingSponsorInfo ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  {savingSponsorInfo ? "Saving..." : "Update Sponsor / Step"}
+                </button>
+              </section>
+            ) : null}
+
+            <section className={activePortalTab === "requests" ? "rounded-2xl border bg-white p-5 shadow-sm" : "hidden"}>
               <div className="flex items-start gap-3">
                 <Send className="mt-1 h-5 w-5 text-slate-600" />
                 <div>
@@ -777,7 +909,7 @@ export default function ClientPortalPage() {
               </div>
             </section>
 
-            <section className="rounded-2xl border bg-white p-5 shadow-sm">
+            <section className={activePortalTab === "requests" ? "rounded-2xl border bg-white p-5 shadow-sm" : "hidden"}>
               <div className="flex items-start gap-3">
                 <Wrench className="mt-1 h-5 w-5 text-slate-600" />
                 <div>

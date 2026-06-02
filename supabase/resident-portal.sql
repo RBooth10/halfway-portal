@@ -182,6 +182,7 @@ begin
     'sponsor_name', resident_record.sponsor_name,
     'sponsor_phone', resident_record.sponsor_phone,
     'current_step', resident_record.current_step,
+    'sponsor_info_updated_at', resident_record.sponsor_info_updated_at,
     'documents', coalesce(document_data, '[]'::jsonb),
     'fee_charges', coalesce(charge_data, '[]'::jsonb),
     'payments', coalesce(payment_data, '[]'::jsonb)
