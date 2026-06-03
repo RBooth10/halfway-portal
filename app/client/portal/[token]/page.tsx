@@ -108,6 +108,10 @@ function formatLabel(value: string | null | undefined) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase()) || "Not entered";
 }
 
+function periodEndFallback(value: string | null | undefined) {
+  return value || null;
+}
+
 function getPassFollowUps(request: PassRequest) {
   const followUps: string[] = [];
 
@@ -162,10 +166,66 @@ export default function ClientPortalPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const balanceDue = useMemo(
-    () => feeCharges.reduce((sum, charge) => sum + Number(charge.balance_due || 0), 0),
+  const totalChargeAmount = useMemo(
+    () => feeCharges.reduce((sum, charge) => sum + Number(charge.amount || 0), 0),
     [feeCharges]
   );
+
+  const totalPaymentAmount = useMemo(
+    () => payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
+    [payments]
+  );
+
+  const currentBalance = totalChargeAmount - totalPaymentAmount;
+
+  const feeLedgerEntries = useMemo(() => {
+    const entries = [
+      ...feeCharges.map((charge) => ({
+        id: `charge-${charge.id}`,
+        date: charge.due_date || charge.period_start || periodEndFallback(charge.period_end) || "",
+        description: `${formatLabel(charge.charge_type)} charge`,
+        debit: Number(charge.amount || 0),
+        credit: 0,
+        status: charge.status,
+        sourceType: "charge" as const,
+      })),
+      ...payments.map((payment) => ({
+        id: `payment-${payment.id}`,
+        date: payment.payment_date,
+        description: `${formatLabel(payment.payment_method)} payment`,
+        debit: 0,
+        credit: Number(payment.amount || 0),
+        status: "payment",
+        sourceType: "payment" as const,
+      })),
+    ].sort((first, second) => {
+      const firstDate = first.date ? new Date(first.date).getTime() : 0;
+      const secondDate = second.date ? new Date(second.date).getTime() : 0;
+
+      if (firstDate !== secondDate) return firstDate - secondDate;
+      if (first.sourceType === second.sourceType) return 0;
+      return first.sourceType === "charge" ? -1 : 1;
+    });
+
+    return entries
+      .reduce<
+        Array<
+          (typeof entries)[number] & {
+            runningBalance: number;
+          }
+        >
+      >((ledgerEntries, entry) => {
+        const previousBalance = ledgerEntries[ledgerEntries.length - 1]?.runningBalance ?? 0;
+
+        ledgerEntries.push({
+          ...entry,
+          runningBalance: previousBalance + entry.debit - entry.credit,
+        });
+
+        return ledgerEntries;
+      }, [])
+      .reverse();
+  }, [feeCharges, payments]);
 
   async function loadPortal() {
     try {
@@ -510,7 +570,7 @@ export default function ClientPortalPage() {
             </div>
 
             <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              Current balance: <span className="font-semibold text-slate-950">{formatCurrency(balanceDue)}</span>
+              Current balance: <span className="font-semibold text-slate-950">{formatCurrency(currentBalance)}</span>
             </div>
           </div>
         </section>
@@ -544,7 +604,7 @@ export default function ClientPortalPage() {
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {[
                 ["documents", "Documents", `${documents.length} assigned`],
-                ["rent", "Rent Records", formatCurrency(balanceDue)],
+                ["rent", "Rent Records", formatCurrency(currentBalance)],
                 ["requests", "Requests", "Pass + maintenance"],
                 ["sponsor", "Sponsor / Step", sponsorInfoUpdatedAt ? "Recently updated" : "Update info"],
               ].map(([tab, label, status]) => (
@@ -673,52 +733,55 @@ export default function ClientPortalPage() {
                   <div className="rounded-2xl bg-slate-50 p-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total Charges</p>
                     <p className="mt-1 text-xl font-semibold">
-                      {formatCurrency(feeCharges.reduce((sum, charge) => sum + Number(charge.amount || 0), 0))}
+                      {formatCurrency(totalChargeAmount)}
                     </p>
                   </div>
                   <div className="rounded-2xl bg-slate-50 p-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total Paid</p>
                     <p className="mt-1 text-xl font-semibold">
-                      {formatCurrency(feeCharges.reduce((sum, charge) => sum + Number(charge.amount_paid || 0), 0))}
+                      {formatCurrency(totalPaymentAmount)}
                     </p>
                   </div>
                   <div className="rounded-2xl bg-slate-50 p-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Balance Due</p>
-                    <p className="mt-1 text-xl font-semibold">{formatCurrency(balanceDue)}</p>
+                    <p className="mt-1 text-xl font-semibold">{formatCurrency(currentBalance)}</p>
                   </div>
                 </div>
 
-                {feeCharges.length === 0 ? (
+                {feeLedgerEntries.length === 0 ? (
                   <p className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-                    No fee records are currently available.
+                    No fee or payment records are currently available.
                   </p>
                 ) : (
                   <div className="mt-5 overflow-x-auto">
                     <table className="min-w-full divide-y text-left text-sm">
                       <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                         <tr>
-                          <th className="px-3 py-3 font-semibold">Charge</th>
-                          <th className="px-3 py-3 font-semibold">Due</th>
-                          <th className="px-3 py-3 text-right font-semibold">Amount</th>
-                          <th className="px-3 py-3 text-right font-semibold">Paid</th>
-                          <th className="px-3 py-3 text-right font-semibold">Balance</th>
+                          <th className="px-3 py-3 font-semibold">Date</th>
+                          <th className="px-3 py-3 font-semibold">Description</th>
+                          <th className="px-3 py-3 text-right font-semibold">Charge</th>
+                          <th className="px-3 py-3 text-right font-semibold">Payment</th>
+                          <th className="px-3 py-3 text-right font-semibold">Running Balance</th>
                           <th className="px-3 py-3 font-semibold">Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
-                        {feeCharges.map((charge) => (
-                          <tr key={charge.id} className="bg-white">
+                        {feeLedgerEntries.map((entry) => (
+                          <tr key={entry.id} className="bg-white">
+                            <td className="px-3 py-3 text-slate-600">{formatDate(entry.date)}</td>
                             <td className="px-3 py-3">
-                              <span className="font-medium text-slate-950">{formatLabel(charge.charge_type)}</span>
-                              <span className="block text-xs text-slate-400">
-                                {formatDate(charge.period_start)} - {formatDate(charge.period_end)}
-                              </span>
+                              <span className="font-medium text-slate-950">{entry.description}</span>
                             </td>
-                            <td className="px-3 py-3 text-slate-600">{formatDate(charge.due_date)}</td>
-                            <td className="px-3 py-3 text-right text-slate-600">{formatCurrency(charge.amount)}</td>
-                            <td className="px-3 py-3 text-right text-slate-600">{formatCurrency(charge.amount_paid)}</td>
-                            <td className="px-3 py-3 text-right font-semibold text-slate-950">{formatCurrency(charge.balance_due)}</td>
-                            <td className="px-3 py-3 text-slate-600">{formatLabel(charge.status)}</td>
+                            <td className="px-3 py-3 text-right text-slate-600">
+                              {entry.debit > 0 ? formatCurrency(entry.debit) : "—"}
+                            </td>
+                            <td className="px-3 py-3 text-right text-slate-600">
+                              {entry.credit > 0 ? formatCurrency(entry.credit) : "—"}
+                            </td>
+                            <td className="px-3 py-3 text-right font-semibold text-slate-950">
+                              {formatCurrency(entry.runningBalance)}
+                            </td>
+                            <td className="px-3 py-3 text-slate-600">{formatLabel(entry.status)}</td>
                           </tr>
                         ))}
                       </tbody>
