@@ -256,3 +256,7 @@ after insert or update of resident_status, admission_date, current_phase_id, cur
 on public.residents
 for each row
 execute function public.sync_resident_rolling_ua_schedule();
+
+-- Allow authenticated provider users to gently ensure rolling UA coverage.
+grant execute on function public.ensure_resident_rolling_ua_schedule(uuid, integer, integer, integer) to authenticated;
+grant execute on function public.ensure_provider_rolling_ua_schedule(uuid, integer, integer, integer) to authenticated;
