@@ -1049,10 +1049,115 @@ export default function ReportsPage() {
     }
   }
 
+  function openLargeTextPrompt(title: string, defaultValue = "") {
+    return new Promise<string | null>((resolve) => {
+      if (typeof document === "undefined") {
+        resolve(null);
+        return;
+      }
+
+      const overlay = document.createElement("div");
+      overlay.style.position = "fixed";
+      overlay.style.inset = "0";
+      overlay.style.zIndex = "9999";
+      overlay.style.display = "flex";
+      overlay.style.alignItems = "center";
+      overlay.style.justifyContent = "center";
+      overlay.style.background = "rgba(15, 23, 42, 0.45)";
+      overlay.style.padding = "16px";
+
+      const modal = document.createElement("div");
+      modal.style.width = "100%";
+      modal.style.maxWidth = "560px";
+      modal.style.borderRadius = "24px";
+      modal.style.background = "white";
+      modal.style.padding = "24px";
+      modal.style.boxShadow = "0 24px 80px rgba(15, 23, 42, 0.25)";
+
+      const heading = document.createElement("h2");
+      heading.textContent = title;
+      heading.style.fontSize = "18px";
+      heading.style.fontWeight = "700";
+      heading.style.margin = "0";
+      heading.style.color = "#020617";
+
+      const helperText = document.createElement("p");
+      helperText.textContent = "Add staff review notes, follow-up details, or decision comments below.";
+      helperText.style.marginTop = "8px";
+      helperText.style.fontSize = "14px";
+      helperText.style.lineHeight = "20px";
+      helperText.style.color = "#64748b";
+
+      const textarea = document.createElement("textarea");
+      textarea.value = defaultValue;
+      textarea.rows = 7;
+      textarea.style.marginTop = "16px";
+      textarea.style.width = "100%";
+      textarea.style.minHeight = "150px";
+      textarea.style.border = "1px solid #cbd5e1";
+      textarea.style.borderRadius = "16px";
+      textarea.style.padding = "12px";
+      textarea.style.fontSize = "14px";
+      textarea.style.outline = "none";
+      textarea.style.resize = "vertical";
+
+      const buttonRow = document.createElement("div");
+      buttonRow.style.display = "flex";
+      buttonRow.style.justifyContent = "flex-end";
+      buttonRow.style.gap = "12px";
+      buttonRow.style.marginTop = "18px";
+
+      const cancelButton = document.createElement("button");
+      cancelButton.type = "button";
+      cancelButton.textContent = "Cancel";
+      cancelButton.style.border = "1px solid #cbd5e1";
+      cancelButton.style.borderRadius = "12px";
+      cancelButton.style.background = "white";
+      cancelButton.style.padding = "9px 14px";
+      cancelButton.style.fontSize = "14px";
+      cancelButton.style.fontWeight = "600";
+      cancelButton.style.cursor = "pointer";
+
+      const saveButton = document.createElement("button");
+      saveButton.type = "button";
+      saveButton.textContent = "Continue";
+      saveButton.style.border = "1px solid #020617";
+      saveButton.style.borderRadius = "12px";
+      saveButton.style.background = "#020617";
+      saveButton.style.color = "white";
+      saveButton.style.padding = "9px 14px";
+      saveButton.style.fontSize = "14px";
+      saveButton.style.fontWeight = "600";
+      saveButton.style.cursor = "pointer";
+
+      const close = (value: string | null) => {
+        overlay.remove();
+        resolve(value);
+      };
+
+      cancelButton.onclick = () => close(null);
+      saveButton.onclick = () => close(textarea.value);
+
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) {
+          close(null);
+        }
+      });
+
+      buttonRow.append(cancelButton, saveButton);
+      modal.append(heading, helperText, textarea, buttonRow);
+      overlay.append(modal);
+      document.body.append(overlay);
+
+      setTimeout(() => textarea.focus(), 0);
+    });
+  }
+
+
   async function markFollowUpResolved(report: ProviderHouseReport) {
     if (!providerId) return;
 
-    const resolutionNotes = window.prompt("Resolution notes, if any:") ?? "";
+    const resolutionNotes = (await openLargeTextPrompt("Resolution notes, if any:", "")) ?? "";
 
     try {
       const supabase = getSupabaseClient() as any;
@@ -1916,7 +2021,11 @@ export default function ReportsPage() {
       return;
     }
 
-    const providerNotes = window.prompt("Follow-up action or notes:", request.provider_notes ?? "");
+    const providerNotes = await openLargeTextPrompt("Follow-up action or notes:", request.provider_notes ?? "");
+
+    if (providerNotes === null) {
+      return;
+    }
 
     if (providerNotes === null) {
       return;
@@ -1930,7 +2039,7 @@ export default function ReportsPage() {
     let otherAttachmentNote = request.other_attachment_note ?? null;
 
     if (nextStatus === "denied") {
-      const denialInput = window.prompt("Reason for denial:", request.denial_reason ?? "");
+      const denialInput = await openLargeTextPrompt("Reason for denial:", request.denial_reason ?? "");
 
       if (denialInput === null) {
         return;
@@ -1940,22 +2049,23 @@ export default function ReportsPage() {
     }
 
     if (nextStatus === "approved" || nextStatus === "denied") {
-      requiresCourtOrder = window.confirm("Attachment required: Court Order?");
-      requiresClinicalClearance = window.confirm("Attachment required: Clinical Clearance?");
-      requiresEmergencyTravelDocs = window.confirm("Attachment required: Emergency Travel Docs?");
-      requiresOtherAttachment = window.confirm("Attachment required: Other?");
+      const attachmentSelection = await openAttachmentChecklistPrompt({
+        courtOrder: request.requires_court_order,
+        clinicalClearance: request.requires_clinical_clearance,
+        emergencyTravelDocs: request.requires_emergency_travel_docs,
+        otherAttachment: request.requires_other_attachment,
+        otherAttachmentNote: request.other_attachment_note,
+      });
 
-      if (requiresOtherAttachment) {
-        const otherInput = window.prompt("Other attachment note:", request.other_attachment_note ?? "");
-
-        if (otherInput === null) {
-          return;
-        }
-
-        otherAttachmentNote = otherInput.trim() || null;
-      } else {
-        otherAttachmentNote = null;
+      if (attachmentSelection === null) {
+        return;
       }
+
+      requiresCourtOrder = attachmentSelection.courtOrder;
+      requiresClinicalClearance = attachmentSelection.clinicalClearance;
+      requiresEmergencyTravelDocs = attachmentSelection.emergencyTravelDocs;
+      requiresOtherAttachment = attachmentSelection.otherAttachment;
+      otherAttachmentNote = attachmentSelection.otherAttachmentNote;
     }
 
     try {
@@ -2296,13 +2406,182 @@ export default function ReportsPage() {
     }
   }
 
+
+  function openAttachmentChecklistPrompt(defaults: {
+    courtOrder: boolean;
+    clinicalClearance: boolean;
+    emergencyTravelDocs: boolean;
+    otherAttachment: boolean;
+    otherAttachmentNote: string | null;
+  }) {
+    return new Promise<{
+      courtOrder: boolean;
+      clinicalClearance: boolean;
+      emergencyTravelDocs: boolean;
+      otherAttachment: boolean;
+      otherAttachmentNote: string | null;
+    } | null>((resolve) => {
+      if (typeof document === "undefined") {
+        resolve(null);
+        return;
+      }
+
+      const overlay = document.createElement("div");
+      overlay.style.position = "fixed";
+      overlay.style.inset = "0";
+      overlay.style.zIndex = "9999";
+      overlay.style.display = "flex";
+      overlay.style.alignItems = "center";
+      overlay.style.justifyContent = "center";
+      overlay.style.background = "rgba(15, 23, 42, 0.45)";
+      overlay.style.padding = "16px";
+
+      const modal = document.createElement("div");
+      modal.style.width = "100%";
+      modal.style.maxWidth = "580px";
+      modal.style.borderRadius = "24px";
+      modal.style.background = "white";
+      modal.style.padding = "24px";
+      modal.style.boxShadow = "0 24px 80px rgba(15, 23, 42, 0.25)";
+
+      const heading = document.createElement("h2");
+      heading.textContent = "Required Attachments";
+      heading.style.fontSize = "18px";
+      heading.style.fontWeight = "700";
+      heading.style.margin = "0";
+      heading.style.color = "#020617";
+
+      const helperText = document.createElement("p");
+      helperText.textContent = "Select any documents or follow-up items required for this pass decision.";
+      helperText.style.marginTop = "8px";
+      helperText.style.fontSize = "14px";
+      helperText.style.lineHeight = "20px";
+      helperText.style.color = "#64748b";
+
+      const checklist = document.createElement("div");
+      checklist.style.marginTop = "16px";
+      checklist.style.display = "grid";
+      checklist.style.gap = "10px";
+
+      function makeCheckbox(labelText: string, checked: boolean) {
+        const label = document.createElement("label");
+        label.style.display = "flex";
+        label.style.alignItems = "center";
+        label.style.gap = "10px";
+        label.style.border = "1px solid #e2e8f0";
+        label.style.borderRadius = "14px";
+        label.style.padding = "12px";
+        label.style.fontSize = "14px";
+        label.style.fontWeight = "600";
+        label.style.color = "#334155";
+
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = checked;
+        input.style.width = "16px";
+        input.style.height = "16px";
+
+        const span = document.createElement("span");
+        span.textContent = labelText;
+
+        label.append(input, span);
+        checklist.append(label);
+
+        return input;
+      }
+
+      const courtOrderInput = makeCheckbox("Court Order", defaults.courtOrder);
+      const clinicalInput = makeCheckbox("Clinical Clearance", defaults.clinicalClearance);
+      const travelInput = makeCheckbox("Emergency Travel Docs", defaults.emergencyTravelDocs);
+      const otherInput = makeCheckbox("Other Attachment", defaults.otherAttachment);
+
+      const otherNote = document.createElement("textarea");
+      otherNote.value = defaults.otherAttachmentNote ?? "";
+      otherNote.rows = 4;
+      otherNote.placeholder = "Describe other required attachment or follow-up item...";
+      otherNote.style.marginTop = "12px";
+      otherNote.style.width = "100%";
+      otherNote.style.border = "1px solid #cbd5e1";
+      otherNote.style.borderRadius = "14px";
+      otherNote.style.padding = "12px";
+      otherNote.style.fontSize = "14px";
+      otherNote.style.outline = "none";
+      otherNote.style.resize = "vertical";
+
+      const buttonRow = document.createElement("div");
+      buttonRow.style.display = "flex";
+      buttonRow.style.justifyContent = "flex-end";
+      buttonRow.style.gap = "12px";
+      buttonRow.style.marginTop = "18px";
+
+      const cancelButton = document.createElement("button");
+      cancelButton.type = "button";
+      cancelButton.textContent = "Cancel";
+      cancelButton.style.border = "1px solid #cbd5e1";
+      cancelButton.style.borderRadius = "12px";
+      cancelButton.style.background = "white";
+      cancelButton.style.padding = "9px 14px";
+      cancelButton.style.fontSize = "14px";
+      cancelButton.style.fontWeight = "600";
+      cancelButton.style.cursor = "pointer";
+
+      const continueButton = document.createElement("button");
+      continueButton.type = "button";
+      continueButton.textContent = "Continue";
+      continueButton.style.border = "1px solid #020617";
+      continueButton.style.borderRadius = "12px";
+      continueButton.style.background = "#020617";
+      continueButton.style.color = "white";
+      continueButton.style.padding = "9px 14px";
+      continueButton.style.fontSize = "14px";
+      continueButton.style.fontWeight = "600";
+      continueButton.style.cursor = "pointer";
+
+      const close = (value: null | {
+        courtOrder: boolean;
+        clinicalClearance: boolean;
+        emergencyTravelDocs: boolean;
+        otherAttachment: boolean;
+        otherAttachmentNote: string | null;
+      }) => {
+        overlay.remove();
+        resolve(value);
+      };
+
+      cancelButton.onclick = () => close(null);
+      continueButton.onclick = () =>
+        close({
+          courtOrder: courtOrderInput.checked,
+          clinicalClearance: clinicalInput.checked,
+          emergencyTravelDocs: travelInput.checked,
+          otherAttachment: otherInput.checked,
+          otherAttachmentNote: otherInput.checked ? otherNote.value.trim() || null : null,
+        });
+
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) {
+          close(null);
+        }
+      });
+
+      buttonRow.append(cancelButton, continueButton);
+      modal.append(heading, helperText, checklist, otherNote, buttonRow);
+      overlay.append(modal);
+      document.body.append(overlay);
+    });
+  }
+
   async function updateMaintenanceRequestStatus(request: MaintenanceRequestRow, nextStatus: string) {
     if (!providerId) {
       setError("No provider selected.");
       return;
     }
 
-    const providerNotes = window.prompt("Provider notes or follow-up details:", request.provider_notes ?? "");
+    const providerNotes = await openLargeTextPrompt("Provider notes or follow-up details:", request.provider_notes ?? "");
+
+    if (providerNotes === null) {
+      return;
+    }
 
     if (providerNotes === null) {
       return;
