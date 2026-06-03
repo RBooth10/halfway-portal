@@ -72,6 +72,7 @@ declare
   document_data jsonb;
   charge_data jsonb;
   payment_data jsonb;
+  pass_request_data jsonb;
 begin
   select *
   into link_record
@@ -173,6 +174,39 @@ begin
   from public.resident_payments payment
   where payment.resident_id = link_record.resident_id;
 
+  select jsonb_agg(
+    jsonb_build_object(
+      'id', pass_request.id,
+      'requested_departure_at', pass_request.requested_departure_at,
+      'requested_return_at', pass_request.requested_return_at,
+      'destination', pass_request.destination,
+      'destination_address', pass_request.destination_address,
+      'reason', pass_request.reason,
+      'transportation_plan', pass_request.transportation_plan,
+      'emergency_contact_plan', pass_request.emergency_contact_plan,
+      'emergency_contact_name', pass_request.emergency_contact_name,
+      'emergency_contact_relationship', pass_request.emergency_contact_relationship,
+      'emergency_contact_phone', pass_request.emergency_contact_phone,
+      'resident_agreed_to_terms', pass_request.resident_agreed_to_terms,
+      'resident_signature_name', pass_request.resident_signature_name,
+      'resident_signed_at', pass_request.resident_signed_at,
+      'status', pass_request.status,
+      'provider_notes', pass_request.provider_notes,
+      'denial_reason', pass_request.denial_reason,
+      'requires_court_order', pass_request.requires_court_order,
+      'requires_clinical_clearance', pass_request.requires_clinical_clearance,
+      'requires_emergency_travel_docs', pass_request.requires_emergency_travel_docs,
+      'requires_other_attachment', pass_request.requires_other_attachment,
+      'other_attachment_note', pass_request.other_attachment_note,
+      'reviewed_at', pass_request.reviewed_at,
+      'created_at', pass_request.created_at
+    )
+    order by pass_request.created_at desc
+  )
+  into pass_request_data
+  from public.resident_pass_requests pass_request
+  where pass_request.resident_id = link_record.resident_id;
+
   return jsonb_build_object(
     'ok', true,
     'resident_id', resident_record.id,
@@ -185,7 +219,8 @@ begin
     'sponsor_info_updated_at', resident_record.sponsor_info_updated_at,
     'documents', coalesce(document_data, '[]'::jsonb),
     'fee_charges', coalesce(charge_data, '[]'::jsonb),
-    'payments', coalesce(payment_data, '[]'::jsonb)
+    'payments', coalesce(payment_data, '[]'::jsonb),
+    'pass_requests', coalesce(pass_request_data, '[]'::jsonb)
   );
 end;
 $$;
@@ -283,3 +318,74 @@ $$;
 
 grant execute on function public.get_client_portal_context(text) to anon, authenticated;
 grant execute on function public.submit_client_portal_maintenance_request(text, text, text, text, text) to anon, authenticated;
+
+-- Resident portal pass request history/status lookup.
+create or replace function public.get_client_portal_pass_requests(p_access_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  link_record public.resident_portal_links%rowtype;
+  pass_request_data jsonb;
+begin
+  select *
+  into link_record
+  from public.resident_portal_links
+  where access_token = p_access_token
+    and access_token is not null
+    and status = 'active'
+    and (expires_at is null or expires_at > now())
+  limit 1;
+
+  if not found then
+    return jsonb_build_object(
+      'ok', false,
+      'message', 'This resident portal link is invalid, disabled, or expired.',
+      'pass_requests', '[]'::jsonb
+    );
+  end if;
+
+  select jsonb_agg(
+    jsonb_build_object(
+      'id', pass_request.id,
+      'requested_departure_at', pass_request.requested_departure_at,
+      'requested_return_at', pass_request.requested_return_at,
+      'destination', pass_request.destination,
+      'destination_address', pass_request.destination_address,
+      'reason', pass_request.reason,
+      'transportation_plan', pass_request.transportation_plan,
+      'emergency_contact_plan', pass_request.emergency_contact_plan,
+      'emergency_contact_name', pass_request.emergency_contact_name,
+      'emergency_contact_relationship', pass_request.emergency_contact_relationship,
+      'emergency_contact_phone', pass_request.emergency_contact_phone,
+      'resident_agreed_to_terms', pass_request.resident_agreed_to_terms,
+      'resident_signature_name', pass_request.resident_signature_name,
+      'resident_signed_at', pass_request.resident_signed_at,
+      'status', pass_request.status,
+      'provider_notes', pass_request.provider_notes,
+      'denial_reason', pass_request.denial_reason,
+      'requires_court_order', pass_request.requires_court_order,
+      'requires_clinical_clearance', pass_request.requires_clinical_clearance,
+      'requires_emergency_travel_docs', pass_request.requires_emergency_travel_docs,
+      'requires_other_attachment', pass_request.requires_other_attachment,
+      'other_attachment_note', pass_request.other_attachment_note,
+      'reviewed_at', pass_request.reviewed_at,
+      'created_at', pass_request.created_at
+    )
+    order by pass_request.created_at desc
+  )
+  into pass_request_data
+  from public.resident_pass_requests pass_request
+  where pass_request.resident_id = link_record.resident_id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'pass_requests', coalesce(pass_request_data, '[]'::jsonb)
+  );
+end;
+$$;
+
+grant execute on function public.get_client_portal_pass_requests(text)
+to anon, authenticated;
