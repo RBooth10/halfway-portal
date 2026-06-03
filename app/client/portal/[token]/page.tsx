@@ -54,6 +54,33 @@ type Payment = {
   notes: string | null;
 };
 
+type PassRequest = {
+  id: string;
+  requested_departure_at: string | null;
+  requested_return_at: string | null;
+  destination: string | null;
+  destination_address: string | null;
+  reason: string | null;
+  transportation_plan: string | null;
+  emergency_contact_plan: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_relationship: string | null;
+  emergency_contact_phone: string | null;
+  resident_agreed_to_terms: boolean | null;
+  resident_signature_name: string | null;
+  resident_signed_at: string | null;
+  status: string;
+  provider_notes: string | null;
+  denial_reason: string | null;
+  requires_court_order: boolean | null;
+  requires_clinical_clearance: boolean | null;
+  requires_emergency_travel_docs: boolean | null;
+  requires_other_attachment: boolean | null;
+  other_attachment_note: string | null;
+  reviewed_at: string | null;
+  created_at: string | null;
+};
+
 function formatDate(value: string | null | undefined) {
   if (!value) return "Not entered";
   const date = new Date(`${value}T00:00:00`);
@@ -81,6 +108,19 @@ function formatLabel(value: string | null | undefined) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase()) || "Not entered";
 }
 
+function getPassFollowUps(request: PassRequest) {
+  const followUps: string[] = [];
+
+  if (request.requires_court_order) followUps.push("Court Order");
+  if (request.requires_clinical_clearance) followUps.push("Clinical Clearance");
+  if (request.requires_emergency_travel_docs) followUps.push("Emergency Travel Docs");
+  if (request.requires_other_attachment) {
+    followUps.push(request.other_attachment_note ? `Other: ${request.other_attachment_note}` : "Other Attachment");
+  }
+
+  return followUps;
+}
+
 export default function ClientPortalPage() {
   const params = useParams<{ token: string }>();
   const token = params.token;
@@ -88,11 +128,13 @@ export default function ClientPortalPage() {
   const [residentName, setResidentName] = useState("");
   const [houseName, setHouseName] = useState("");
   const [activePortalTab, setActivePortalTab] = useState<"documents" | "rent" | "requests" | "sponsor">("documents");
+  const [activeRequestView, setActiveRequestView] = useState<"status" | "pass" | "maintenance">("status");
   const [documents, setDocuments] = useState<PortalDocument[]>([]);
   const [signatureNames, setSignatureNames] = useState<Record<string, string>>({});
   const [signingAssignmentId, setSigningAssignmentId] = useState<string | null>(null);
   const [feeCharges, setFeeCharges] = useState<FeeCharge[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [passRequests, setPassRequests] = useState<PassRequest[]>([]);
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorPhone, setSponsorPhone] = useState("");
   const [currentStep, setCurrentStep] = useState("");
@@ -150,6 +192,17 @@ export default function ClientPortalPage() {
       setDocuments((data.documents ?? []) as PortalDocument[]);
       setFeeCharges((data.fee_charges ?? []) as FeeCharge[]);
       setPayments((data.payments ?? []) as Payment[]);
+
+      const passRequestsResult = await supabase.rpc("get_client_portal_pass_requests", {
+        p_access_token: token,
+      });
+
+      if (!passRequestsResult.error && passRequestsResult.data?.ok) {
+        setPassRequests((passRequestsResult.data.pass_requests ?? []) as PassRequest[]);
+      } else {
+        setPassRequests([]);
+      }
+
       setSponsorName(data.sponsor_name ?? "");
       setSponsorPhone(data.sponsor_phone ?? "");
       setCurrentStep(data.current_step ?? "");
@@ -754,7 +807,105 @@ export default function ClientPortalPage() {
               </section>
             ) : null}
 
-            <section className={activePortalTab === "requests" ? "rounded-2xl border bg-white p-5 shadow-sm" : "hidden"}>
+            {activePortalTab === "requests" ? (
+              <section className="rounded-2xl border bg-white p-4 shadow-sm">
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    ["status", "Status Updates"],
+                    ["pass", "Request Pass"],
+                    ["maintenance", "Maintenance"],
+                  ].map(([view, label]) => (
+                    <button
+                      key={view}
+                      type="button"
+                      onClick={() => setActiveRequestView(view as "status" | "pass" | "maintenance")}
+                      className={
+                        activeRequestView === view
+                          ? "rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white"
+                          : "rounded-xl border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            <section className={activePortalTab === "requests" && activeRequestView === "status" ? "rounded-2xl border bg-white p-5 shadow-sm" : "hidden"}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold">My Pass Requests</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Review submitted pass requests and staff decisions.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3">
+                {passRequests.length === 0 ? (
+                  <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                    No pass requests have been submitted yet.
+                  </p>
+                ) : (
+                  passRequests.map((request) => {
+                    const followUps = getPassFollowUps(request);
+
+                    return (
+                      <div key={request.id} className="rounded-2xl bg-slate-50 p-4">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-950">
+                              Pass Request • {formatLabel(request.status)}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              {formatDateTime(request.requested_departure_at)} - {formatDateTime(request.requested_return_at)}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              Destination: {request.destination_address || request.destination || "Not entered"}
+                            </p>
+                          </div>
+
+                          <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                            {formatLabel(request.status)}
+                          </span>
+                        </div>
+
+                        {request.reviewed_at || request.provider_notes || request.denial_reason || followUps.length > 0 ? (
+                          <div className="mt-4 rounded-xl bg-white p-3 text-sm">
+                            <p className="font-semibold text-slate-950">Staff Decision</p>
+                            {request.reviewed_at ? (
+                              <p className="mt-1 text-slate-600">Reviewed: {formatDateTime(request.reviewed_at)}</p>
+                            ) : null}
+                            {request.provider_notes ? (
+                              <p className="mt-1 text-slate-600">Staff notes: {request.provider_notes}</p>
+                            ) : null}
+                            {request.denial_reason ? (
+                              <p className="mt-1 text-rose-700">Denial reason: {request.denial_reason}</p>
+                            ) : null}
+                            {followUps.length > 0 ? (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {followUps.map((followUp) => (
+                                  <span key={followUp} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                                    {followUp}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <p className="mt-3 rounded-xl bg-white p-3 text-sm text-slate-500">
+                            Staff has not reviewed this pass request yet.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </section>
+
+            <section className={activePortalTab === "requests" && activeRequestView === "pass" ? "rounded-2xl border bg-white p-5 shadow-sm" : "hidden"}>
               <div className="flex items-start gap-3">
                 <Send className="mt-1 h-5 w-5 text-slate-600" />
                 <div>
@@ -911,7 +1062,7 @@ export default function ClientPortalPage() {
               </div>
             </section>
 
-            <section className={activePortalTab === "requests" ? "rounded-2xl border bg-white p-5 shadow-sm" : "hidden"}>
+            <section className={activePortalTab === "requests" && activeRequestView === "maintenance" ? "rounded-2xl border bg-white p-5 shadow-sm" : "hidden"}>
               <div className="flex items-start gap-3">
                 <Wrench className="mt-1 h-5 w-5 text-slate-600" />
                 <div>
