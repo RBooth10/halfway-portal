@@ -81,6 +81,21 @@ type PassRequest = {
   created_at: string | null;
 };
 
+type SatisfactionSurveyResponse = {
+  id: string;
+  overall_rating: number | null;
+  felt_safe_rating: number | null;
+  staff_respect_rating: number | null;
+  expectations_clear_rating: number | null;
+  recovery_support_rating: number | null;
+  would_recommend: string | null;
+  most_helpful: string | null;
+  could_improve: string | null;
+  additional_comments: string | null;
+  submitted_at: string | null;
+};
+
+
 function formatDate(value: string | null | undefined) {
   if (!value) return "Not entered";
   const date = new Date(`${value}T00:00:00`);
@@ -131,7 +146,7 @@ export default function ClientPortalPage() {
 
   const [residentName, setResidentName] = useState("");
   const [houseName, setHouseName] = useState("");
-  const [activePortalTab, setActivePortalTab] = useState<"documents" | "rent" | "requests" | "sponsor">("documents");
+  const [activePortalTab, setActivePortalTab] = useState<"documents" | "rent" | "requests" | "sponsor" | "survey">("documents");
   const [activeRequestView, setActiveRequestView] = useState<"status" | "pass" | "maintenance">("status");
   const [documents, setDocuments] = useState<PortalDocument[]>([]);
   const [signatureNames, setSignatureNames] = useState<Record<string, string>>({});
@@ -139,6 +154,20 @@ export default function ClientPortalPage() {
   const [feeCharges, setFeeCharges] = useState<FeeCharge[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [passRequests, setPassRequests] = useState<PassRequest[]>([]);
+  const [residentStatus, setResidentStatus] = useState("active");
+  const [surveyAvailable, setSurveyAvailable] = useState(false);
+  const [surveyCompleted, setSurveyCompleted] = useState(false);
+  const [surveyResponse, setSurveyResponse] = useState<SatisfactionSurveyResponse | null>(null);
+  const [surveyOverallRating, setSurveyOverallRating] = useState("");
+  const [surveyFeltSafeRating, setSurveyFeltSafeRating] = useState("");
+  const [surveyStaffRespectRating, setSurveyStaffRespectRating] = useState("");
+  const [surveyExpectationsRating, setSurveyExpectationsRating] = useState("");
+  const [surveyRecoverySupportRating, setSurveyRecoverySupportRating] = useState("");
+  const [surveyWouldRecommend, setSurveyWouldRecommend] = useState("");
+  const [surveyMostHelpful, setSurveyMostHelpful] = useState("");
+  const [surveyCouldImprove, setSurveyCouldImprove] = useState("");
+  const [surveyAdditionalComments, setSurveyAdditionalComments] = useState("");
+  const [submittingSurvey, setSubmittingSurvey] = useState(false);
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorPhone, setSponsorPhone] = useState("");
   const [currentStep, setCurrentStep] = useState("");
@@ -249,6 +278,7 @@ export default function ClientPortalPage() {
 
       setResidentName(data.resident_name ?? "Resident");
       setHouseName(data.house_name ?? "");
+      setResidentStatus(data.resident_status ?? "active");
       setDocuments((data.documents ?? []) as PortalDocument[]);
       setFeeCharges((data.fee_charges ?? []) as FeeCharge[]);
       setPayments((data.payments ?? []) as Payment[]);
@@ -261,6 +291,20 @@ export default function ClientPortalPage() {
         setPassRequests((passRequestsResult.data.pass_requests ?? []) as PassRequest[]);
       } else {
         setPassRequests([]);
+      }
+
+      const surveyResult = await supabase.rpc("get_client_portal_satisfaction_survey", {
+        p_access_token: token,
+      });
+
+      if (!surveyResult.error && surveyResult.data?.ok) {
+        setSurveyAvailable(Boolean(surveyResult.data.survey_available));
+        setSurveyCompleted(Boolean(surveyResult.data.survey_completed));
+        setSurveyResponse((surveyResult.data.survey_response ?? null) as SatisfactionSurveyResponse | null);
+      } else {
+        setSurveyAvailable(false);
+        setSurveyCompleted(false);
+        setSurveyResponse(null);
       }
 
       setSponsorName(data.sponsor_name ?? "");
@@ -372,6 +416,53 @@ export default function ClientPortalPage() {
       setError(signatureError?.message ? String(signatureError.message) : "Could not sign document.");
     } finally {
       setSigningAssignmentId(null);
+    }
+  }
+
+  function optionalRating(value: string) {
+    return value ? Number(value) : null;
+  }
+
+  async function submitSatisfactionSurvey() {
+    if (!surveyOverallRating) {
+      setError("Select an overall satisfaction rating before submitting.");
+      return;
+    }
+
+    try {
+      setSubmittingSurvey(true);
+      setMessage("");
+      setError("");
+
+      const supabase = getSupabaseClient() as any;
+
+      const { data, error } = await supabase.rpc("submit_client_portal_satisfaction_survey", {
+        p_access_token: token,
+        p_overall_rating: Number(surveyOverallRating),
+        p_felt_safe_rating: optionalRating(surveyFeltSafeRating),
+        p_staff_respect_rating: optionalRating(surveyStaffRespectRating),
+        p_expectations_clear_rating: optionalRating(surveyExpectationsRating),
+        p_recovery_support_rating: optionalRating(surveyRecoverySupportRating),
+        p_would_recommend: surveyWouldRecommend,
+        p_most_helpful: surveyMostHelpful,
+        p_could_improve: surveyCouldImprove,
+        p_additional_comments: surveyAdditionalComments,
+      });
+
+      if (error) throw error;
+
+      if (!data?.ok) {
+        setError(data?.message ?? "Could not submit survey.");
+        return;
+      }
+
+      setMessage(data.message ?? "Survey submitted. Thank you.");
+      await loadPortal();
+    } catch (err) {
+      const surveyError = err as { message?: unknown };
+      setError(surveyError?.message ? String(surveyError.message) : "Could not submit survey.");
+    } finally {
+      setSubmittingSurvey(false);
     }
   }
 
@@ -607,11 +698,14 @@ export default function ClientPortalPage() {
                 ["rent", "Rent Records", formatCurrency(currentBalance)],
                 ["requests", "Requests", "Pass + maintenance"],
                 ["sponsor", "Sponsor / Step", sponsorInfoUpdatedAt ? "Recently updated" : "Update info"],
+                ...(residentStatus === "discharged" || surveyAvailable || surveyCompleted
+                  ? [["survey", "Discharge Survey", surveyCompleted ? "Completed" : "Available"]]
+                  : []),
               ].map(([tab, label, status]) => (
                 <button
                   key={tab}
                   type="button"
-                  onClick={() => setActivePortalTab(tab as "documents" | "rent" | "requests" | "sponsor")}
+                  onClick={() => setActivePortalTab(tab as "documents" | "rent" | "requests" | "sponsor" | "survey")}
                   className={`rounded-xl border px-3 py-3 text-left transition ${
                     activePortalTab === tab
                       ? "border-slate-950 bg-slate-950 text-white"
@@ -810,6 +904,140 @@ export default function ClientPortalPage() {
                 ) : null}
               </section>
             </div>
+
+            {activePortalTab === "survey" ? (
+              <section className="rounded-2xl border bg-white p-5 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <ShieldCheck className="mt-1 h-5 w-5 text-slate-600" />
+                  <div>
+                    <h2 className="text-lg font-semibold">Discharge Satisfaction Survey</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      This optional survey helps the provider understand resident experience and improve services.
+                    </p>
+                  </div>
+                </div>
+
+                {residentStatus !== "discharged" && !surveyAvailable ? (
+                  <p className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                    This survey becomes available after discharge.
+                  </p>
+                ) : surveyCompleted && surveyResponse ? (
+                  <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+                    <p className="text-sm font-semibold text-slate-950">Survey submitted. Thank you.</p>
+                    <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Overall rating</p>
+                        <p className="mt-1 text-slate-700">{surveyResponse.overall_rating ?? "Not entered"} / 5</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Submitted</p>
+                        <p className="mt-1 text-slate-700">{formatDateTime(surveyResponse.submitted_at)}</p>
+                      </div>
+                      {surveyResponse.additional_comments ? (
+                        <div className="md:col-span-2">
+                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Comments</p>
+                          <p className="mt-1 whitespace-pre-wrap text-slate-700">{surveyResponse.additional_comments}</p>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-5 grid gap-4">
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">Overall satisfaction rating</span>
+                      <select value={surveyOverallRating} onChange={(event) => setSurveyOverallRating(event.target.value)} className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4">
+                        <option value="">Select rating</option>
+                        <option value="1">1 - Very dissatisfied</option>
+                        <option value="2">2 - Dissatisfied</option>
+                        <option value="3">3 - Neutral</option>
+                        <option value="4">4 - Satisfied</option>
+                        <option value="5">5 - Very satisfied</option>
+                      </select>
+                    </label>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">I felt safe in the residence</span>
+                        <select value={surveyFeltSafeRating} onChange={(event) => setSurveyFeltSafeRating(event.target.value)} className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4">
+                          <option value="">Optional rating</option>
+                          <option value="1">1 - Strongly disagree</option>
+                          <option value="2">2 - Disagree</option>
+                          <option value="3">3 - Neutral</option>
+                          <option value="4">4 - Agree</option>
+                          <option value="5">5 - Strongly agree</option>
+                        </select>
+                      </label>
+
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">Staff treated me with respect</span>
+                        <select value={surveyStaffRespectRating} onChange={(event) => setSurveyStaffRespectRating(event.target.value)} className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4">
+                          <option value="">Optional rating</option>
+                          <option value="1">1 - Strongly disagree</option>
+                          <option value="2">2 - Disagree</option>
+                          <option value="3">3 - Neutral</option>
+                          <option value="4">4 - Agree</option>
+                          <option value="5">5 - Strongly agree</option>
+                        </select>
+                      </label>
+
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">House expectations were clear</span>
+                        <select value={surveyExpectationsRating} onChange={(event) => setSurveyExpectationsRating(event.target.value)} className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4">
+                          <option value="">Optional rating</option>
+                          <option value="1">1 - Strongly disagree</option>
+                          <option value="2">2 - Disagree</option>
+                          <option value="3">3 - Neutral</option>
+                          <option value="4">4 - Agree</option>
+                          <option value="5">5 - Strongly agree</option>
+                        </select>
+                      </label>
+
+                      <label className="block">
+                        <span className="text-sm font-medium text-slate-700">The program supported my recovery goals</span>
+                        <select value={surveyRecoverySupportRating} onChange={(event) => setSurveyRecoverySupportRating(event.target.value)} className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4">
+                          <option value="">Optional rating</option>
+                          <option value="1">1 - Strongly disagree</option>
+                          <option value="2">2 - Disagree</option>
+                          <option value="3">3 - Neutral</option>
+                          <option value="4">4 - Agree</option>
+                          <option value="5">5 - Strongly agree</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">Would you recommend this recovery residence?</span>
+                      <select value={surveyWouldRecommend} onChange={(event) => setSurveyWouldRecommend(event.target.value)} className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4">
+                        <option value="">Select an option</option>
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                        <option value="unsure">Unsure</option>
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">What was most helpful?</span>
+                      <textarea value={surveyMostHelpful} onChange={(event) => setSurveyMostHelpful(event.target.value)} className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm leading-6 outline-none ring-slate-900/10 focus:ring-4" />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">What could be improved?</span>
+                      <textarea value={surveyCouldImprove} onChange={(event) => setSurveyCouldImprove(event.target.value)} className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm leading-6 outline-none ring-slate-900/10 focus:ring-4" />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-medium text-slate-700">Additional comments</span>
+                      <textarea value={surveyAdditionalComments} onChange={(event) => setSurveyAdditionalComments(event.target.value)} className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm leading-6 outline-none ring-slate-900/10 focus:ring-4" />
+                    </label>
+
+                    <button type="button" onClick={submitSatisfactionSurvey} disabled={submittingSurvey} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">
+                      {submittingSurvey ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                      {submittingSurvey ? "Submitting..." : "Submit Survey"}
+                    </button>
+                  </div>
+                )}
+              </section>
+            ) : null}
 
             {activePortalTab === "sponsor" ? (
               <section className="rounded-2xl border bg-white p-5 shadow-sm">

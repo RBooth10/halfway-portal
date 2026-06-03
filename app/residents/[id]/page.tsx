@@ -463,6 +463,7 @@ export default function ResidentProfilePage() {
   const [recoveryGoals, setRecoveryGoals] = useState<RecoveryGoalRow[]>([]);
   const [feeCharges, setFeeCharges] = useState<ResidentFeeChargeRow[]>([]);
   const [residentPayments, setResidentPayments] = useState<ResidentPaymentRow[]>([]);
+  const [satisfactionSurveyResponse, setSatisfactionSurveyResponse] = useState<any | null>(null);
   const [emergencyContacts, setEmergencyContacts] = useState<ResidentEmergencyContactRow[]>([]);
   const [roiAuthorizations, setRoiAuthorizations] = useState<ResidentRoiAuthorizationRow[]>([]);
   const [showRoiSignatureModal, setShowRoiSignatureModal] = useState(false);
@@ -1067,6 +1068,18 @@ export default function ResidentProfilePage() {
       }
 
       setResidentPayments((paymentsResult.data ?? []) as ResidentPaymentRow[]);
+
+      const satisfactionSurveyResult = await supabase
+        .from("resident_satisfaction_survey_responses")
+        .select("*")
+        .eq("resident_id", residentData.id)
+        .maybeSingle();
+
+      if (satisfactionSurveyResult.error) {
+        throw satisfactionSurveyResult.error;
+      }
+
+      setSatisfactionSurveyResponse(satisfactionSurveyResult.data ?? null);
 
       const emergencyContactsResult = await supabase
         .from("resident_emergency_contacts")
@@ -1715,6 +1728,10 @@ export default function ResidentProfilePage() {
   const totalCharges = feeCharges.reduce((sum, charge) => sum + Number(charge.amount || 0), 0);
   const totalPayments = residentPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
   const currentBalance = totalCharges - totalPayments;
+
+  const formatSurveyRating = (value?: number | null) => {
+    return value ? `${value} / 5` : "Not answered";
+  };
 
   const sortedMedicationRecords = [...medicationRecords].sort((firstMedication, secondMedication) => {
     const firstIsDiscontinued = firstMedication.status === "discontinued";
@@ -3094,6 +3111,102 @@ Resident Signature Collected Electronically`;
                       </div>
                     </div>
                   </div>
+                </div>
+              ) : null}
+
+              {resident.resident_status === "discharged" ? (
+                <div className={activeTab === "snapshot" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-semibold text-slate-950">Resident Satisfaction Survey Response</h2>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Submitted by the resident through the post-discharge portal survey.
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                      {satisfactionSurveyResponse ? "Completed" : "Not submitted"}
+                    </span>
+                  </div>
+
+                  {satisfactionSurveyResponse ? (
+                    <div className="mt-4 grid gap-4 text-sm md:grid-cols-2">
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Overall rating</p>
+                        <p className="mt-1 font-semibold text-slate-950">
+                          {formatSurveyRating(satisfactionSurveyResponse.overall_rating)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Submitted</p>
+                        <p className="mt-1 font-semibold text-slate-950">
+                          {formatDate(satisfactionSurveyResponse.submitted_at)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Felt safe</p>
+                        <p className="mt-1 text-slate-700">
+                          {formatSurveyRating(satisfactionSurveyResponse.felt_safe_rating)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Staff respect</p>
+                        <p className="mt-1 text-slate-700">
+                          {formatSurveyRating(satisfactionSurveyResponse.staff_respect_rating)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Clear expectations</p>
+                        <p className="mt-1 text-slate-700">
+                          {formatSurveyRating(satisfactionSurveyResponse.expectations_clear_rating)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Recovery support</p>
+                        <p className="mt-1 text-slate-700">
+                          {formatSurveyRating(satisfactionSurveyResponse.recovery_support_rating)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-3 md:col-span-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Would recommend</p>
+                        <p className="mt-1 text-slate-700">
+                          {satisfactionSurveyResponse.would_recommend
+                            ? String(satisfactionSurveyResponse.would_recommend).replaceAll("_", " ")
+                            : "Not answered"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-3 md:col-span-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Most helpful</p>
+                        <p className="mt-1 whitespace-pre-wrap text-slate-700">
+                          {satisfactionSurveyResponse.most_helpful || "Not answered"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-3 md:col-span-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Could improve</p>
+                        <p className="mt-1 whitespace-pre-wrap text-slate-700">
+                          {satisfactionSurveyResponse.could_improve || "Not answered"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-3 md:col-span-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Additional comments</p>
+                        <p className="mt-1 whitespace-pre-wrap text-slate-700">
+                          {satisfactionSurveyResponse.additional_comments || "No additional comments."}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-500">
+                      The resident has not submitted the post-discharge satisfaction survey yet.
+                    </p>
+                  )}
                 </div>
               ) : null}
 
