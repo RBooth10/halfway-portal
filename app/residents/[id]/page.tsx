@@ -779,7 +779,7 @@ export default function ResidentProfilePage() {
           resident_id: resident.id,
           document_id: template.id,
           assignment_status: "assigned",
-          signature_status: "not_sent",
+          signature_status: "awaiting_signature",
           signature_required_from: template.signature_required_from ?? "resident",
           signature_instructions: template.signature_instructions ?? null,
         }));
@@ -4025,7 +4025,7 @@ Resident Signature Collected Electronically`;
                                 {assignedDocument?.document_name ?? "Document template unavailable"}
                               </p>
                               <p className="mt-1 text-sm text-slate-500">
-                                {assignedDocument?.category ?? "Document"} • Assignment: {assignment.assignment_status.replaceAll("_", " ")} • Signature: {assignment.signature_status === "not_sent" ? "awaiting resident signature" : assignment.signature_status.replaceAll("_", " ")}
+                                {assignedDocument?.category ?? "Document"} • Assignment: {assignment.assignment_status.replaceAll("_", " ")} • Signature: {assignment.signature_status === "not_sent" || assignment.signature_status === "awaiting_signature" ? "awaiting resident signature" : assignment.signature_status.replaceAll("_", " ")}
                               </p>
                               {assignment.signature_instructions ? (
                                 <p className="mt-2 text-sm leading-6 text-slate-600">
