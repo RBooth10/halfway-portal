@@ -70,6 +70,14 @@ type HouseOption = {
   status: string | null;
 };
 
+type ResidentOption = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  house_id: string | null;
+  resident_status: string | null;
+};
+
 type IconComponent = React.ComponentType<{ className?: string }>;
 
 const initialForm: DocumentForm = {
@@ -324,6 +332,7 @@ export default function DocumentsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [houses, setHouses] = useState<HouseOption[]>([]);
+  const [residents, setResidents] = useState<ResidentOption[]>([]);
   const [selectedTargetHouseIds, setSelectedTargetHouseIds] = useState<string[]>([]);
   const [editingDocumentId, setEditingDocumentId] = useState<string | null>(null);
   const [providerId, setProviderId] = useState<string | null>(null);
@@ -415,6 +424,17 @@ export default function DocumentsPage() {
           (house) => String(house.status ?? "active").toLowerCase() !== "inactive"
         )
       );
+    }
+
+    const residentsResult = await supabase
+      .from("residents")
+      .select("id, first_name, last_name, house_id, resident_status")
+      .eq("provider_id", activeProviderId)
+      .eq("resident_status", "active")
+      .order("last_name", { ascending: true });
+
+    if (!residentsResult.error) {
+      setResidents((residentsResult.data ?? []) as ResidentOption[]);
     }
 
     const { data, error } = await supabase
@@ -606,6 +626,74 @@ export default function DocumentsPage() {
     }
   }
 
+  async function assignResidentPacketDocument(activeProviderId: string, documentId: string) {
+    if (
+      form.category !== "Resident" ||
+      !form.is_signable ||
+      form.signature_required_from !== "resident"
+    ) {
+      return 0;
+    }
+
+    let targetResidents = residents.filter(
+      (resident) => String(resident.resident_status ?? "active").toLowerCase() === "active"
+    );
+
+    if (form.resident_send_scope === "selected_houses") {
+      targetResidents = targetResidents.filter(
+        (resident) => resident.house_id && selectedTargetHouseIds.includes(resident.house_id)
+      );
+    }
+
+    const targetResidentIds = Array.from(new Set(targetResidents.map((resident) => resident.id)));
+
+    if (targetResidentIds.length === 0) {
+      return 0;
+    }
+
+    const supabase = getDocumentSupabase();
+
+    const existingAssignmentsResult = await supabase
+      .from("resident_document_assignments")
+      .select("resident_id")
+      .eq("document_id", documentId)
+      .in("resident_id", targetResidentIds);
+
+    if (existingAssignmentsResult.error) {
+      throw existingAssignmentsResult.error;
+    }
+
+    const existingResidentIds = new Set(
+      (existingAssignmentsResult.data ?? []).map((assignment) => assignment.resident_id)
+    );
+
+    const newAssignments = targetResidentIds
+      .filter((residentId) => !existingResidentIds.has(residentId))
+      .map((residentId) => ({
+        provider_id: activeProviderId,
+        resident_id: residentId,
+        document_id: documentId,
+        assignment_status: "assigned",
+        signature_status: "not_sent",
+        signature_required_from: "resident",
+        signature_instructions: form.signature_instructions.trim() || null,
+      }));
+
+    if (newAssignments.length === 0) {
+      return 0;
+    }
+
+    const insertResult = await supabase
+      .from("resident_document_assignments")
+      .insert(newAssignments);
+
+    if (insertResult.error) {
+      throw insertResult.error;
+    }
+
+    return newAssignments.length;
+  }
+
   async function saveDocument() {
     setSaving(true);
     setMessage("");
@@ -710,6 +798,8 @@ export default function DocumentsPage() {
           }
         }
 
+        const assignmentCount = await assignResidentPacketDocument(providerId, data.id);
+
         setDocuments((current) =>
           current.map((document) =>
             document.id === editingDocumentId ? (data as DocumentRow) : document,
@@ -720,7 +810,11 @@ export default function DocumentsPage() {
         setSelectedFile(null);
         setEditingDocumentId(null);
         setIsDocumentModalOpen(false);
-        setMessage(`${data.document_name} was updated successfully.`);
+        setMessage(
+          `${data.document_name} was updated successfully.${
+            assignmentCount > 0 ? ` ${assignmentCount} resident assignment(s) created.` : ""
+          }`
+        );
         return;
       }
 
@@ -755,6 +849,8 @@ export default function DocumentsPage() {
           throw targetInsertResult.error;
         }
       }
+
+      const assignmentCount = await assignResidentPacketDocument(providerId, data.id);
 
       setDocuments((current) => [data as DocumentRow, ...current]);
       setForm(initialForm);
