@@ -95,6 +95,44 @@ type SatisfactionSurveyResponse = {
   submitted_at: string | null;
 };
 
+type PortalRciAssessment = {
+  id: string;
+  rci_version: string;
+  rci_score: number | string | null;
+  recovery_capital_level: string | null;
+  assessment_date: string | null;
+  client_completed_at: string | null;
+  personal_capital_score: number | string | null;
+  personal_capital_level: string | null;
+  social_capital_score: number | string | null;
+  social_capital_level: string | null;
+  cultural_capital_score: number | string | null;
+  cultural_capital_level: string | null;
+  overall_summary: string | null;
+  strengths_summary: string | null;
+  needs_summary: string | null;
+};
+
+type PortalRecoveryGoal = {
+  id: string;
+  goal_area: string;
+  goal_text: string;
+  action_steps: string | null;
+  supports_needed: string | null;
+  target_date: string | null;
+  priority: string;
+  status: string;
+  progress_notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type PortalRciSummary = {
+  assessment_count: number;
+  latest_assessment: PortalRciAssessment | null;
+  recovery_goals: PortalRecoveryGoal[];
+};
+
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "Not entered";
@@ -146,7 +184,7 @@ export default function ClientPortalPage() {
 
   const [residentName, setResidentName] = useState("");
   const [houseName, setHouseName] = useState("");
-  const [activePortalTab, setActivePortalTab] = useState<"documents" | "rent" | "requests" | "sponsor" | "survey">("documents");
+  const [activePortalTab, setActivePortalTab] = useState<"documents" | "rent" | "requests" | "sponsor" | "rci" | "survey">("documents");
   const [activeRequestView, setActiveRequestView] = useState<"status" | "pass" | "maintenance">("status");
   const [documents, setDocuments] = useState<PortalDocument[]>([]);
   const [signatureNames, setSignatureNames] = useState<Record<string, string>>({});
@@ -158,6 +196,8 @@ export default function ClientPortalPage() {
   const [surveyAvailable, setSurveyAvailable] = useState(false);
   const [surveyCompleted, setSurveyCompleted] = useState(false);
   const [surveyResponse, setSurveyResponse] = useState<SatisfactionSurveyResponse | null>(null);
+  const [rciSummary, setRciSummary] = useState<PortalRciSummary | null>(null);
+  const [startingRci, setStartingRci] = useState(false);
   const [surveyOverallRating, setSurveyOverallRating] = useState("");
   const [surveyFeltSafeRating, setSurveyFeltSafeRating] = useState("");
   const [surveyStaffRespectRating, setSurveyStaffRespectRating] = useState("");
@@ -307,6 +347,20 @@ export default function ClientPortalPage() {
         setSurveyResponse(null);
       }
 
+      const rciSummaryResult = await supabase.rpc("get_client_portal_rci_summary", {
+        p_access_token: token,
+      });
+
+      if (!rciSummaryResult.error && rciSummaryResult.data?.ok) {
+        setRciSummary({
+          assessment_count: Number(rciSummaryResult.data.assessment_count ?? 0),
+          latest_assessment: (rciSummaryResult.data.latest_assessment ?? null) as PortalRciAssessment | null,
+          recovery_goals: (rciSummaryResult.data.recovery_goals ?? []) as PortalRecoveryGoal[],
+        });
+      } else {
+        setRciSummary(null);
+      }
+
       setSponsorName(data.sponsor_name ?? "");
       setSponsorPhone(data.sponsor_phone ?? "");
       setCurrentStep(data.current_step ?? "");
@@ -416,6 +470,36 @@ export default function ClientPortalPage() {
       setError(signatureError?.message ? String(signatureError.message) : "Could not sign document.");
     } finally {
       setSigningAssignmentId(null);
+    }
+  }
+
+  async function startRciAssessment() {
+    try {
+      setStartingRci(true);
+      setMessage("");
+      setError("");
+
+      const supabase = getSupabaseClient() as any;
+
+      const { data, error } = await supabase.rpc("start_client_portal_rci_assessment", {
+        p_access_token: token,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.ok || !data?.client_access_token) {
+        setError(data?.message ?? "Could not start the RCI assessment.");
+        return;
+      }
+
+      window.location.href = `/client/rci/${data.client_access_token}`;
+    } catch (err) {
+      const rciError = err as { message?: unknown };
+      setError(rciError?.message ? String(rciError.message) : "Could not start the RCI assessment.");
+    } finally {
+      setStartingRci(false);
     }
   }
 
@@ -698,6 +782,7 @@ export default function ClientPortalPage() {
                 ["rent", "Rent Records", formatCurrency(currentBalance)],
                 ["requests", "Requests", "Pass + maintenance"],
                 ["sponsor", "Sponsor / Step", sponsorInfoUpdatedAt ? "Recently updated" : "Update info"],
+                ["rci", "RCI / Recovery Plan", rciSummary?.latest_assessment ? `${rciSummary.assessment_count} completed` : "Start RCI"],
                 ...(residentStatus === "discharged" || surveyAvailable || surveyCompleted
                   ? [["survey", "Discharge Survey", surveyCompleted ? "Completed" : "Available"]]
                   : []),
@@ -705,7 +790,7 @@ export default function ClientPortalPage() {
                 <button
                   key={tab}
                   type="button"
-                  onClick={() => setActivePortalTab(tab as "documents" | "rent" | "requests" | "sponsor" | "survey")}
+                  onClick={() => setActivePortalTab(tab as "documents" | "rent" | "requests" | "sponsor" | "rci" | "survey")}
                   className={`rounded-xl border px-3 py-3 text-left transition ${
                     activePortalTab === tab
                       ? "border-slate-950 bg-slate-950 text-white"
@@ -904,6 +989,108 @@ export default function ClientPortalPage() {
                 ) : null}
               </section>
             </div>
+
+            {activePortalTab === "rci" ? (
+              <section className="rounded-2xl border bg-white p-5 shadow-sm">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold">RCI / Recovery Plan</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Complete or reassess your RCI and keep your recovery plan updated for your support team.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={startRciAssessment}
+                    disabled={startingRci}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {startingRci ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                    {rciSummary?.latest_assessment ? "Reassess RCI" : "Complete RCI"}
+                  </button>
+                </div>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Completed RCIs</p>
+                    <p className="mt-1 text-xl font-semibold text-slate-950">
+                      {rciSummary?.assessment_count ?? 0}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Latest Score</p>
+                    <p className="mt-1 text-xl font-semibold text-slate-950">
+                      {rciSummary?.latest_assessment?.rci_score ?? "Not completed"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Recovery Capital</p>
+                    <p className="mt-1 text-xl font-semibold text-slate-950">
+                      {formatLabel(rciSummary?.latest_assessment?.recovery_capital_level)}
+                    </p>
+                  </div>
+                </div>
+
+                {rciSummary?.latest_assessment ? (
+                  <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+                    <p className="text-sm font-semibold text-slate-950">
+                      Latest RCI completed {formatDateTime(rciSummary.latest_assessment.client_completed_at || rciSummary.latest_assessment.assessment_date)}
+                    </p>
+                    {rciSummary.latest_assessment.overall_summary ? (
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        {rciSummary.latest_assessment.overall_summary}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                    No completed RCI is on file yet. Complete your first RCI to create your recovery plan.
+                  </p>
+                )}
+
+                <div className="mt-5">
+                  <h3 className="text-base font-semibold text-slate-950">Current Recovery Plan Goals</h3>
+                  {rciSummary?.recovery_goals?.length ? (
+                    <div className="mt-3 grid gap-3">
+                      {rciSummary.recovery_goals.map((goal) => (
+                        <div key={goal.id} className="rounded-2xl bg-slate-50 p-4">
+                          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-950">
+                                {formatLabel(goal.goal_area)} • {formatLabel(goal.priority)}
+                              </p>
+                              <p className="mt-2 text-sm leading-6 text-slate-600">{goal.goal_text}</p>
+                            </div>
+                            <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                              {formatLabel(goal.status)}
+                            </span>
+                          </div>
+
+                          {goal.action_steps ? (
+                            <p className="mt-3 text-sm leading-6 text-slate-600">
+                              <span className="font-medium text-slate-950">Action steps:</span> {goal.action_steps}
+                            </p>
+                          ) : null}
+
+                          {goal.supports_needed ? (
+                            <p className="mt-2 text-sm leading-6 text-slate-600">
+                              <span className="font-medium text-slate-950">Supports needed:</span> {goal.supports_needed}
+                            </p>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-3 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                      No recovery goals have been submitted yet.
+                    </p>
+                  )}
+                </div>
+              </section>
+            ) : null}
 
             {activePortalTab === "survey" ? (
               <section className="rounded-2xl border bg-white p-5 shadow-sm">
