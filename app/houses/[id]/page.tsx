@@ -464,6 +464,7 @@ export default function HouseDetailPage() {
           .from("residents")
           .select("id, first_name, last_name, admission_date, current_phase, rci_status, medication_status")
           .eq("house_id", houseId)
+          .eq("resident_status", "active")
           .order("last_name", { ascending: true })
           .order("first_name", { ascending: true });
 
