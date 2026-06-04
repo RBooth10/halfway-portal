@@ -105,6 +105,22 @@ type ResidentDocumentAssignmentRow = {
   documents: DocumentRow | DocumentRow[] | null;
 };
 
+type ResidentAdmissionEpisodeRow = {
+  id: string;
+  provider_id: string;
+  resident_id: string;
+  house_id: string | null;
+  admission_date: string | null;
+  discharge_date: string | null;
+  discharge_reason: string | null;
+  discharge_notes: string | null;
+  status: string;
+  charge_admission_fee: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 function getAssignedDocument(assignment: ResidentDocumentAssignmentRow) {
   return Array.isArray(assignment.documents)
     ? assignment.documents[0] ?? null
@@ -446,6 +462,7 @@ export default function ResidentProfilePage() {
   const [houseOptions, setHouseOptions] = useState<HouseRow[]>([]);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [assignedDocuments, setAssignedDocuments] = useState<ResidentDocumentAssignmentRow[]>([]);
+  const [admissionEpisodes, setAdmissionEpisodes] = useState<ResidentAdmissionEpisodeRow[]>([]);
   const [showResidentUploadModal, setShowResidentUploadModal] = useState(false);
   const [residentUploadName, setResidentUploadName] = useState("");
   const [residentUploadCategory, setResidentUploadCategory] = useState("Resident Upload");
@@ -832,6 +849,17 @@ export default function ResidentProfilePage() {
 
       const residentData = residentResult.data as ResidentDetail;
       setResident(residentData);
+
+      const admissionEpisodesResult = await supabase
+        .from("resident_admission_episodes")
+        .select("*")
+        .eq("resident_id", residentData.id)
+        .order("admission_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+          if (!admissionEpisodesResult.error) {
+        setAdmissionEpisodes((admissionEpisodesResult.data ?? []) as ResidentAdmissionEpisodeRow[]);
+      }
 
       const houseOptionsResult = await supabase
         .from("houses")
@@ -2518,7 +2546,8 @@ Resident Signature Collected Electronically`;
       setDischargeSatisfactionCompleted(false);
       setDischargeSatisfactionRating("");
       setDischargeSatisfactionNotes("");
-      setShowLifecycleModal(false);
+            setShowLifecycleModal(false);
+      await loadResidentProfile();
       setMessage("Resident discharged. Future program fees will stop.");
     } catch (err) {
       const lifecycleError = err as { message?: unknown };
@@ -2578,8 +2607,9 @@ Resident Signature Collected Electronically`;
           : "Resident readmitted. Program fees resumed without a new admission fee."
       );
 
-      setShowLifecycleModal(false);
-      setActiveTab("fees");
+            setShowLifecycleModal(false);
+      await loadResidentProfile();
+      setActiveTab("snapshot");
     } catch (err) {
       const lifecycleError = err as { message?: unknown };
       setError(lifecycleError?.message ? String(lifecycleError.message) : "Could not readmit resident.");
@@ -3223,13 +3253,69 @@ Resident Signature Collected Electronically`;
               </div>
 
               <div className={activeTab === "snapshot" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
-                <h2 className="text-lg font-semibold">Admission Notes</h2>
-                <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-                  {resident.notes || "No admission notes entered yet."}
-                </p>
-              </div>
+  <h2 className="text-lg font-semibold">Admission Notes</h2>
+  <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+    {resident.notes || "No admission notes entered yet."}
+  </p>
+</div>
 
-                            <div className={activeTab === "fees" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
+<div className={activeTab === "snapshot" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
+  <h2 className="text-lg font-semibold">Prior Admission / Readmission History</h2>
+  <p className="mt-1 text-sm text-slate-500">
+    Previous admission episodes, discharge details, and readmission notes are preserved here.
+  </p>
+
+  {admissionEpisodes.length === 0 ? (
+    <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+      No prior admission history has been recorded yet.
+    </p>
+  ) : (
+    <div className="mt-4 space-y-3">
+      {admissionEpisodes.map((episode) => (
+        <div key={episode.id} className="rounded-2xl bg-slate-50 p-4">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-950">
+                {episode.status === "active" ? "Current Admission" : "Prior Admission"}
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                Admission: {formatDate(episode.admission_date)}
+                {episode.discharge_date ? ` • Discharge: ${formatDate(episode.discharge_date)}` : ""}
+                {" • Status: "}{episode.status}
+              </p>
+            </div>
+
+            {episode.charge_admission_fee ? (
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                Admission fee charged
+              </span>
+            ) : null}
+          </div>
+
+          {episode.discharge_reason ? (
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              <span className="font-medium text-slate-950">Discharge reason:</span> {episode.discharge_reason}
+            </p>
+          ) : null}
+
+          {episode.discharge_notes ? (
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+              <span className="font-medium text-slate-950">Discharge notes:</span> {episode.discharge_notes}
+            </p>
+          ) : null}
+
+          {episode.notes ? (
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+              <span className="font-medium text-slate-950">Admission/readmission notes:</span> {episode.notes}
+            </p>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  )}
+</div>
+
+              <div className={activeTab === "fees" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold">Fee Ledger</h2>
