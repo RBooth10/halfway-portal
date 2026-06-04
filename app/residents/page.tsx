@@ -467,7 +467,7 @@ export default function ResidentsPage() {
         resident_id: activeResidentId,
         document_id: template.id,
         assignment_status: "assigned",
-        signature_status: "not_sent",
+        signature_status: "awaiting_signature",
         signature_required_from: template.signature_required_from ?? "resident",
         signature_instructions: template.signature_instructions ?? null,
       }));
@@ -512,7 +512,7 @@ export default function ResidentsPage() {
       email: form.email.trim() || null,
       phone: form.phone.trim() || null,
       date_of_birth: form.date_of_birth || null,
-      admission_date: form.admission_date || null,
+      admission_date: normalizeAdmissionDateForSave(form.admission_date),
       sobriety_date: form.sobriety_date || null,
       gender: form.gender.trim() || null,
       ethnicity: form.ethnicity.trim() || null,
@@ -586,7 +586,7 @@ export default function ResidentsPage() {
           provider_id: providerId,
           resident_id: data.id,
           house_id: form.house_id || null,
-          admission_date: form.admission_date || new Date().toISOString().slice(0, 10),
+          admission_date: normalizeAdmissionDateForSave(form.admission_date) || new Date().toISOString().slice(0, 10),
           status: "active",
           charge_admission_fee: true,
           notes: "Initial admission episode created from resident onboarding.",
@@ -919,7 +919,7 @@ export default function ResidentsPage() {
               <Field label="Email" placeholder="resident@example.com" icon={Mail} type="email" value={form.email} onChange={(value) => updateField("email", value)} />
               <Field label="Phone" placeholder="(555) 000-0000" icon={Phone} value={form.phone} onChange={(value) => updateField("phone", value)} />
               <Field label="Date of birth" placeholder="MM/DD/YYYY" icon={CalendarDays} type="date" value={form.date_of_birth} onChange={(value) => updateField("date_of_birth", value)} />
-              <Field label="Admission date" placeholder="MM/DD/YYYY" icon={CalendarDays} type="date" value={form.admission_date} onChange={(value) => updateField("admission_date", value)} />
+              <Field label="Admission date" placeholder="YYYY-MM-DD" icon={CalendarDays} type="date" value={form.admission_date} onChange={(value) => updateField("admission_date", value)} />
               <Field label="Sobriety date" placeholder="MM/DD/YYYY" icon={CalendarDays} type="date" value={form.sobriety_date} onChange={(value) => updateField("sobriety_date", value)} />
 
               <label className="block">
