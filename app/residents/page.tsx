@@ -178,6 +178,29 @@ function Field({
   );
 }
 
+function normalizeAdmissionDateForSave(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const date = new Date(`${trimmed}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new Error("Enter a valid admission date.");
+  }
+
+  const year = date.getFullYear();
+  const nextYear = new Date().getFullYear() + 1;
+
+  if (year < 1900 || year > nextYear) {
+    throw new Error("Admission date year must be entered with four digits.");
+  }
+
+  return trimmed;
+}
+
 export default function ResidentsPage() {
   const [form, setForm] = useState<ResidentForm>(initialForm);
   const [residents, setResidents] = useState<ResidentRow[]>([]);
