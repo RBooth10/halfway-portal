@@ -674,7 +674,7 @@ export default function DocumentsPage() {
         resident_id: residentId,
         document_id: documentId,
         assignment_status: "assigned",
-        signature_status: "not_sent",
+        signature_status: "awaiting_signature",
         signature_required_from: "resident",
         signature_instructions: form.signature_instructions.trim() || null,
       }));

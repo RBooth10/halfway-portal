@@ -3893,7 +3893,7 @@ Resident Signature Collected Electronically`;
                       className="inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {assigningIntakeDocuments ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                      {assigningIntakeDocuments ? "Assigning..." : "Assign Intake Documents"}
+                      {assigningIntakeDocuments ? "Assigning..." : "Assign Missing Packet Documents"}
                     </button>
                   </div>
                 </div>
@@ -3939,7 +3939,7 @@ Resident Signature Collected Electronically`;
                                 {assignedDocument?.document_name ?? "Document template unavailable"}
                               </p>
                               <p className="mt-1 text-sm text-slate-500">
-                                {assignedDocument?.category ?? "Document"} • Assignment: {assignment.assignment_status.replaceAll("_", " ")} • Signature: {assignment.signature_status.replaceAll("_", " ")}
+                                {assignedDocument?.category ?? "Document"} • Assignment: {assignment.assignment_status.replaceAll("_", " ")} • Signature: {assignment.signature_status === "not_sent" ? "awaiting resident signature" : assignment.signature_status.replaceAll("_", " ")}
                               </p>
                               {assignment.signature_instructions ? (
                                 <p className="mt-2 text-sm leading-6 text-slate-600">
