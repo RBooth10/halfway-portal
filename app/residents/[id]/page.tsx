@@ -3123,9 +3123,9 @@ Resident Signature Collected Electronically`;
                           onClick={() => { setMedicationSubTab("records"); openMedicationModal(); }}
                         />
                         <SnapshotAction
-                          title="RCI Action"
-                          description={rciAssessments.some((assessment) => assessment.status === "completed") ? "Generate a new RCI link or review existing RCI records." : "Generate a client RCI link."}
-                          onClick={() => setShowRciActionModal(true)}
+                          title="RCI / Recovery Plan"
+                          description={latestCompletedRci ? "Review the latest RCI score, assessment history, and resident-created recovery goals." : "Review RCI status and recovery plan information. Residents complete RCIs from their portal."}
+                          onClick={() => setActiveTab("rci")}
                         />
                         <SnapshotAction
                           title="Add ROI / Contact"
@@ -3800,17 +3800,13 @@ Resident Signature Collected Electronically`;
                   <div>
                     <h2 className="text-lg font-semibold">RCI & Recovery Plan Records</h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      Review completed RCI results and resident-created recovery goals.
+                      Review the resident&apos;s latest RCI score, assessment history, and resident-created recovery goals.
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setShowRciActionModal(true)}
-                    className="rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    Generate RCI Link
-                  </button>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                    Resident portal managed
+                  </span>
                 </div>
               </div>
 
