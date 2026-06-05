@@ -695,12 +695,6 @@ export default function ReportsPage() {
       .order("due_date", { ascending: true })
       .order("created_at", { ascending: false });
 
-    const maintenanceResult = await supabase
-      .from("resident_maintenance_requests")
-      .select("id, provider_id, house_id, resident_id, submitted_by_name, request_title, request_description, location_area, priority, status, provider_notes, completed_at, created_at, updated_at")
-      .eq("provider_id", activeProviderId)
-      .order("created_at", { ascending: false });
-
     const passRequestsResult = await supabase
       .from("resident_pass_requests")
       .select("id, provider_id, house_id, resident_id, requested_departure_at, requested_return_at, destination, destination_address, reason, transportation_plan, emergency_contact_plan, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, resident_agreed_to_terms, resident_signature_name, resident_signed_at, requires_court_order, requires_clinical_clearance, requires_emergency_travel_docs, requires_other_attachment, other_attachment_note, denial_reason, status, provider_notes, reviewed_by_auth_user_id, reviewed_at, created_at, updated_at")
@@ -713,14 +707,13 @@ export default function ReportsPage() {
     if (residentsResult.error) throw residentsResult.error;
     if (reportsResult.error) throw reportsResult.error;
     if (feeChargesResult.error) throw feeChargesResult.error;
-    if (maintenanceResult.error) throw maintenanceResult.error;
     if (passRequestsResult.error) throw passRequestsResult.error;
 
     const loadedHouses = (housesResult.data ?? []) as HouseRow[];
     const loadedResidents = (residentsResult.data ?? []) as ResidentRow[];
     const loadedReports = (reportsResult.data ?? []) as ProviderHouseReport[];
     const loadedFeeCharges = (feeChargesResult.data ?? []) as ResidentFeeChargeRow[];
-    const loadedMaintenanceRequests = (maintenanceResult.data ?? []) as MaintenanceRequestRow[];
+    const loadedMaintenanceRequests: MaintenanceRequestRow[] = [];
     const loadedPassRequests = (passRequestsResult.data ?? []) as PassRequestRow[];
     const staff = staffResult.data ?? [];
 
@@ -2622,331 +2615,20 @@ export default function ReportsPage() {
   function renderMaintenanceLog() {
     return (
       <section className="rounded-2xl border bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-950">Maintenance Log</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Review maintenance requests submitted by residents or entered by staff.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setShowMaintenanceForm((current) => !current)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50"
-            >
-              <Plus className="h-4 w-4" />
-              {showMaintenanceForm ? "Hide Form" : "Create Request"}
-            </button>
-
-            <button
-              type="button"
-              onClick={exportMaintenanceLogCsv}
-              disabled={filteredMaintenanceRequests.length === 0}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Download className="h-4 w-4" />
-              Export Maintenance Log
-            </button>
-          </div>
-        </div>
-
-        {showMaintenanceForm ? (
-          <div className="mt-5 rounded-2xl border bg-slate-50 p-4">
-            <h3 className="text-sm font-semibold text-slate-950">Create Maintenance Request</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              Staff can create requests here when an issue is reported outside the resident portal.
-            </p>
-
-            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">House</span>
-                <select
-                  value={maintenanceFormHouseId}
-                  onChange={(event) => setMaintenanceFormHouseId(event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                >
-                  <option value="">Select house, if applicable</option>
-                  {activeHouses.map((house) => (
-                    <option key={house.id} value={house.id}>
-                      {house.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Resident</span>
-                <select
-                  value={maintenanceFormResidentId}
-                  onChange={(event) => {
-                    setMaintenanceFormResidentId(event.target.value);
-                    const selectedResident = residents.find((resident) => resident.id === event.target.value);
-                    if (selectedResident?.house_id) {
-                      setMaintenanceFormHouseId(selectedResident.house_id);
-                    }
-                  }}
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                >
-                  <option value="">No resident selected</option>
-                  {residents
-                    .filter((resident) => String(resident.resident_status ?? "active").toLowerCase() !== "discharged")
-                    .map((resident) => (
-                      <option key={resident.id} value={resident.id}>
-                        {resident.first_name} {resident.last_name}
-                      </option>
-                    ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Priority</span>
-                <select
-                  value={maintenanceFormPriority}
-                  onChange={(event) => setMaintenanceFormPriority(event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                >
-                  <option value="low">Low</option>
-                  <option value="normal">Normal</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-              </label>
-
-              <label className="block md:col-span-2">
-                <span className="text-sm font-medium text-slate-700">Request title</span>
-                <input
-                  value={maintenanceFormTitle}
-                  onChange={(event) => setMaintenanceFormTitle(event.target.value)}
-                  placeholder="Example: Bathroom sink leaking"
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                />
-              </label>
-
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700">Location / area</span>
-                <input
-                  value={maintenanceFormLocation}
-                  onChange={(event) => setMaintenanceFormLocation(event.target.value)}
-                  placeholder="Example: Kitchen, bedroom 2"
-                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                />
-              </label>
-
-              <label className="block md:col-span-2 xl:col-span-3">
-                <span className="text-sm font-medium text-slate-700">Description</span>
-                <textarea
-                  value={maintenanceFormDescription}
-                  onChange={(event) => setMaintenanceFormDescription(event.target.value)}
-                  placeholder="Describe the maintenance issue and what staff should know."
-                  className="mt-2 min-h-28 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                />
-              </label>
-
-              <label className="block md:col-span-2 xl:col-span-3">
-                <span className="text-sm font-medium text-slate-700">Provider notes</span>
-                <textarea
-                  value={maintenanceFormNotes}
-                  onChange={(event) => setMaintenanceFormNotes(event.target.value)}
-                  placeholder="Optional internal notes."
-                  className="mt-2 min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                />
-              </label>
-            </div>
-
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  resetMaintenanceForm();
-                  setShowMaintenanceForm(false);
-                }}
-                className="rounded-xl border bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={createStaffMaintenanceRequest}
-                disabled={savingMaintenanceRequest}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {savingMaintenanceRequest ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                {savingMaintenanceRequest ? "Saving..." : "Save Request"}
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="mt-5 grid gap-4 md:grid-cols-3">
-          <label className="block">
-            <span className="text-sm font-medium text-slate-700">House</span>
-            <select
-              value={maintenanceHouseFilter}
-              onChange={(event) => setMaintenanceHouseFilter(event.target.value)}
-              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-            >
-              <option value="all">All houses</option>
-              {activeHouses.map((house) => (
-                <option key={house.id} value={house.id}>
-                  {house.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="text-sm font-medium text-slate-700">Status</span>
-            <select
-              value={maintenanceStatusFilter}
-              onChange={(event) => setMaintenanceStatusFilter(event.target.value)}
-              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-            >
-              <option value="open">Open</option>
-              <option value="in_progress">In progress</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="all">All statuses</option>
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="text-sm font-medium text-slate-700">Priority</span>
-            <select
-              value={maintenancePriorityFilter}
-              onChange={(event) => setMaintenancePriorityFilter(event.target.value)}
-              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-            >
-              <option value="all">All priorities</option>
-              <option value="urgent">Urgent</option>
-              <option value="normal">Normal</option>
-              <option value="low">Low</option>
-            </select>
-          </label>
-        </div>
-
-        {filteredMaintenanceRequests.length === 0 ? (
-          <div className="mt-5 rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
-            No maintenance requests match the selected filters.
-          </div>
-        ) : (
-          <div className="mt-5 grid gap-3">
-            {filteredMaintenanceRequests.map((request) => (
-              <div key={request.id} className="rounded-2xl border bg-slate-50 p-4">
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <h3 className="font-semibold text-slate-950">{request.request_title}</h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {getMaintenanceHouseName(request)} • {getMaintenanceResidentName(request)}
-                      {request.location_area ? ` • ${request.location_area}` : ""}
-                    </p>
-                    <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
-                      {request.request_description}
-                    </p>
-                    {request.provider_notes ? (
-                      <p className="mt-2 whitespace-pre-wrap rounded-xl bg-white p-3 text-sm text-slate-600">
-                        Provider notes: {request.provider_notes}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className="flex flex-col gap-2 md:items-end">
-                    <div className="flex flex-wrap gap-2 md:justify-end">
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                        {formatFeeLabel(request.status)}
-                      </span>
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                        {formatFeeLabel(request.priority)}
-                      </span>
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500">
-                        {formatDateTime(request.created_at)}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 md:justify-end">
-                      {request.status === "open" ? (
-                        <button
-                          type="button"
-                          onClick={() => updateMaintenanceRequestStatus(request, "in_progress")}
-                          disabled={savingMaintenanceRequest}
-                          className="rounded-lg border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50 disabled:opacity-60"
-                        >
-                          Start
-                        </button>
-                      ) : null}
-
-                      {request.status !== "completed" ? (
-                        <button
-                          type="button"
-                          onClick={() => updateMaintenanceRequestStatus(request, "completed")}
-                          disabled={savingMaintenanceRequest}
-                          className="rounded-lg bg-slate-950 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
-                        >
-                          Mark Complete
-                        </button>
-                      ) : null}
-
-                      {request.status !== "cancelled" && request.status !== "completed" ? (
-                        <button
-                          type="button"
-                          onClick={() => updateMaintenanceRequestStatus(request, "cancelled")}
-                          disabled={savingMaintenanceRequest}
-                          className="rounded-lg border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50 disabled:opacity-60"
-                        >
-                          Cancel
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <h2 className="text-lg font-semibold text-slate-950">Maintenance Log moved</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Maintenance requests now live in the standalone Maintenance page so Reports can stay focused on compliance forms.
+        </p>
+        <a
+          href="/maintenance"
+          className="mt-4 inline-flex rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+        >
+          Open Maintenance Log
+        </a>
       </section>
     );
   }
 
-  function renderSubmittedReportFields(report: ProviderHouseReport) {
-    const data = report.report_data ?? {};
-
-    if (report.report_type === "monthly_self_safety_assessment") {
-      return renderSelfSafetyReportView(report);
-    }
-
-    if (report.report_type === "incident_reporting") {
-      return renderIncidentReportView(report);
-    }
-
-    const entries = Object.entries(data).filter(([key]) => key !== "resident_attendance");
-
-    if (entries.length === 0) {
-      return (
-        <div className="mt-6 rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
-          No detailed form fields were saved for this report.
-        </div>
-      );
-    }
-
-    return (
-      <div className="mt-6 grid gap-3 md:grid-cols-2">
-        {entries.map(([key, value]) => (
-          <div
-            key={key}
-            className={`rounded-xl border bg-slate-50 p-3 text-sm ${
-              key === "meeting_minutes" ? "md:col-span-2" : ""
-            }`}
-          >
-            <p className="font-medium text-slate-700">{getReportFieldLabel(report.report_type, key)}</p>
-            <p className="mt-1 whitespace-pre-wrap text-slate-600">
-              {formatReportValue(value)}
-            </p>
-          </div>
-        ))}
-      </div>
-    );
-  }
 
   return (
     <PageShell>
@@ -3084,7 +2766,7 @@ export default function ReportsPage() {
           <button
             type="button"
             onClick={() => {
-              setShowMaintenanceLog(true);
+              window.location.href = "/maintenance";
               setShowRollingFeeList(false);
               setShowPassRequests(false);
               setSelectedReportType(null);
