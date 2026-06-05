@@ -9,11 +9,14 @@ import {
   Wrench,
 } from "lucide-react";
 import PageShell from "@/components/PageShell";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@/lib/supabase";
 
 type ProviderRow = {
   id: string;
-  name: string;
+  legal_name?: string | null;
+  provider_name?: string | null;
+  business_name?: string | null;
+  name?: string | null;
 };
 
 type HouseRow = {
@@ -96,6 +99,9 @@ export default function MaintenancePage() {
   const [maintenanceFormPriority, setMaintenanceFormPriority] = useState("normal");
   const [maintenanceFormNotes, setMaintenanceFormNotes] = useState("");
   const [savingMaintenanceRequest, setSavingMaintenanceRequest] = useState(false);
+  const [selectedMaintenanceRequest, setSelectedMaintenanceRequest] = useState<MaintenanceRequestRow | null>(null);
+  const [selectedMaintenanceNextStatus, setSelectedMaintenanceNextStatus] = useState("");
+  const [maintenanceStatusNotes, setMaintenanceStatusNotes] = useState("");
 
   const activeHouses = useMemo(
     () => houses.filter((house) => String(house.status ?? "active").toLowerCase() !== "inactive"),
@@ -156,7 +162,7 @@ export default function MaintenancePage() {
 
     const providerResult = await supabase
       .from("providers")
-      .select("id, name")
+      .select("*")
       .eq("id", activeProviderId)
       .single();
 
@@ -206,7 +212,7 @@ export default function MaintenancePage() {
         if (!activeProviderId) {
           const providerResult = await supabase
             .from("providers")
-            .select("id, name")
+            .select("*")
             .order("created_at", { ascending: true })
             .limit(1)
             .maybeSingle();
@@ -237,10 +243,6 @@ export default function MaintenancePage() {
 
     void loadInitial();
   }, []);
-
-  async function openLargeTextPrompt(title: string, initialValue: string) {
-    return window.prompt(title, initialValue);
-  }
 
   function exportMaintenanceLogCsv() {
     const headers = [
@@ -340,15 +342,28 @@ export default function MaintenancePage() {
     }
   }
 
-  async function updateMaintenanceRequestStatus(request: MaintenanceRequestRow, nextStatus: string) {
+  function updateMaintenanceRequestStatus(request: MaintenanceRequestRow, nextStatus: string) {
+    setSelectedMaintenanceRequest(request);
+    setSelectedMaintenanceNextStatus(nextStatus);
+    setMaintenanceStatusNotes(request.provider_notes ?? "");
+  }
+
+  function closeMaintenanceStatusModal() {
+    setSelectedMaintenanceRequest(null);
+    setSelectedMaintenanceNextStatus("");
+    setMaintenanceStatusNotes("");
+  }
+
+  async function saveMaintenanceStatusUpdate() {
     if (!providerId) {
       setError("No provider selected.");
       return;
     }
 
-    const providerNotes = await openLargeTextPrompt("Provider notes or follow-up details:", request.provider_notes ?? "");
-
-    if (providerNotes === null) return;
+    if (!selectedMaintenanceRequest || !selectedMaintenanceNextStatus) {
+      setError("No maintenance request selected.");
+      return;
+    }
 
     try {
       setSavingMaintenanceRequest(true);
@@ -360,16 +375,20 @@ export default function MaintenancePage() {
       const { error: updateError } = await supabase
         .from("resident_maintenance_requests")
         .update({
-          status: nextStatus,
-          provider_notes: providerNotes.trim() || null,
-          completed_at: nextStatus === "completed" ? new Date().toISOString() : request.completed_at,
+          status: selectedMaintenanceNextStatus,
+          provider_notes: maintenanceStatusNotes.trim() || null,
+          completed_at:
+            selectedMaintenanceNextStatus === "completed"
+              ? new Date().toISOString()
+              : selectedMaintenanceRequest.completed_at,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", request.id);
+        .eq("id", selectedMaintenanceRequest.id);
 
       if (updateError) throw updateError;
 
       setMessage("Maintenance request updated.");
+      closeMaintenanceStatusModal();
       await loadMaintenance(providerId);
     } catch (err) {
       const maintenanceError = err as { message?: unknown };
@@ -395,7 +414,7 @@ export default function MaintenancePage() {
               </p>
               {provider ? (
                 <p className="mt-2 text-xs font-medium text-slate-500">
-                  Provider: {provider.name}
+                  Provider: {provider.legal_name || provider.provider_name || provider.business_name || provider.name || "Provider"}
                 </p>
               ) : null}
             </div>
@@ -716,6 +735,59 @@ export default function MaintenancePage() {
           </div>
         )}
       </section>
+
+      {selectedMaintenanceRequest ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
+          <div className="w-full max-w-2xl rounded-2xl border bg-white p-5 shadow-xl">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-500">Maintenance Status Update</p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-950">
+                  {selectedMaintenanceRequest.request_title}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Change status to {formatLabel(selectedMaintenanceNextStatus)} and add staff follow-up notes for the resident portal.
+                </p>
+              </div>
+
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                {formatLabel(selectedMaintenanceRequest.priority)}
+              </span>
+            </div>
+
+            <label className="mt-5 block">
+              <span className="text-sm font-medium text-slate-700">Provider notes / follow-up details</span>
+              <textarea
+                value={maintenanceStatusNotes}
+                onChange={(event) => setMaintenanceStatusNotes(event.target.value)}
+                placeholder="Example: Plumber called. Repair scheduled for Friday morning."
+                className="mt-2 min-h-36 w-full rounded-xl border bg-white p-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+              />
+            </label>
+
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeMaintenanceStatusModal}
+                disabled={savingMaintenanceRequest}
+                className="rounded-xl border bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={saveMaintenanceStatusUpdate}
+                disabled={savingMaintenanceRequest}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savingMaintenanceRequest ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {savingMaintenanceRequest ? "Saving..." : `Save as ${formatLabel(selectedMaintenanceNextStatus)}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </PageShell>
   );
 }
