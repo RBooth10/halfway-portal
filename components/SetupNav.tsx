@@ -63,11 +63,17 @@ export default function SetupNav() {
   return (
     <aside
       className={`rounded-2xl border bg-white p-3 shadow-sm transition-all duration-200 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:shrink-0 lg:overflow-y-auto ${
-        collapsed ? "lg:w-20" : "lg:w-72"
+        collapsed ? "lg:w-24" : "lg:w-72"
       }`}
     >
-      <div className="mb-4 hidden items-start justify-between gap-3 lg:flex">
-        <div className={collapsed ? "flex w-full justify-center" : ""}>
+      <div
+        className={
+          collapsed
+            ? "mb-4 hidden flex-col items-center gap-2 lg:flex"
+            : "mb-4 hidden items-start justify-between gap-3 lg:flex"
+        }
+      >
+        <div className={collapsed ? "flex justify-center" : ""}>
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-white">
             <BarChart3 className="h-5 w-5" />
           </div>
