@@ -7,6 +7,8 @@ import {
   FileText,
   Home,
   Landmark,
+  PanelLeftClose,
+  PanelLeftOpen,
   PieChart,
   ReceiptText,
   Settings,
@@ -17,6 +19,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 const navGroups = [
   {
@@ -55,21 +58,47 @@ const navGroups = [
 
 export default function SetupNav() {
   const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <aside className="rounded-2xl border bg-white p-3 shadow-sm lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:w-72 lg:shrink-0 lg:overflow-y-auto">
-      <div className="mb-4 hidden lg:block">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-white">
-          <BarChart3 className="h-5 w-5" />
+    <aside
+      className={`rounded-2xl border bg-white p-3 shadow-sm transition-all duration-200 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:shrink-0 lg:overflow-y-auto ${
+        collapsed ? "lg:w-20" : "lg:w-72"
+      }`}
+    >
+      <div className="mb-4 hidden items-start justify-between gap-3 lg:flex">
+        <div className={collapsed ? "flex w-full justify-center" : ""}>
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-white">
+            <BarChart3 className="h-5 w-5" />
+          </div>
+
+          {!collapsed ? (
+            <div>
+              <p className="mt-3 text-xs font-medium uppercase tracking-wide text-slate-500">Navigation</p>
+              <h2 className="text-base font-semibold text-slate-950">Halfway Portal</h2>
+            </div>
+          ) : null}
         </div>
-        <p className="mt-3 text-xs font-medium uppercase tracking-wide text-slate-500">Navigation</p>
-        <h2 className="text-base font-semibold text-slate-950">Halfway Portal</h2>
+
+        <button
+          type="button"
+          onClick={() => setCollapsed((current) => !current)}
+          className="rounded-xl border p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-950"
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+        </button>
       </div>
 
       <nav className="space-y-4">
         {navGroups.map((group) => (
           <div key={group.label}>
-            <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            <p
+              className={`mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 ${
+                collapsed ? "lg:sr-only" : ""
+              }`}
+            >
               {group.label}
             </p>
 
@@ -83,14 +112,19 @@ export default function SetupNav() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    title={collapsed ? item.label : undefined}
                     className={
                       active
-                        ? "flex items-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-sm font-medium text-white"
-                        : "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                        ? `flex items-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-sm font-medium text-white ${
+                            collapsed ? "lg:justify-center" : ""
+                          }`
+                        : `flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 ${
+                            collapsed ? "lg:justify-center" : ""
+                          }`
                     }
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
-                    <span>{item.label}</span>
+                    <span className={collapsed ? "lg:sr-only" : ""}>{item.label}</span>
                   </Link>
                 );
               })}
