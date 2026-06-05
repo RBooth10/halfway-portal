@@ -468,6 +468,32 @@ function SnapshotAction({
   );
 }
 
+function formatLedgerDate(value: string | null | undefined) {
+  if (!value) return "Not set";
+
+  const dateOnlyMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    const localDate = new Date(Number(year), Number(month) - 1, Number(day));
+
+    return localDate.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not set";
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export default function ResidentProfilePage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
@@ -1807,6 +1833,7 @@ export default function ResidentProfilePage() {
       credit: 0,
       status: charge.status,
       sourceType: "charge" as const,
+      transactionOrder: 1,
     })),
     ...residentPayments.map((payment) => ({
       id: `payment-${payment.id}`,
@@ -1816,17 +1843,19 @@ export default function ResidentProfilePage() {
       credit: Number(payment.amount || 0),
       status: "payment",
       sourceType: "payment" as const,
+      transactionOrder: 2,
     })),
-  ].sort((a, b) => {
-    const dateA = a.date ? new Date(a.date).getTime() : 0;
-    const dateB = b.date ? new Date(b.date).getTime() : 0;
+  ]
+    .filter((entry) => entry.date)
+    .sort((a, b) => {
+      const dateA = a.date.slice(0, 10);
+      const dateB = b.date.slice(0, 10);
+      const dateComparison = dateA.localeCompare(dateB);
 
-    if (dateA !== dateB) return dateA - dateB;
+      if (dateComparison !== 0) return dateComparison;
 
-    if (a.sourceType === b.sourceType) return 0;
-
-    return a.sourceType === "charge" ? -1 : 1;
-  });
+      return a.transactionOrder - b.transactionOrder;
+    });
 
   const feeLedgerRowsAscending = feeLedgerEntries.reduce<
     Array<(typeof feeLedgerEntries)[number] & { rollingBalance: number }>
@@ -3407,10 +3436,17 @@ Resident Signature Collected Electronically`;
                           {feeLedgerRows.map((row) => (
                             <tr key={row.id} className="border-b last:border-0">
                               <td className="py-3 pr-4 text-slate-600">
-                                {formatDate(row.date)}
+                                {formatLedgerDate(row.date)}
                               </td>
                               <td className="py-3 pr-4">
-                                <p className="font-medium text-slate-950">{row.description}</p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="font-medium text-slate-950">{row.description}</p>
+                                  {row.sourceType === "payment" ? (
+                                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-600/20">
+                                      Payment applied
+                                    </span>
+                                  ) : null}
+                                </div>
                                 <p className="text-xs text-slate-500">{row.status}</p>
                               </td>
                               <td className="py-3 pr-4 text-slate-600">

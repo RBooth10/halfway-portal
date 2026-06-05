@@ -290,43 +290,46 @@ export default function ClientPortalPage() {
         credit: 0,
         status: charge.status,
         sourceType: "charge" as const,
+        transactionOrder: 1,
       })),
       ...payments.map((payment) => ({
         id: `payment-${payment.id}`,
-        date: payment.payment_date,
+        date: payment.payment_date || "",
         description: `${formatLabel(payment.payment_method)} payment`,
         debit: 0,
         credit: Number(payment.amount || 0),
         status: "payment",
         sourceType: "payment" as const,
+        transactionOrder: 2,
       })),
-    ].sort((first, second) => {
-      const firstDate = first.date ? new Date(first.date).getTime() : 0;
-      const secondDate = second.date ? new Date(second.date).getTime() : 0;
+    ]
+      .filter((entry) => entry.date)
+      .sort((first, second) => {
+        const dateComparison = first.date.localeCompare(second.date);
 
-      if (firstDate !== secondDate) return firstDate - secondDate;
-      if (first.sourceType === second.sourceType) return 0;
-      return first.sourceType === "charge" ? -1 : 1;
-    });
+        if (dateComparison !== 0) {
+          return dateComparison;
+        }
 
-    return entries
-      .reduce<
-        Array<
-          (typeof entries)[number] & {
-            runningBalance: number;
-          }
-        >
-      >((ledgerEntries, entry) => {
-        const previousBalance = ledgerEntries[ledgerEntries.length - 1]?.runningBalance ?? 0;
+        return first.transactionOrder - second.transactionOrder;
+      });
 
-        ledgerEntries.push({
+    const chronologicalLedger = entries.reduce<
+      Array<(typeof entries)[number] & { runningBalance: number }>
+    >((ledger, entry) => {
+      const previousBalance = ledger[ledger.length - 1]?.runningBalance ?? 0;
+      const runningBalance = previousBalance + entry.debit - entry.credit;
+
+      return [
+        ...ledger,
+        {
           ...entry,
-          runningBalance: previousBalance + entry.debit - entry.credit,
-        });
+          runningBalance,
+        },
+      ];
+    }, []);
 
-        return ledgerEntries;
-      }, [])
-      .reverse();
+    return chronologicalLedger.reverse();
   }, [feeCharges, payments]);
 
   async function loadPortal() {
@@ -1190,6 +1193,11 @@ export default function ClientPortalPage() {
                             <td className="px-3 py-3 text-slate-600">{formatDate(entry.date)}</td>
                             <td className="px-3 py-3">
                               <span className="font-medium text-slate-950">{entry.description}</span>
+                              {entry.sourceType === "payment" ? (
+                                <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-600/20">
+                                  Payment applied
+                                </span>
+                              ) : null}
                             </td>
                             <td className="px-3 py-3 text-right text-slate-600">
                               {entry.debit > 0 ? formatCurrency(entry.debit) : "—"}
