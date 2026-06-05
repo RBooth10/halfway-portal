@@ -20,8 +20,6 @@ import { getSupabaseClient } from "@/lib/supabase";
 
 const reportTypes = [
   { value: "annual_fire_drill", label: "Annual Fire Drill", frequency: "Annual" },
-  { value: "weekly_house_meeting_minutes", label: "Weekly House Meeting Minutes", frequency: "Weekly" },
-  { value: "monthly_staff_meeting_minutes", label: "Monthly Staff/QI Meeting Minutes", frequency: "Monthly" },
   { value: "monthly_self_safety_assessment", label: "Monthly Self-Safety Assessment", frequency: "Monthly" },
   { value: "incident_reporting", label: "Incident Reporting", frequency: "As Needed" },
 ] as const;
