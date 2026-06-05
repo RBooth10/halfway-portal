@@ -695,26 +695,19 @@ export default function ReportsPage() {
       .order("due_date", { ascending: true })
       .order("created_at", { ascending: false });
 
-    const passRequestsResult = await supabase
-      .from("resident_pass_requests")
-      .select("id, provider_id, house_id, resident_id, requested_departure_at, requested_return_at, destination, destination_address, reason, transportation_plan, emergency_contact_plan, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, resident_agreed_to_terms, resident_signature_name, resident_signed_at, requires_court_order, requires_clinical_clearance, requires_emergency_travel_docs, requires_other_attachment, other_attachment_note, denial_reason, status, provider_notes, reviewed_by_auth_user_id, reviewed_at, created_at, updated_at")
-      .eq("provider_id", activeProviderId)
-      .order("created_at", { ascending: false });
-
     if (providerResult.error) throw providerResult.error;
     if (housesResult.error) throw housesResult.error;
     if (staffResult.error) throw staffResult.error;
     if (residentsResult.error) throw residentsResult.error;
     if (reportsResult.error) throw reportsResult.error;
     if (feeChargesResult.error) throw feeChargesResult.error;
-    if (passRequestsResult.error) throw passRequestsResult.error;
 
     const loadedHouses = (housesResult.data ?? []) as HouseRow[];
     const loadedResidents = (residentsResult.data ?? []) as ResidentRow[];
     const loadedReports = (reportsResult.data ?? []) as ProviderHouseReport[];
     const loadedFeeCharges = (feeChargesResult.data ?? []) as ResidentFeeChargeRow[];
     const loadedMaintenanceRequests: MaintenanceRequestRow[] = [];
-    const loadedPassRequests = (passRequestsResult.data ?? []) as PassRequestRow[];
+    const loadedPassRequests: PassRequestRow[] = [];
     const staff = staffResult.data ?? [];
 
     setHouses(loadedHouses);
@@ -2763,46 +2756,7 @@ export default function ReportsPage() {
             Rolling Fee List
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              window.location.href = "/maintenance";
-              setShowRollingFeeList(false);
-              setShowPassRequests(false);
-              setSelectedReportType(null);
-              setShowReportForm(false);
-              setMessage("");
-              setError("");
-            }}
-            className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
-              showMaintenanceLog
-                ? "bg-white text-slate-950 shadow-sm"
-                : "text-slate-600 hover:text-slate-950"
-            }`}
-          >
-            Maintenance Log{openMaintenanceCount > 0 ? ` (${openMaintenanceCount} open)` : ""}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setShowPassRequests(true);
-              setShowMaintenanceLog(false);
-              setShowRollingFeeList(false);
-              setSelectedReportType(null);
-              setShowReportForm(false);
-              setMessage("");
-              setError("");
-            }}
-            className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
-              showPassRequests
-                ? "bg-white text-slate-950 shadow-sm"
-                : "text-slate-600 hover:text-slate-950"
-            }`}
-          >
-            Pass Requests{pendingPassRequestCount > 0 ? ` (${pendingPassRequestCount} pending)` : ""}
-          </button>
-        </div>
+                  </div>
       </section>
 
       {selectedReportType && showReportForm ? (
@@ -2974,8 +2928,6 @@ export default function ReportsPage() {
       ) : null}
 
       {showRollingFeeList ? renderRollingFeeList() : null}
-      {showMaintenanceLog ? renderMaintenanceLog() : null}
-      {showPassRequests ? renderPassRequests() : null}
 
       <section className="rounded-2xl border bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
         <div className="flex items-start gap-3">
