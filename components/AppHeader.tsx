@@ -1,6 +1,5 @@
 import {
   Building2,
-  Home,
   LockKeyhole,
   LogIn,
   ShieldCheck,
@@ -52,14 +51,6 @@ export default function AppHeader() {
           >
             <UserCog className="h-3.5 w-3.5" />
             Account
-          </Link>
-
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium hover:bg-slate-50"
-          >
-            <Home className="h-3.5 w-3.5" />
-            Dashboard
           </Link>
         </div>
       </div>

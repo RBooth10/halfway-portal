@@ -11,10 +11,16 @@ export default function PageShell({
 }) {
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-4 text-slate-950 sm:px-5 lg:px-6">
-      <div className={`mx-auto ${maxWidth} space-y-4`}>
-        <AppHeader />
+      <div className="mx-auto flex w-full max-w-[104rem] flex-col gap-4 lg:flex-row lg:items-start">
         <SetupNav />
-        {children}
+
+        <div className="min-w-0 flex-1 space-y-4">
+          <AppHeader />
+
+          <div className={`mx-auto w-full ${maxWidth} space-y-4`}>
+            {children}
+          </div>
+        </div>
       </div>
     </main>
   );
