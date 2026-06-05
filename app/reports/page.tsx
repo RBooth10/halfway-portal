@@ -688,24 +688,16 @@ export default function ReportsPage() {
       .order("report_date", { ascending: false })
       .order("created_at", { ascending: false });
 
-    const feeChargesResult = await supabase
-      .from("resident_fee_charges")
-      .select("id, provider_id, resident_id, house_id, charge_type, billing_frequency, period_start, period_end, due_date, amount, amount_paid, balance_due, status, notes, created_at")
-      .eq("provider_id", activeProviderId)
-      .order("due_date", { ascending: true })
-      .order("created_at", { ascending: false });
-
     if (providerResult.error) throw providerResult.error;
     if (housesResult.error) throw housesResult.error;
     if (staffResult.error) throw staffResult.error;
     if (residentsResult.error) throw residentsResult.error;
     if (reportsResult.error) throw reportsResult.error;
-    if (feeChargesResult.error) throw feeChargesResult.error;
 
     const loadedHouses = (housesResult.data ?? []) as HouseRow[];
     const loadedResidents = (residentsResult.data ?? []) as ResidentRow[];
     const loadedReports = (reportsResult.data ?? []) as ProviderHouseReport[];
-    const loadedFeeCharges = (feeChargesResult.data ?? []) as ResidentFeeChargeRow[];
+    const loadedFeeCharges: ResidentFeeChargeRow[] = [];
     const loadedMaintenanceRequests: MaintenanceRequestRow[] = [];
     const loadedPassRequests: PassRequestRow[] = [];
     const staff = staffResult.data ?? [];
@@ -2737,25 +2729,6 @@ export default function ReportsPage() {
             </button>
           ))}
 
-          <button
-            type="button"
-            onClick={() => {
-              setShowRollingFeeList(true);
-              setShowMaintenanceLog(false);
-              setSelectedReportType(null);
-              setShowReportForm(false);
-              setMessage("");
-              setError("");
-            }}
-            className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
-              showRollingFeeList
-                ? "bg-white text-slate-950 shadow-sm"
-                : "text-slate-600 hover:text-slate-950"
-            }`}
-          >
-            Rolling Fee List
-          </button>
-
                   </div>
       </section>
 
@@ -2927,7 +2900,6 @@ export default function ReportsPage() {
         </section>
       ) : null}
 
-      {showRollingFeeList ? renderRollingFeeList() : null}
 
       <section className="rounded-2xl border bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
         <div className="flex items-start gap-3">
