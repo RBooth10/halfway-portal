@@ -81,6 +81,19 @@ type PassRequest = {
   created_at: string | null;
 };
 
+type MaintenanceRequest = {
+  id: string;
+  request_title: string | null;
+  request_description: string | null;
+  location_area: string | null;
+  priority: string | null;
+  status: string;
+  provider_notes: string | null;
+  completed_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 type SatisfactionSurveyResponse = {
   id: string;
   overall_rating: number | null;
@@ -192,6 +205,7 @@ export default function ClientPortalPage() {
   const [feeCharges, setFeeCharges] = useState<FeeCharge[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [passRequests, setPassRequests] = useState<PassRequest[]>([]);
+  const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[]>([]);
   const [residentStatus, setResidentStatus] = useState("active");
   const [surveyAvailable, setSurveyAvailable] = useState(false);
   const [surveyCompleted, setSurveyCompleted] = useState(false);
@@ -333,6 +347,16 @@ export default function ClientPortalPage() {
         setPassRequests([]);
       }
 
+      const maintenanceRequestsResult = await supabase.rpc("get_client_portal_maintenance_requests", {
+        p_access_token: token,
+      });
+
+      if (!maintenanceRequestsResult.error && maintenanceRequestsResult.data?.ok) {
+        setMaintenanceRequests((maintenanceRequestsResult.data.maintenance_requests ?? []) as MaintenanceRequest[]);
+      } else {
+        setMaintenanceRequests([]);
+      }
+
       const surveyResult = await supabase.rpc("get_client_portal_satisfaction_survey", {
         p_access_token: token,
       });
@@ -470,6 +494,203 @@ export default function ClientPortalPage() {
       setError(signatureError?.message ? String(signatureError.message) : "Could not sign document.");
     } finally {
       setSigningAssignmentId(null);
+    }
+  }
+
+  async function startRciAssessment() {
+    try {
+      setStartingRci(true);
+      setMessage("");
+      setError("");
+
+      const supabase = getSupabaseClient() as any;
+
+      const { data, error } = await supabase.rpc("start_client_portal_rci_assessment", {
+        p_access_token: token,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.ok || !data?.client_access_token) {
+        setError(data?.message ?? "Could not start the RCI assessment.");
+        return;
+      }
+
+      window.location.href = `/client/rci/${data.client_access_token}`;
+    } catch (err) {
+      const rciError = err as { message?: unknown };
+      setError(rciError?.message ? String(rciError.message) : "Could not start the RCI assessment.");
+    } finally {
+      setStartingRci(false);
+    }
+  }
+
+  function optionalRating(value: string) {
+    return value ? Number(value) : null;
+  }
+
+  async function submitSatisfactionSurvey() {
+    if (!surveyOverallRating) {
+      setError("Select an overall satisfaction rating before submitting.");
+      return;
+    }
+
+    try {
+      setSubmittingSurvey(true);
+      setMessage("");
+      setError("");
+
+      const supabase = getSupabaseClient() as any;
+
+      const { data, error } = await supabase.rpc("submit_client_portal_satisfaction_survey", {
+        p_access_token: token,
+        p_overall_rating: Number(surveyOverallRating),
+        p_felt_safe_rating: optionalRating(surveyFeltSafeRating),
+        p_staff_respect_rating: optionalRating(surveyStaffRespectRating),
+        p_expectations_clear_rating: optionalRating(surveyExpectationsRating),
+        p_recovery_support_rating: optionalRating(surveyRecoverySupportRating),
+        p_would_recommend: surveyWouldRecommend,
+        p_most_helpful: surveyMostHelpful,
+        p_could_improve: surveyCouldImprove,
+        p_additional_comments: surveyAdditionalComments,
+      });
+
+      if (error) throw error;
+
+      if (!data?.ok) {
+        setError(data?.message ?? "Could not submit survey.");
+        return;
+      }
+
+      setMessage(data.message ?? "Survey submitted. Thank you.");
+      await loadPortal();
+    } catch (err) {
+      const surveyError = err as { message?: unknown };
+      setError(surveyError?.message ? String(surveyError.message) : "Could not submit survey.");
+    } finally {
+      setSubmittingSurvey(false);
+    }
+  }
+
+  async function submitPassRequest() {
+    if (!passDepartureAt || !passReturnAt) {
+      setError("Enter the requested departure and return times.");
+      return;
+    }
+
+    if (!passDestinationAddress.trim()) {
+      setError("Enter the full destination address.");
+      return;
+    }
+
+    if (!passReason.trim()) {
+      setError("Enter the purpose of the pass request.");
+      return;
+    }
+
+    if (!passEmergencyContactName.trim() || !passEmergencyContactRelationship.trim() || !passEmergencyContactPhone.trim()) {
+      setError("Enter the emergency contact name, relationship, and phone number.");
+      return;
+    }
+
+    if (!passResidentAgreed) {
+      setError("Confirm the resident agreement before submitting.");
+      return;
+    }
+
+    if (!passResidentSignatureName.trim()) {
+      setError("Type your full name as the resident signature.");
+      return;
+    }
+
+    try {
+      setSubmittingPassRequest(true);
+      setMessage("");
+      setError("");
+
+      const supabase = getSupabaseClient() as any;
+
+      const { data, error } = await supabase.rpc("submit_client_portal_pass_request_v2", {
+        p_payload: {
+          access_token: token,
+          requested_departure_at: new Date(passDepartureAt).toISOString(),
+          requested_return_at: new Date(passReturnAt).toISOString(),
+          destination: passDestination || passDestinationAddress,
+          reason: passReason,
+          transportation_plan: passTransportationPlan,
+          emergency_contact_plan: passEmergencyContactPlan,
+          destination_address: passDestinationAddress,
+          emergency_contact_name: passEmergencyContactName,
+          emergency_contact_relationship: passEmergencyContactRelationship,
+          emergency_contact_phone: passEmergencyContactPhone,
+          resident_agreed_to_terms: passResidentAgreed,
+          resident_signature_name: passResidentSignatureName,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.ok) {
+        setError(data?.message ?? "Could not submit pass request.");
+        return;
+      }
+
+      setPassDepartureAt("");
+      setPassReturnAt("");
+      setPassDestination("");
+      setPassDestinationAddress("");
+      setPassReason("");
+      setPassTransportationPlan("");
+      setPassEmergencyContactName("");
+      setPassEmergencyContactRelationship("");
+      setPassEmergencyContactPhone("");
+      setPassEmergencyContactPlan("");
+      setPassResidentAgreed(false);
+      setPassResidentSignatureName("");
+      setMessage("Pass request submitted successfully.");
+    } catch (err) {
+      const passError = err as { message?: unknown };
+      setError(passError?.message ? String(passError.message) : "Could not submit pass request.");
+    } finally {
+      setSubmittingPassRequest(false);
+    }
+  }
+
+  async function saveSponsorInfo() {
+    try {
+      setSavingSponsorInfo(true);
+      setMessage("");
+      setError("");
+
+      const supabase = getSupabaseClient() as any;
+
+      const { data, error } = await supabase.rpc("update_client_portal_sponsor_info", {
+        p_access_token: token,
+        p_sponsor_name: sponsorName,
+        p_sponsor_phone: sponsorPhone,
+        p_current_step: currentStep,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.ok) {
+        setError(data?.message ?? "Could not update sponsor and step information.");
+        return;
+      }
+
+      setSponsorInfoUpdatedAt(new Date().toISOString());
+      setMessage("Sponsor and step information updated successfully.");
+    } catch (err) {
+      const sponsorError = err as { message?: unknown };
+      setError(sponsorError?.message ? String(sponsorError.message) : "Could not update sponsor and step information.");
+    } finally {
+      setSavingSponsorInfo(false);
     }
   }
 
@@ -1381,6 +1602,69 @@ export default function ClientPortalPage() {
                   })
                 )}
               </div>
+            </section>
+
+            <section className={activePortalTab === "requests" && activeRequestView === "status" ? "rounded-2xl border bg-white p-5 shadow-sm" : "hidden"}>
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="mt-1 h-5 w-5 text-slate-600" />
+                <div>
+                  <h2 className="text-lg font-semibold">Maintenance Request Status</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    View maintenance requests submitted through your portal and any staff follow-up notes.
+                  </p>
+                </div>
+              </div>
+
+              {maintenanceRequests.length === 0 ? (
+                <p className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                  No maintenance request status updates are available yet.
+                </p>
+              ) : (
+                <div className="mt-5 grid gap-3">
+                  {maintenanceRequests.map((request) => (
+                    <div key={request.id} className="rounded-2xl border bg-slate-50 p-4">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <h3 className="font-semibold text-slate-950">
+                            Maintenance Request • {formatLabel(request.status)}
+                          </h3>
+                          <p className="mt-1 text-sm text-slate-500">
+                            {request.request_title || "Maintenance request"}
+                            {request.created_at ? ` • Submitted ${formatDateTime(request.created_at)}` : ""}
+                          </p>
+
+                          {request.location_area ? (
+                            <p className="mt-1 text-sm text-slate-600">Location: {request.location_area}</p>
+                          ) : null}
+
+                          {request.request_description ? (
+                            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                              {request.request_description}
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                          {formatLabel(request.priority)}
+                        </span>
+                      </div>
+
+                      {request.provider_notes || request.completed_at ? (
+                        <div className="mt-3 rounded-xl bg-white p-3 text-sm">
+                          {request.provider_notes ? (
+                            <p className="text-slate-600">Staff notes: {request.provider_notes}</p>
+                          ) : null}
+                          {request.completed_at ? (
+                            <p className="mt-1 text-slate-500">
+                              Completed {formatDateTime(request.completed_at)}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section className={activePortalTab === "requests" && activeRequestView === "pass" ? "rounded-2xl border bg-white p-5 shadow-sm" : "hidden"}>
