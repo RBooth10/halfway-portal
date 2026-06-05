@@ -761,7 +761,8 @@ export default function ReportsPage() {
         setProviderId(activeProviderId);
         await loadReports(activeProviderId);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not load reports.");
+        const loadError = err as { message?: unknown };
+        setError(loadError?.message ? String(loadError.message) : "Could not load reports.");
       } finally {
         setLoading(false);
       }
