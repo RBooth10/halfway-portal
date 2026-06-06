@@ -44,6 +44,8 @@ type ResidentForm = {
   file_status: string;
   medication_status: string;
   rci_status: string;
+  sponsor_info_updated_at: string | null;
+  latest_rci_completed_at?: string | null;
   high_alert: boolean;
   high_alert_detail: string;
   active_probation_officer: boolean;
@@ -71,6 +73,8 @@ type ResidentRow = {
   file_status: string;
   medication_status: string;
   rci_status: string;
+  sponsor_info_updated_at: string | null;
+  latest_rci_completed_at?: string | null;
   high_alert: boolean;
   high_alert_detail: string | null;
   active_probation_officer: boolean;
@@ -176,6 +180,46 @@ function Field({
       </div>
     </label>
   );
+}
+
+function formatDisplayDate(value: string | null | undefined) {
+  if (!value) return "Not set";
+
+  const dateOnlyMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    const localDate = new Date(Number(year), Number(month) - 1, Number(day));
+
+    return localDate.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not set";
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatDaysAgo(value: string | null | undefined, fallback: string) {
+  if (!value) return fallback;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return fallback;
+
+  const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const days = Math.max(0, Math.round((todayStart.getTime() - dateStart.getTime()) / (1000 * 60 * 60 * 24)));
+
+  return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
 function normalizeAdmissionDateForSave(value: string) {
@@ -316,8 +360,11 @@ export default function ResidentsPage() {
 
     const residentRows = (residentsResult.data ?? []) as ResidentRow[];
     const activeMatMarResidentIds = new Set<string>();
+    const latestRciByResidentId = new Map<string, string>();
 
     if (residentRows.length > 0) {
+      const residentIds = residentRows.map((resident) => resident.id);
+
       const medicationResult = await supabase
         .from("medication_records")
         .select("resident_id")
@@ -334,12 +381,43 @@ export default function ResidentsPage() {
           activeMatMarResidentIds.add(record.resident_id);
         }
       });
+
+      const rciResult = await supabase
+        .from("rci_assessments")
+        .select("resident_id, assessment_date, client_completed_at")
+        .eq("provider_id", activeProviderId)
+        .in("resident_id", residentIds);
+
+      if (rciResult.error) {
+        throw rciResult.error;
+      }
+
+      type RciAssessmentSummary = {
+        resident_id: string | null;
+        assessment_date: string | null;
+        client_completed_at: string | null;
+      };
+
+      ((rciResult.data ?? []) as RciAssessmentSummary[])
+        .sort((first, second) =>
+          String(second.client_completed_at || second.assessment_date || "").localeCompare(
+            String(first.client_completed_at || first.assessment_date || "")
+          )
+        )
+        .forEach((assessment) => {
+          const completedAt = assessment.client_completed_at || assessment.assessment_date;
+
+          if (assessment.resident_id && completedAt && !latestRciByResidentId.has(assessment.resident_id)) {
+            latestRciByResidentId.set(assessment.resident_id, completedAt);
+          }
+        });
     }
 
     setResidents(
       residentRows.map((resident) => ({
         ...resident,
         has_active_mat_mar: activeMatMarResidentIds.has(resident.id),
+        latest_rci_completed_at: latestRciByResidentId.get(resident.id) ?? null,
       }))
     );
   }
@@ -856,12 +934,13 @@ export default function ResidentsPage() {
                         ) : null}
 
                         <p className="mt-1 text-sm text-slate-500">
-                          Medication: {resident.medication_status}
+                          RCI: {formatDaysAgo(resident.latest_rci_completed_at, "Not completed")}
                         </p>
                         <p className="mt-1 text-sm text-slate-500">
+                          Sponsor: {resident.sponsor_info_updated_at ? `updated ${formatDaysAgo(resident.sponsor_info_updated_at, "Needs update")}` : "Needs update"}
                         </p>
                         <p className="mt-1 text-sm text-slate-500">
-                          Admission: {resident.admission_date || "Not set"}
+                          Admission: {formatDisplayDate(resident.admission_date)}
                         </p>
                       </div>
 
