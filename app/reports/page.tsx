@@ -412,33 +412,6 @@ function getReportTargetHouseIds(report: ProviderHouseReport) {
   return [];
 }
 
-function MetricCard({
-  title,
-  value,
-  subtitle,
-  icon: Icon,
-}: {
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: React.ComponentType<{ className?: string }>;
-}) {
-  return (
-    <div className="rounded-3xl border bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-slate-500">{title}</p>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
-          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-        </div>
-        <div className="rounded-2xl bg-slate-100 p-3">
-          <Icon className="h-6 w-6 text-slate-600" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function TextField({
   label,
   value,
@@ -491,7 +464,7 @@ function TextAreaField({
 }
 
 export default function ReportsPage() {
-  const [counts, setCounts] = useState<Counts>(emptyCounts);
+  const [, setCounts] = useState<Counts>(emptyCounts);
   const [providerId, setProviderId] = useState<string | null>(null);
   const [houses, setHouses] = useState<HouseRow[]>([]);
   const [residents, setResidents] = useState<ResidentRow[]>([]);
@@ -505,14 +478,14 @@ export default function ReportsPage() {
   const [showRollingFeeList, setShowRollingFeeList] = useState(false);
   const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequestRow[]>([]);
   const [showMaintenanceLog, setShowMaintenanceLog] = useState(false);
-  const [maintenanceHouseFilter, setMaintenanceHouseFilter] = useState("all");
-  const [maintenanceStatusFilter, setMaintenanceStatusFilter] = useState("open");
-  const [maintenancePriorityFilter, setMaintenancePriorityFilter] = useState("all");
+  const [maintenanceHouseFilter] = useState("all");
+  const [maintenanceStatusFilter] = useState("open");
+  const [maintenancePriorityFilter] = useState("all");
   const [passRequests, setPassRequests] = useState<PassRequestRow[]>([]);
   const [showPassRequests, setShowPassRequests] = useState(false);
   const [passHouseFilter, setPassHouseFilter] = useState("all");
   const [passStatusFilter, setPassStatusFilter] = useState("pending");
-  const [showMaintenanceForm, setShowMaintenanceForm] = useState(false);
+  const [, setShowMaintenanceForm] = useState(false);
   const [maintenanceFormHouseId, setMaintenanceFormHouseId] = useState("");
   const [maintenanceFormResidentId, setMaintenanceFormResidentId] = useState("");
   const [maintenanceFormTitle, setMaintenanceFormTitle] = useState("");
@@ -636,16 +609,6 @@ export default function ReportsPage() {
       })
       .sort((first, second) => second.created_at.localeCompare(first.created_at));
   }, [passRequests, passHouseFilter, passStatusFilter]);
-
-  const openMaintenanceCount = useMemo(
-    () => maintenanceRequests.filter((request) => request.status === "open").length,
-    [maintenanceRequests]
-  );
-
-  const pendingPassRequestCount = useMemo(
-    () => passRequests.filter((request) => request.status === "pending").length,
-    [passRequests]
-  );
 
   useEffect(() => {
     if (!selectedReportType || selectedReportType !== "weekly_house_meeting_minutes") {
@@ -1200,13 +1163,6 @@ export default function ReportsPage() {
   const selectedReportLabel = selectedReportType ? getReportLabel(selectedReportType) : "Select a Report";
   const selectedReportFrequency = selectedReportType ? getReportFrequency(selectedReportType) : "";
   const savedReportsLabel = getReportLabel(savedReportsTab);
-
-  const overdueCount = selectedReportType && selectedReportType !== "incident_reporting"
-    ? activeHouses.reduce((total, house) => {
-        const latestReport = getLastReportForHouse(house.id, selectedReportType);
-        return total + (getDueStatus(selectedReportType, latestReport?.report_date ?? null).label === "Overdue" ? 1 : 0);
-      }, 0)
-    : 0;
 
   function calculateDrillMinutes() {
     const startTime = getTextValue("start_time");
