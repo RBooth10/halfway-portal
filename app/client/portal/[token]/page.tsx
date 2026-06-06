@@ -847,9 +847,9 @@ async function submitMaintenanceRequest() {
               {[
                 ["documents", "Documents", `${documents.length} assigned`],
                 ["rent", "Rent Records", formatCurrency(currentBalance)],
-                ["requests", "Requests", "Pass + maintenance"],
-                ["sponsor", "Sponsor / Step", sponsorInfoUpdatedAt ? "Recently updated" : "Update info"],
-                ["rci", "RCI / Recovery Plan", rciSummary?.latest_assessment ? `${rciSummary.assessment_count} completed` : "Start RCI"],
+                ["requests", "Requests & Status", `${passRequests.length + maintenanceRequests.length} submitted`],
+                ["sponsor", "Sponsor / Step", sponsorInfoUpdatedAt ? "Updated" : "Needs update"],
+                ["rci", "RCI / Plan", rciSummary?.latest_assessment ? `${rciSummary.assessment_count} completed` : "Start RCI"],
                 ...(residentStatus === "discharged" || surveyAvailable || surveyCompleted
                   ? [["survey", "Discharge Survey", surveyCompleted ? "Completed" : "Available"]]
                   : []),
