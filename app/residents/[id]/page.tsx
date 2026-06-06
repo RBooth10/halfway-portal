@@ -1798,6 +1798,13 @@ export default function ResidentProfilePage() {
   const totalCharges = feeCharges.reduce((sum, charge) => sum + Number(charge.amount || 0), 0);
   const totalPayments = residentPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
   const currentBalance = totalCharges - totalPayments;
+  const currentBalanceDisplay = currentBalance < 0 ? `-$${Math.abs(currentBalance).toFixed(2)}` : `$${currentBalance.toFixed(2)}`;
+  const currentBalanceStatus = currentBalance > 0 ? "Balance due" : currentBalance < 0 ? "Paid ahead" : "Paid in full";
+  const currentBalanceTextClass = currentBalance > 0 ? "text-rose-700" : "text-emerald-700";
+  const currentBalanceCardClass =
+    currentBalance > 0
+      ? "rounded-2xl bg-rose-50 p-4 ring-1 ring-rose-100"
+      : "rounded-2xl bg-emerald-50 p-4 ring-1 ring-emerald-100";
 
   const formatSurveyRating = (value?: number | null) => {
     return value ? `${value} / 5` : "Not answered";
@@ -2794,7 +2801,7 @@ Resident Signature Collected Electronically`;
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   <TabButton active={activeTab === "snapshot"} label="Profile" status="Snapshot & phase" onClick={() => setActiveTab("snapshot")} />
                   <TabButton active={activeTab === "documents"} label="Documents" status={`${assignedDocuments.length} assigned • ${documents.length} uploads`} onClick={() => setActiveTab("documents")} />
-                  <TabButton active={activeTab === "fees"} label="Fees" status={`Balance $${currentBalance.toFixed(2)}`} onClick={() => setActiveTab("fees")} />
+                  <TabButton active={activeTab === "fees"} label="Fees" status={currentBalanceStatus} onClick={() => setActiveTab("fees")} />
                   <TabButton active={activeTab === "ua"} label="UA / BA" status={uaBaLogs.length > 0 ? `${uaBaLogs.length} logged` : "Needs log"} onClick={() => setActiveTab("ua")} />
                   <TabButton active={activeTab === "medication"} label="Medications" status={medicationRecords.length > 0 ? "Complete" : "Needs meds"} onClick={() => setActiveTab("medication")} />
                   <TabButton active={activeTab === "notes"} label="Progress Notes" status={`${progressNotes.length} saved`} onClick={() => setActiveTab("notes")} />
@@ -2923,11 +2930,6 @@ Resident Signature Collected Electronically`;
                       <p className="mt-1 text-sm text-slate-500">Resident Profile</p>
 
                       <div className="mt-4 flex flex-wrap justify-center gap-2">
-                        {resident.high_alert ? (
-                          <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
-                            High Alert
-                          </span>
-                        ) : null}
 
                         {hasActiveMatMar ? (
                           <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
@@ -2954,7 +2956,7 @@ Resident Signature Collected Electronically`;
                         ) : null}
                       </div>
 
-                      {resident.high_alert && resident.high_alert_detail ? (
+                      {resident.high_alert_detail ? (
                         <div className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-left">
                           <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">
                             High Alert Detail
@@ -2984,7 +2986,7 @@ Resident Signature Collected Electronically`;
                         </div>
                         <div className="flex items-center justify-between gap-4 p-3">
                           <span className="text-sm font-medium text-slate-600">Current Balance</span>
-                          <span className="text-sm font-semibold text-slate-950">${currentBalance.toFixed(2)}</span>
+                          <span className={`text-sm font-semibold ${currentBalanceTextClass}`}>{currentBalanceDisplay}</span>
                         </div>
                       </div>
 
@@ -3034,7 +3036,7 @@ Resident Signature Collected Electronically`;
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border bg-slate-50 p-4 md:col-span-2 2xl:col-span-3">
+                        <div className="hidden rounded-2xl border bg-slate-50 p-4 md:col-span-2 2xl:col-span-3">
                           <p className="text-sm font-semibold text-slate-950">Program Requirements</p>
                           <p className="mt-1 text-sm text-slate-500">
                             Check items as they are confirmed for the resident.
@@ -3148,7 +3150,7 @@ Resident Signature Collected Electronically`;
 
                         <SnapshotAction
                           title="Record Payment"
-                          description={`Current balance: $${currentBalance.toFixed(2)}. Log payments and review charges.`}
+                          description={`${currentBalanceStatus}: ${currentBalanceDisplay}. Log payments and review charges.`}
                           onClick={() => setShowPaymentModal(true)}
                         />
 
@@ -3389,9 +3391,10 @@ Resident Signature Collected Electronically`;
                 </div>
 
                 <div className="mt-6 grid gap-4 md:grid-cols-3">
-                  <div className="rounded-2xl bg-slate-50 p-4">
+                  <div className={currentBalanceCardClass}>
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Current Balance</p>
-                    <p className="mt-1 text-2xl font-semibold text-slate-950">${currentBalance.toFixed(2)}</p>
+                    <p className={`mt-1 text-2xl font-semibold ${currentBalanceTextClass}`}>{currentBalanceDisplay}</p>
+                    <p className={`mt-1 text-xs font-semibold ${currentBalanceTextClass}`}>{currentBalanceStatus}</p>
                   </div>
 
                   <div className="rounded-2xl bg-slate-50 p-4">
