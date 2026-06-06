@@ -12,7 +12,6 @@ import {
   Loader2,
   Plus,
   ShieldCheck,
-  Users,
   X,
 } from "lucide-react";
 import PageShell from "@/components/PageShell";
@@ -498,7 +497,6 @@ export default function ReportsPage() {
   const [showReportForm, setShowReportForm] = useState(false);
   const [savedReportsTab, setSavedReportsTab] = useState<ReportType>("annual_fire_drill");
   const [selectedHouseIds, setSelectedHouseIds] = useState<string[]>([]);
-  const [residentAttendance, setResidentAttendance] = useState<Record<string, boolean>>({});
   const [selectedViewReport, setSelectedViewReport] = useState<ProviderHouseReport | null>(null);
   const [form, setForm] = useState<ReportForm>(initialForm);
   const [saving, setSaving] = useState(false);
@@ -610,20 +608,7 @@ export default function ReportsPage() {
       .sort((first, second) => second.created_at.localeCompare(first.created_at));
   }, [passRequests, passHouseFilter, passStatusFilter]);
 
-  useEffect(() => {
-    if (!selectedReportType || selectedReportType !== "weekly_house_meeting_minutes") {
-      setResidentAttendance({});
-      return;
-    }
-
-    setResidentAttendance((current) => {
-      const next: Record<string, boolean> = {};
-      selectedHouseResidents.forEach((resident) => {
-        next[resident.id] = current[resident.id] ?? true;
-      });
-      return next;
-    });
-  }, [selectedReportType, selectedHouseResidents]);
+, [selectedReportType, selectedHouseResidents]);
 
   async function loadReports(activeProviderId: string) {
     const supabase = getSupabaseClient() as any;
@@ -760,10 +745,6 @@ export default function ReportsPage() {
     }
 
     setSelectedHouseIds(activeHouses.map((house) => house.id));
-  }
-
-  function toggleResidentAttendance(residentId: string) {
-    setResidentAttendance((current) => ({ ...current, [residentId]: !current[residentId] }));
   }
 
   function getHouseName(houseId: string | null) {
@@ -929,19 +910,8 @@ export default function ReportsPage() {
             ? "single_house"
             : "selected_houses";
 
-      const residentAttendanceData =
-        selectedReportType === "weekly_house_meeting_minutes"
-          ? selectedHouseResidents.map((resident) => ({
-              resident_id: resident.id,
-              resident_name: `${resident.first_name} ${resident.last_name}`,
-              house_id: resident.house_id,
-              present: residentAttendance[resident.id] ?? false,
-            }))
-          : [];
-
       const fullReportData: ReportJson = {
         ...form.report_data,
-        ...(selectedReportType === "weekly_house_meeting_minutes" ? { resident_attendance: residentAttendanceData } : {}),
       };
 
       const { data, error: insertError } = await supabase
@@ -1542,26 +1512,7 @@ export default function ReportsPage() {
     );
   }
 
-  function renderReportDataSummary(report: ProviderHouseReport) {
-    const data = report.report_data ?? {};
-
-    if (report.report_type === "weekly_house_meeting_minutes" && Array.isArray(data.resident_attendance)) {
-      const attendance = data.resident_attendance as { resident_name?: string; present?: boolean }[];
-
-      return (
-        <div className="mt-4 rounded-2xl border bg-slate-50 p-4">
-          <h3 className="text-sm font-semibold text-slate-950">Resident Attendance</h3>
-          <div className="mt-3 grid gap-2 md:grid-cols-2">
-            {attendance.map((item, index) => (
-              <p key={`${item.resident_name}-${index}`} className="rounded-xl bg-white p-3 text-sm">
-                {item.present ? "Present" : "Absent"}: {item.resident_name ?? "Resident"}
-              </p>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
+  function renderReportDataSummary() {
     return null;
   }
 
@@ -2739,38 +2690,6 @@ export default function ReportsPage() {
               </div>
             )}
           </div>
-
-          {selectedReportType === "weekly_house_meeting_minutes" ? (
-            <div className="mt-6 rounded-2xl border bg-slate-50 p-4">
-              <div className="flex items-start gap-3">
-                <div className="rounded-xl bg-white p-2">
-                  <Users className="h-5 w-5 text-slate-700" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-950">Resident Attendance</h3>
-                  <p className="mt-1 text-sm text-slate-500">Residents are populated from the selected houses.</p>
-                </div>
-              </div>
-
-              {selectedHouseResidents.length === 0 ? (
-                <p className="mt-4 text-sm text-slate-500">Select a house with active residents to populate attendance.</p>
-              ) : (
-                <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                  {selectedHouseResidents.map((resident) => (
-                    <label key={resident.id} className="flex items-center gap-2 rounded-xl bg-white p-3 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={residentAttendance[resident.id] ?? false}
-                        onChange={() => toggleResidentAttendance(resident.id)}
-                        className="h-4 w-4 rounded border-slate-300"
-                      />
-                      <span>{resident.first_name} {resident.last_name}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : null}
 
           {renderStandardReportFields()}
           {renderSelfSafetyFields()}
