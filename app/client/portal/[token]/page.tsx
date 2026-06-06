@@ -1362,8 +1362,8 @@ async function submitMaintenanceRequest() {
                 <div className="flex flex-wrap gap-2">
                   {[
                     ["status", "Request Status"],
-                    ["pass", "Request Pass"],
                     ["maintenance", "Submit Maintenance"],
+                    ["pass", "Request Pass"],
                   ].map(([view, label]) => (
                     <button
                       key={view}
@@ -1470,7 +1470,7 @@ async function submitMaintenanceRequest() {
                 <div className="mt-5 rounded-2xl border border-dashed bg-slate-50 p-5 text-sm text-slate-500">
                   <p className="font-medium text-slate-700">No maintenance requests submitted yet.</p>
                   <p className="mt-1">
-                    Use the Maintenance tab to submit a concern. Once staff reviews it, updates will appear here.
+                    Use Submit Maintenance to send a concern. Once staff reviews it, updates will appear here.
                   </p>
                 </div>
               ) : (
