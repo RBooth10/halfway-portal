@@ -608,7 +608,6 @@ export default function ReportsPage() {
       .sort((first, second) => second.created_at.localeCompare(first.created_at));
   }, [passRequests, passHouseFilter, passStatusFilter]);
 
-, [selectedReportType, selectedHouseResidents]);
 
   async function loadReports(activeProviderId: string) {
     const supabase = getSupabaseClient() as any;
