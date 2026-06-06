@@ -2919,273 +2919,150 @@ Resident Signature Collected Electronically`;
               </div>
 
               {activeTab === "snapshot" ? (
-                <div className="space-y-6">
-                  <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-                    <div className="rounded-2xl border bg-white p-6 text-center shadow-sm">
-                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
-                        <User className="h-10 w-10 text-slate-500" />
-                      </div>
-
-                      <h2 className="mt-4 text-2xl font-semibold text-slate-950">{residentName}</h2>
-                      <p className="mt-1 text-sm text-slate-500">Resident Profile</p>
-
-                      <div className="mt-4 flex flex-wrap justify-center gap-2">
-
-                        {hasActiveMatMar ? (
-                          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                            MAT/MAR
-                          </span>
-                        ) : null}
-
-                        {resident.active_probation_officer ? (
-                          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                            Active PO
-                          </span>
-                        ) : null}
-
-                        {resident.active_mental_health_court ? (
-                          <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
-                            Mental Health Court
-                          </span>
-                        ) : null}
-
-                        {resident.active_drug_court ? (
-                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                            Drug Court
-                          </span>
-                        ) : null}
-                      </div>
-
-                      {resident.high_alert_detail ? (
-                        <div className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-left">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">
-                            High Alert Detail
-                          </p>
-                          <p className="mt-1 text-sm font-medium text-rose-800">
-                            {resident.high_alert_detail}
-                          </p>
+                <div className="space-y-5">
+                  <div className="rounded-2xl border bg-white p-5 shadow-sm">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-100">
+                          <User className="h-8 w-8 text-slate-500" />
                         </div>
-                      ) : null}
 
-                      <div className="mt-5 divide-y rounded-2xl border text-left">
-                        <div className="flex items-center justify-between gap-4 p-3">
-                          <span className="text-sm font-medium text-slate-600">Status</span>
-                          <span className="text-sm font-semibold text-slate-950">{resident.resident_status}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-4 p-3">
-                          <span className="text-sm font-medium text-slate-600">House</span>
-                          <span className="text-sm font-semibold text-slate-950">{house?.name || "Not assigned"}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-4 p-3">
-                          <span className="text-sm font-medium text-slate-600">Phase</span>
-                          <span className="text-sm font-semibold text-slate-950">{resident.current_phase || "Not selected"}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-4 p-3">
-                          <span className="text-sm font-medium text-slate-600">RCI</span>
-                          <span className="text-sm font-semibold text-slate-950">{latestCompletedRci ? rciCompletedLabel : resident.rci_status}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-4 p-3">
-                          <span className="text-sm font-medium text-slate-600">Current Balance</span>
-                          <span className={`text-sm font-semibold ${currentBalanceTextClass}`}>{currentBalanceDisplay}</span>
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Resident Profile</p>
+                          <h2 className="mt-1 text-2xl font-semibold text-slate-950">{residentName}</h2>
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {hasActiveMatMar ? (
+                              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                MAT/MAR
+                              </span>
+                            ) : null}
+
+                            {resident.active_probation_officer ? (
+                              <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                                Active PO
+                              </span>
+                            ) : null}
+
+                            {resident.active_mental_health_court ? (
+                              <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+                                Mental Health Court
+                              </span>
+                            ) : null}
+
+                            {resident.active_drug_court ? (
+                              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                                Drug Court
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
 
                       <button
                         type="button"
                         onClick={() => setShowLifecycleModal(true)}
-                        className="mt-4 w-full rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50"
+                        className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50"
                         title="Snapshot status discharge action"
                       >
                         {resident.resident_status === "active" ? "Discharge Resident" : "Readmit Resident"}
                       </button>
                     </div>
 
-                    <div className="rounded-2xl border bg-white p-6 shadow-sm">
-                      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    {resident.high_alert_detail ? (
+                      <div className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">
+                          High Alert Detail
+                        </p>
+                        <p className="mt-1 text-sm font-medium text-rose-800">
+                          {resident.high_alert_detail}
+                        </p>
+                      </div>
+                    ) : null}
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                      <div className="rounded-2xl bg-slate-50 p-4">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Status</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-950">{resident.resident_status}</p>
+                      </div>
+
+                      <div className="rounded-2xl bg-slate-50 p-4">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">House</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-950">{house?.name || "Not assigned"}</p>
+                      </div>
+
+                      <div className="rounded-2xl bg-slate-50 p-4">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Phase</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-950">{resident.current_phase || "Not selected"}</p>
+                      </div>
+
+                      <div className="rounded-2xl bg-slate-50 p-4">
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">RCI</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-950">{latestCompletedRci ? rciCompletedLabel : resident.rci_status}</p>
+                      </div>
+
+                      <div className={currentBalanceCardClass}>
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Current Balance</p>
+                        <p className={`mt-1 text-sm font-semibold ${currentBalanceTextClass}`}>{currentBalanceDisplay}</p>
+                        <p className={`mt-1 text-xs font-semibold ${currentBalanceTextClass}`}>{currentBalanceStatus}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 rounded-2xl border bg-slate-50 p-4">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div>
-                          <h2 className="text-lg font-semibold">Resident Snapshot</h2>
+                          <p className="text-sm font-semibold text-slate-950">Phase Level</p>
                           <p className="mt-1 text-sm text-slate-500">
-                            Use the actions below to add or review parts of the resident record.
+                            Select the resident current program phase.
                           </p>
                         </div>
+
+                        <select
+                          value={resident.current_phase_id || ""}
+                          onChange={(event) => updateResidentPhase(event.target.value)}
+                          disabled={savingSnapshotStatus}
+                          className="h-11 min-w-48 rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                        >
+                          <option value="">Select phase</option>
+                          {providerPhaseLevels.map((phase) => (
+                            <option key={phase.id} value={phase.id}>
+                              {phase.phase_name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
+                    </div>
 
-                      <div className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-                        <div className="rounded-2xl border bg-slate-50 p-4 md:col-span-2 2xl:col-span-3">
-                          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                            <div>
-                              <p className="text-sm font-semibold text-slate-950">Phase Level</p>
-                              <p className="mt-1 text-sm text-slate-500">
-                                Select the resident current program phase. Provider-specific phases can be added later.
-                              </p>
-                            </div>
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                      <SnapshotAction
+                        title="Record Payment"
+                        description={`${currentBalanceStatus}: ${currentBalanceDisplay}.`}
+                        onClick={() => setShowPaymentModal(true)}
+                      />
 
-                            <select
-                              value={resident.current_phase_id || ""}
-                              onChange={(event) => updateResidentPhase(event.target.value)}
-                              disabled={savingSnapshotStatus}
-                              className="h-11 min-w-48 rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                            >
-                              <option value="">Select phase</option>
-                              {providerPhaseLevels.map((phase) => (
-                                <option key={phase.id} value={phase.id}>
-                                  {phase.phase_name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
+                      <SnapshotAction
+                        title="Complete UA/BA"
+                        description={uaBaLogs.length > 0 ? `${uaBaLogs.length} logged.` : "Add UA/BA result."}
+                        onClick={openManualUaBaLog}
+                      />
 
-                        <div className="hidden rounded-2xl border bg-slate-50 p-4 md:col-span-2 2xl:col-span-3">
-                          <p className="text-sm font-semibold text-slate-950">Program Requirements</p>
-                          <p className="mt-1 text-sm text-slate-500">
-                            Check items as they are confirmed for the resident.
-                          </p>
+                      <SnapshotAction
+                        title="Create Progress Note"
+                        description={`${progressNotes.length} saved.`}
+                        onClick={() => setShowProgressNoteModal(true)}
+                      />
 
-                          <div className="mt-4 grid gap-3 md:grid-cols-2">
-                            {[
-                              ["has_sponsor", "Has sponsor", resident.has_sponsor],
-                              ["has_home_group", "Has home group", resident.has_home_group],
-                              ["attending_required_meetings", "Attending required meetings", resident.attending_required_meetings],
-                              ["recovery_plan_started", "Recovery plan started", resident.recovery_plan_started],
-                              ["program_fees_current", "Program fees current", resident.program_fees_current],
-                              ["medication_status_reviewed", "Medication status reviewed", resident.medication_status_reviewed],
-                            ].map(([field, label, checked]) => (
-                              <label key={String(field)} className="flex items-center gap-3 rounded-xl bg-white p-3 text-sm font-medium text-slate-700">
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(checked)}
-                                  disabled={savingSnapshotStatus}
-                                  onChange={(event) =>
-                                    updateResidentSnapshotField(
-                                      field as
-                                        | "has_sponsor"
-                                        | "has_home_group"
-                                        | "attending_required_meetings"
-                                        | "recovery_plan_started"
-                                        | "program_fees_current"
-                                        | "medication_status_reviewed",
-                                      event.target.checked
-                                    )
-                                  }
-                                  className="h-4 w-4"
-                                />
-                                {String(label)}
-                              </label>
-                            ))}
-                          </div>
+                      <SnapshotAction
+                        title="Add Medication"
+                        description={medicationRecords.length > 0 ? "Medication records started." : "Add medication or MAT/MAR."}
+                        onClick={() => { setMedicationSubTab("records"); openMedicationModal(); }}
+                      />
 
-                          <div className="mt-5 rounded-2xl border bg-white p-4">
-                            <p className="text-sm font-semibold text-slate-950">Sponsor Details</p>
-                            {resident.sponsor_info_updated_at ? (
-                              <div className="mt-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                                <p className="font-semibold">Resident portal sponsor update</p>
-                                <p className="mt-1">
-                                  Last updated {new Intl.DateTimeFormat("en-US", {
-                                    month: "short",
-                                    day: "numeric",
-                                    year: "numeric",
-                                    hour: "numeric",
-                                    minute: "2-digit",
-                                  }).format(new Date(resident.sponsor_info_updated_at))}
-                                </p>
-                              </div>
-                            ) : null}
-                            <p className="mt-1 text-xs text-slate-500">
-                              These fields will be provider-visible now and can later be updated from the resident portal.
-                            </p>
-
-                            <div className="mt-4 grid gap-4 md:grid-cols-3">
-                              <label className="block">
-                                <span className="text-sm font-medium text-slate-700">Sponsor name</span>
-                                <input
-                                  defaultValue={resident.sponsor_name ?? ""}
-                                  disabled={savingSnapshotStatus}
-                                  onBlur={(event) => {
-                                    const nextValue = event.target.value.trim();
-                                    if (nextValue !== (resident.sponsor_name ?? "")) {
-                                      updateResidentSnapshotField("sponsor_name", nextValue || null);
-                                    }
-                                  }}
-                                  placeholder="Sponsor name"
-                                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4 disabled:opacity-60"
-                                />
-                              </label>
-
-                              <label className="block">
-                                <span className="text-sm font-medium text-slate-700">Sponsor phone</span>
-                                <input
-                                  defaultValue={resident.sponsor_phone ?? ""}
-                                  disabled={savingSnapshotStatus}
-                                  onBlur={(event) => {
-                                    const nextValue = event.target.value.trim();
-                                    if (nextValue !== (resident.sponsor_phone ?? "")) {
-                                      updateResidentSnapshotField("sponsor_phone", nextValue || null);
-                                    }
-                                  }}
-                                  placeholder="Sponsor phone"
-                                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4 disabled:opacity-60"
-                                />
-                              </label>
-
-                              <label className="block">
-                                <span className="text-sm font-medium text-slate-700">Current step</span>
-                                <input
-                                  defaultValue={resident.current_step ?? ""}
-                                  disabled={savingSnapshotStatus}
-                                  onBlur={(event) => {
-                                    const nextValue = event.target.value.trim();
-                                    if (nextValue !== (resident.current_step ?? "")) {
-                                      updateResidentSnapshotField("current_step", nextValue || null);
-                                    }
-                                  }}
-                                  placeholder="Current step"
-                                  className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4 disabled:opacity-60"
-                                />
-                              </label>
-                            </div>
-                          </div>
-                        </div>
-
-
-                        <SnapshotAction
-                          title="Record Payment"
-                          description={`${currentBalanceStatus}: ${currentBalanceDisplay}. Log payments and review charges.`}
-                          onClick={() => setShowPaymentModal(true)}
-                        />
-
-                        <SnapshotAction
-                          title="Complete UA/BA"
-                          description={uaBaLogs.length > 0 ? `${uaBaLogs.length} UA/BA log(s) saved.` : "No UA/BA logs yet. Add a screen or breathalyzer result."}
-                          onClick={openManualUaBaLog}
-                        />
-                        <SnapshotAction
-                          title="Create Progress Note"
-                          description={`${progressNotes.length} note(s) saved. Add a new internal progress note.`}
-                          onClick={() => setShowProgressNoteModal(true)}
-                        />
-                        <SnapshotAction
-                          title="Add Medication"
-                          description={medicationRecords.length > 0 ? "Medication records are started." : "No medication records yet. Add medication or MAT/MAR information."}
-                          onClick={() => { setMedicationSubTab("records"); openMedicationModal(); }}
-                        />
-                        <SnapshotAction
-                          title="RCI / Recovery Plan"
-                          description={latestCompletedRci ? "Review the latest RCI score, assessment history, and resident-created recovery goals." : "Review RCI status and recovery plan information. Residents complete RCIs from their portal."}
-                          onClick={() => setActiveTab("rci")}
-                        />
-                        <SnapshotAction
-                          title="Add ROI / Contact"
-                          description="Add an approved contact or collect a signed ROI."
-                          onClick={() => setShowContactModal(true)}
-                        />
-
-                        <SnapshotAction
-                          title="Resident Documents"
-                          description={documents.length > 0 ? `${documents.length} document(s) uploaded.` : "No resident documents uploaded yet."}
-                          onClick={() => setActiveTab("documents")}
-                        />
-                      </div>
+                      <SnapshotAction
+                        title="Add ROI / Contact"
+                        description="Add an approved contact or collect a signed ROI."
+                        onClick={() => setShowContactModal(true)}
+                      />
                     </div>
                   </div>
                 </div>
