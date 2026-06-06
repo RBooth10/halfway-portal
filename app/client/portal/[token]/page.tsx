@@ -187,6 +187,27 @@ function formatCurrency(value: number | string | null | undefined) {
   }).format(Number(value || 0));
 }
 
+function getResidentRequestStatusClass(status: string | null | undefined) {
+  const normalized = String(status ?? "").toLowerCase();
+
+  if (normalized === "completed") return "bg-emerald-50 text-emerald-700 ring-emerald-600/20";
+  if (normalized === "in_progress") return "bg-blue-50 text-blue-700 ring-blue-600/20";
+  if (normalized === "approved") return "bg-emerald-50 text-emerald-700 ring-emerald-600/20";
+  if (normalized === "denied") return "bg-rose-50 text-rose-700 ring-rose-600/20";
+  if (normalized === "cancelled") return "bg-slate-100 text-slate-600 ring-slate-300";
+
+  return "bg-amber-50 text-amber-700 ring-amber-600/20";
+}
+
+function getResidentRequestPriorityClass(priority: string | null | undefined) {
+  const normalized = String(priority ?? "").toLowerCase();
+
+  if (normalized === "urgent") return "bg-rose-50 text-rose-700 ring-rose-600/20";
+  if (normalized === "low") return "bg-slate-100 text-slate-600 ring-slate-300";
+
+  return "bg-amber-50 text-amber-700 ring-amber-600/20";
+}
+
 function formatLabel(value: string | null | undefined) {
   return String(value ?? "")
     .replaceAll("_", " ")
@@ -1534,12 +1555,12 @@ export default function ClientPortalPage() {
             ) : null}
 
             {activePortalTab === "requests" ? (
-              <section className="rounded-2xl border bg-white p-4 shadow-sm">
+              <section className="rounded-2xl border bg-white p-4 shadow-sm md:col-span-2">
                 <div className="flex flex-wrap gap-2">
                   {[
-                    ["status", "Status Updates"],
+                    ["status", "Request Status"],
                     ["pass", "Request Pass"],
-                    ["maintenance", "Maintenance"],
+                    ["maintenance", "Submit Maintenance"],
                   ].map(([view, label]) => (
                     <button
                       key={view}
@@ -1558,7 +1579,7 @@ export default function ClientPortalPage() {
               </section>
             ) : null}
 
-            <section className={activePortalTab === "requests" && activeRequestView === "status" ? "rounded-2xl border bg-white p-5 shadow-sm" : "hidden"}>
+            <section className={activePortalTab === "requests" && activeRequestView === "status" ? "rounded-2xl border bg-white p-5 shadow-sm md:col-span-2" : "hidden"}>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-semibold">My Pass Requests</h2>
@@ -1631,70 +1652,80 @@ export default function ClientPortalPage() {
               </div>
             </section>
 
-            <section className={activePortalTab === "requests" && activeRequestView === "status" ? "rounded-2xl border bg-white p-5 shadow-sm" : "hidden"}>
+            <section className={activePortalTab === "requests" && activeRequestView === "status" ? "rounded-2xl border bg-white p-5 shadow-sm md:col-span-2" : "hidden"}>
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="mt-1 h-5 w-5 text-slate-600" />
                 <div>
                   <h2 className="text-lg font-semibold">Maintenance Request Status</h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    View maintenance requests submitted through your portal and any staff follow-up notes.
+                    Track maintenance requests you submitted and review staff status updates or follow-up notes.
                   </p>
                 </div>
               </div>
 
               {maintenanceRequests.length === 0 ? (
-                <p className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-                  No maintenance request status updates are available yet.
-                </p>
+                <div className="mt-5 rounded-2xl border border-dashed bg-slate-50 p-5 text-sm text-slate-500">
+                  <p className="font-medium text-slate-700">No maintenance requests submitted yet.</p>
+                  <p className="mt-1">
+                    Use the Maintenance tab to submit a concern. Once staff reviews it, updates will appear here.
+                  </p>
+                </div>
               ) : (
                 <div className="mt-5 grid gap-3">
-                  {maintenanceRequests.map((request) => (
-                    <div key={request.id} className="rounded-2xl border bg-slate-50 p-4">
-                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                        <div>
-                          <h3 className="font-semibold text-slate-950">
-                            Maintenance Request • {formatLabel(request.status)}
-                          </h3>
-                          <p className="mt-1 text-sm text-slate-500">
-                            {request.request_title || "Maintenance request"}
-                            {request.created_at ? ` • Submitted ${formatDateTime(request.created_at)}` : ""}
-                          </p>
+                  {[...maintenanceRequests]
+                    .sort((first, second) => String(second.created_at ?? "").localeCompare(String(first.created_at ?? "")))
+                    .map((request) => (
+                      <div key={request.id} className="rounded-2xl border bg-slate-50 p-4">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-semibold text-slate-950">
+                                {request.request_title || "Maintenance request"}
+                              </h3>
+                              <span className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${getResidentRequestStatusClass(request.status)}`}>
+                                {formatLabel(request.status)}
+                              </span>
+                              <span className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${getResidentRequestPriorityClass(request.priority)}`}>
+                                {formatLabel(request.priority)}
+                              </span>
+                            </div>
 
-                          {request.location_area ? (
-                            <p className="mt-1 text-sm text-slate-600">Location: {request.location_area}</p>
-                          ) : null}
-
-                          {request.request_description ? (
-                            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
-                              {request.request_description}
+                            <p className="mt-1 text-sm text-slate-500">
+                              Submitted {formatDateTime(request.created_at)}
+                              {request.location_area ? ` • ${request.location_area}` : ""}
                             </p>
-                          ) : null}
-                        </div>
 
-                        <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">
-                          {formatLabel(request.priority)}
-                        </span>
+                            {request.request_description ? (
+                              <p className="mt-3 whitespace-pre-wrap rounded-xl bg-white p-3 text-sm leading-6 text-slate-600">
+                                {request.request_description}
+                              </p>
+                            ) : null}
+
+                            {request.provider_notes ? (
+                              <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
+                                <p className="font-semibold">Staff follow-up</p>
+                                <p className="mt-1 whitespace-pre-wrap">{request.provider_notes}</p>
+                              </div>
+                            ) : (
+                              <p className="mt-3 rounded-xl bg-white p-3 text-sm text-slate-500">
+                                Staff has not added follow-up notes yet.
+                              </p>
+                            )}
+
+                            {request.completed_at ? (
+                              <p className="mt-3 text-xs font-medium text-emerald-700">
+                                Completed {formatDateTime(request.completed_at)}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
-
-                      {request.provider_notes || request.completed_at ? (
-                        <div className="mt-3 rounded-xl bg-white p-3 text-sm">
-                          {request.provider_notes ? (
-                            <p className="text-slate-600">Staff notes: {request.provider_notes}</p>
-                          ) : null}
-                          {request.completed_at ? (
-                            <p className="mt-1 text-slate-500">
-                              Completed {formatDateTime(request.completed_at)}
-                            </p>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  ))}
+                    ))}
                 </div>
               )}
             </section>
 
-            <section className={activePortalTab === "requests" && activeRequestView === "pass" ? "rounded-2xl border bg-white p-5 shadow-sm" : "hidden"}>
+            <section className={activePortalTab === "requests" && activeRequestView === "pass" ? "rounded-2xl border bg-white p-5 shadow-sm md:col-span-2" : "hidden"}>
               <div className="flex items-start gap-3">
                 <Send className="mt-1 h-5 w-5 text-slate-600" />
                 <div>
@@ -1851,7 +1882,7 @@ export default function ClientPortalPage() {
               </div>
             </section>
 
-            <section className={activePortalTab === "requests" && activeRequestView === "maintenance" ? "rounded-2xl border bg-white p-5 shadow-sm" : "hidden"}>
+            <section className={activePortalTab === "requests" && activeRequestView === "maintenance" ? "rounded-2xl border bg-white p-5 shadow-sm md:col-span-2" : "hidden"}>
               <div className="flex items-start gap-3">
                 <Wrench className="mt-1 h-5 w-5 text-slate-600" />
                 <div>
