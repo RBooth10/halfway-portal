@@ -4,7 +4,6 @@ import type React from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeft,
   ArrowRight,
   Building2,
   ClipboardCheck,
@@ -378,19 +377,6 @@ export default function DocumentsPage() {
     }
   }
 
-  function openNewDocumentModal(category = "Provider") {
-    setForm({
-      ...initialForm,
-      ...getAreaDefaults(category),
-    });
-    setSelectedFile(null);
-    setSelectedTargetHouseIds([]);
-    setEditingDocumentId(null);
-    setMessage("");
-    setError("");
-    setIsDocumentModalOpen(true);
-  }
-
   function closeDocumentModal() {
     setIsDocumentModalOpen(false);
     setForm(initialForm);
@@ -718,7 +704,7 @@ export default function DocumentsPage() {
 
       if (selectedFile) {
         const safeFileName = sanitizeFileName(selectedFile.name);
-        filePath = `${providerId}/${Date.now()}-${safeFileName}`;
+        filePath = `${providerId}/${selectedFile.lastModified}-${selectedFile.size}-${safeFileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from("compliance-documents")
@@ -850,7 +836,7 @@ export default function DocumentsPage() {
         }
       }
 
-      const assignmentCount = await assignResidentPacketDocument(providerId, data.id);
+      await assignResidentPacketDocument(providerId, data.id);
 
       setDocuments((current) => [data as DocumentRow, ...current]);
       setForm(initialForm);
@@ -880,20 +866,8 @@ export default function DocumentsPage() {
   }
 
   const uploadedCount = documents.filter((doc) => doc.status === "uploaded").length;
-  const needsReviewCount = documents.filter((doc) => doc.status === "needs_review").length;
-  const archivedCount = documents.filter((doc) => doc.status === "archived").length;
   const signableCount = documents.filter((doc) => doc.is_signable).length;
 
-  const areaCounts = useMemo(() => {
-    return documentAreas.map((area) => {
-      const areaDocuments = documents.filter((document) => getAreaForDocument(document) === area.category);
-      return {
-        ...area,
-        count: areaDocuments.length,
-        uploadedCount: areaDocuments.filter((document) => document.status === "uploaded").length,
-      };
-    });
-  }, [documents]);
 
   const activeDocuments = documents.filter((doc) => doc.status !== "archived");
   const filteredActiveDocuments =
