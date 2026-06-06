@@ -440,14 +440,6 @@ export default function DataAnalyticsPage() {
     void initialize();
   }, []);
 
-  function getResidentName(residentId: string | null) {
-    if (!residentId) return "Not assigned";
-
-    const resident = residents.find((item) => item.id === residentId);
-
-    return resident ? `${resident.first_name} ${resident.last_name}` : "Unknown resident";
-  }
-
   function getHouseName(houseId: string | null | undefined) {
     if (!houseId) return "Not assigned";
 

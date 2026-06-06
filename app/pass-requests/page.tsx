@@ -92,20 +92,6 @@ function formatDateTime(value: string | null | undefined) {
   });
 }
 
-function formatDateOnly(value: string | null | undefined) {
-  if (!value) return "Not set";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "Not set";
-
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 function getDateOnly(value: string | null | undefined) {
   return value ? value.slice(0, 10) : "";
 }

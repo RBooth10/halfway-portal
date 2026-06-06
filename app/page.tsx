@@ -16,7 +16,6 @@ import {
   Settings,
   ShieldCheck,
   Shuffle,
-  UserRound,
   Users,
   Wrench,
 } from "lucide-react";
