@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import {
+  CalendarDays,
   CheckCircle2,
   ClipboardCheck,
+  Download,
   Loader2,
+  Printer,
 } from "lucide-react";
 import PageShell from "@/components/PageShell";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -63,8 +66,11 @@ type PassRequestRow = {
   updated_at: string;
 };
 
+type PassView = "all" | "pending" | "approved_history";
+
 function formatLabel(value: string | null | undefined) {
   if (!value) return "Not set";
+
   return value
     .replaceAll("_", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -72,8 +78,11 @@ function formatLabel(value: string | null | undefined) {
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return "Not set";
+
   const date = new Date(value);
+
   if (Number.isNaN(date.getTime())) return "Not set";
+
   return date.toLocaleString(undefined, {
     month: "short",
     day: "numeric",
@@ -81,6 +90,66 @@ function formatDateTime(value: string | null | undefined) {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function formatDateOnly(value: string | null | undefined) {
+  if (!value) return "Not set";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "Not set";
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function getDateOnly(value: string | null | undefined) {
+  return value ? value.slice(0, 10) : "";
+}
+
+function escapeCsv(value: unknown) {
+  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
+function getStatusClass(status: string) {
+  const normalized = status.toLowerCase();
+
+  if (normalized === "approved") return "bg-emerald-50 text-emerald-700 ring-emerald-600/20";
+  if (normalized === "completed") return "bg-blue-50 text-blue-700 ring-blue-600/20";
+  if (normalized === "denied") return "bg-rose-50 text-rose-700 ring-rose-600/20";
+  if (normalized === "cancelled") return "bg-slate-100 text-slate-600 ring-slate-300";
+
+  return "bg-amber-50 text-amber-700 ring-amber-600/20";
+}
+
+function StatCard({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+}: {
+  title: string;
+  value: string;
+  subtitle: string;
+  icon: ComponentType<{ className?: string }>;
+}) {
+  return (
+    <div className="rounded-2xl border bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-slate-500">{title}</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
+          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+        </div>
+        <div className="rounded-2xl bg-slate-100 p-3">
+          <Icon className="h-5 w-5 text-slate-700" />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function PassRequestsPage() {
@@ -94,8 +163,11 @@ export default function PassRequestsPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  const [passView, setPassView] = useState<PassView>("pending");
   const [passHouseFilter, setPassHouseFilter] = useState("all");
-  const [passStatusFilter, setPassStatusFilter] = useState("pending");
+  const [passStatusFilter, setPassStatusFilter] = useState("all");
+  const [departureStart, setDepartureStart] = useState("");
+  const [departureEnd, setDepartureEnd] = useState("");
 
   const [selectedPassRequest, setSelectedPassRequest] = useState<PassRequestRow | null>(null);
   const [selectedPassNextStatus, setSelectedPassNextStatus] = useState("");
@@ -113,31 +185,88 @@ export default function PassRequestsPage() {
     [houses]
   );
 
+  function getResident(residentId: string | null) {
+    if (!residentId) return null;
+
+    return residents.find((item) => item.id === residentId) ?? null;
+  }
+
+  function getHouseName(houseId: string | null) {
+    if (!houseId) return "No house assigned";
+
+    return houses.find((house) => house.id === houseId)?.name ?? "Unknown house";
+  }
+
+  function getRequestHouseName(request: PassRequestRow) {
+    const resident = getResident(request.resident_id);
+
+    return getHouseName(request.house_id || resident?.house_id || null);
+  }
+
+  function getResidentName(residentId: string | null) {
+    const resident = getResident(residentId);
+
+    return resident ? `${resident.first_name} ${resident.last_name}` : "Unknown resident";
+  }
+
+  const requestsWithinHouseAndDate = useMemo(() => {
+    return passRequests.filter((request) => {
+      const resident = getResident(request.resident_id);
+      const departureDate = getDateOnly(request.requested_departure_at);
+
+      const matchesHouse =
+        passHouseFilter === "all" ||
+        request.house_id === passHouseFilter ||
+        resident?.house_id === passHouseFilter;
+
+      const matchesStart = !departureStart || (departureDate && departureDate >= departureStart);
+      const matchesEnd = !departureEnd || (departureDate && departureDate <= departureEnd);
+
+      return matchesHouse && matchesStart && matchesEnd;
+    });
+  }, [passRequests, residents, passHouseFilter, departureStart, departureEnd]);
+
   const filteredPassRequests = useMemo(() => {
-    return passRequests
+    return requestsWithinHouseAndDate
       .filter((request) => {
-        const matchesHouse = passHouseFilter === "all" || request.house_id === passHouseFilter;
-        const matchesStatus = passStatusFilter === "all" || request.status === passStatusFilter;
-        return matchesHouse && matchesStatus;
+        const status = String(request.status ?? "").toLowerCase();
+
+        if (passView === "pending") return status === "pending";
+        if (passView === "approved_history") return status === "approved" || status === "completed";
+
+        return passStatusFilter === "all" || status === passStatusFilter;
       })
-      .sort((first, second) => second.created_at.localeCompare(first.created_at));
-  }, [passRequests, passHouseFilter, passStatusFilter]);
+      .sort((first, second) => {
+        const firstDeparture = first.requested_departure_at ?? "";
+        const secondDeparture = second.requested_departure_at ?? "";
+        const departureComparison = secondDeparture.localeCompare(firstDeparture);
+
+        if (departureComparison !== 0) return departureComparison;
+
+        return second.created_at.localeCompare(first.created_at);
+      });
+  }, [requestsWithinHouseAndDate, passView, passStatusFilter]);
 
   const pendingPassRequestCount = useMemo(
     () => passRequests.filter((request) => request.status === "pending").length,
     [passRequests]
   );
 
-  function getHouseName(houseId: string | null) {
-    if (!houseId) return "No house assigned";
-    return houses.find((house) => house.id === houseId)?.name ?? "Unknown house";
-  }
+  const approvedCount = useMemo(
+    () => requestsWithinHouseAndDate.filter((request) => request.status === "approved").length,
+    [requestsWithinHouseAndDate]
+  );
 
-  function getResidentName(residentId: string | null) {
-    if (!residentId) return "Unknown resident";
-    const resident = residents.find((item) => item.id === residentId);
-    return resident ? `${resident.first_name} ${resident.last_name}` : "Unknown resident";
-  }
+  const completedCount = useMemo(
+    () => requestsWithinHouseAndDate.filter((request) => request.status === "completed").length,
+    [requestsWithinHouseAndDate]
+  );
+
+  const deniedOrCancelledCount = useMemo(
+    () =>
+      requestsWithinHouseAndDate.filter((request) => request.status === "denied" || request.status === "cancelled").length,
+    [requestsWithinHouseAndDate]
+  );
 
   async function loadPassRequests(activeProviderId: string) {
     const supabase = getSupabaseClient() as any;
@@ -187,7 +316,9 @@ export default function PassRequestsPage() {
 
         const supabase = getSupabaseClient() as any;
         const storedProviderId =
-          typeof window !== "undefined" ? window.localStorage.getItem("activeProviderId") : null;
+          typeof window !== "undefined"
+            ? window.localStorage.getItem("activeProviderId") || window.localStorage.getItem("current_provider_id")
+            : null;
 
         let activeProviderId = storedProviderId || "";
 
@@ -205,6 +336,7 @@ export default function PassRequestsPage() {
 
           if (activeProviderId && typeof window !== "undefined") {
             window.localStorage.setItem("activeProviderId", activeProviderId);
+            window.localStorage.setItem("current_provider_id", activeProviderId);
           }
         }
 
@@ -299,9 +431,57 @@ export default function PassRequestsPage() {
     }
   }
 
+  function exportPassRequestsCsv() {
+    const headers = [
+      "Resident",
+      "House",
+      "Status",
+      "Submitted",
+      "Departure",
+      "Return",
+      "Destination",
+      "Reason",
+      "Provider Notes",
+      "Denial Reason",
+    ];
+
+    const rows = filteredPassRequests.map((request) => [
+      getResidentName(request.resident_id),
+      getRequestHouseName(request),
+      formatLabel(request.status),
+      formatDateTime(request.created_at),
+      formatDateTime(request.requested_departure_at),
+      formatDateTime(request.requested_return_at),
+      request.destination_address || request.destination,
+      request.reason ?? "",
+      request.provider_notes ?? "",
+      request.denial_reason ?? "",
+    ]);
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map(escapeCsv).join(","))
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `pass-requests-${passView}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+
+    URL.revokeObjectURL(url);
+  }
+
+  function printPassRequests() {
+    if (typeof window !== "undefined") {
+      window.print();
+    }
+  }
+
   return (
     <PageShell>
-      <section className="rounded-2xl border bg-white p-6 shadow-sm">
+      <section className="rounded-2xl border bg-white p-6 shadow-sm print:hidden">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex items-start gap-3">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-100">
@@ -311,7 +491,7 @@ export default function PassRequestsPage() {
               <p className="text-sm font-medium text-slate-500">Pass Requests</p>
               <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Pass Request Queue</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                Review resident-submitted pass requests, approve or deny requests, record documentation requirements, and return status updates to the resident portal.
+                Review resident-submitted pass requests, approve or deny requests, track approved passes, and return status updates to the resident portal.
               </p>
               {provider ? (
                 <p className="mt-2 text-xs font-medium text-slate-500">
@@ -321,20 +501,38 @@ export default function PassRequestsPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            Pending requests: <span className="font-semibold text-slate-950">{pendingPassRequestCount}</span>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={exportPassRequestsCsv}
+              disabled={filteredPassRequests.length === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Download className="h-4 w-4" />
+              Export
+            </button>
+
+            <button
+              type="button"
+              onClick={printPassRequests}
+              disabled={filteredPassRequests.length === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Printer className="h-4 w-4" />
+              Print
+            </button>
           </div>
         </div>
       </section>
 
       {error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 print:hidden">
           {error}
         </div>
       ) : null}
 
       {message ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 print:hidden">
           <div className="flex gap-2">
             <CheckCircle2 className="h-5 w-5 shrink-0" />
             <p>{message}</p>
@@ -342,8 +540,59 @@ export default function PassRequestsPage() {
         </div>
       ) : null}
 
-      <section className="rounded-2xl border bg-white p-5 shadow-sm">
-        <div className="grid gap-4 md:grid-cols-2">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 print:hidden">
+        <StatCard
+          title="Pending Review"
+          value={String(pendingPassRequestCount)}
+          subtitle="Requests waiting for staff action"
+          icon={ClipboardCheck}
+        />
+        <StatCard
+          title="Approved"
+          value={String(approvedCount)}
+          subtitle="Approved in selected date/house view"
+          icon={CheckCircle2}
+        />
+        <StatCard
+          title="Completed"
+          value={String(completedCount)}
+          subtitle="Completed in selected date/house view"
+          icon={CalendarDays}
+        />
+        <StatCard
+          title="Denied / Cancelled"
+          value={String(deniedOrCancelledCount)}
+          subtitle="Not approved in selected date/house view"
+          icon={ClipboardCheck}
+        />
+      </section>
+
+      <section className="rounded-2xl border bg-white p-5 shadow-sm print:hidden">
+        <div className="grid gap-4 xl:grid-cols-3">
+          {[
+            ["pending", "Pending Review", "Only requests waiting for staff action."],
+            ["approved_history", "Approved / Completed Passes", "Isolated view of approved and completed passes."],
+            ["all", "All Requests", "Review all statuses with optional status filter."],
+          ].map(([view, label, description]) => (
+            <button
+              key={view}
+              type="button"
+              onClick={() => setPassView(view as PassView)}
+              className={`rounded-2xl border p-4 text-left transition ${
+                passView === view
+                  ? "border-slate-950 bg-slate-950 text-white"
+                  : "bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <span className="block text-sm font-semibold">{label}</span>
+              <span className={`mt-1 block text-xs ${passView === view ? "text-slate-200" : "text-slate-500"}`}>
+                {description}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <label className="block">
             <span className="text-sm font-medium text-slate-700">House</span>
             <select
@@ -360,43 +609,80 @@ export default function PassRequestsPage() {
             </select>
           </label>
 
+          {passView === "all" ? (
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">Status</span>
+              <select
+                value={passStatusFilter}
+                onChange={(event) => setPassStatusFilter(event.target.value)}
+                className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+              >
+                <option value="all">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="denied">Denied</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="completed">Completed</option>
+              </select>
+            </label>
+          ) : null}
+
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Status</span>
-            <select
-              value={passStatusFilter}
-              onChange={(event) => setPassStatusFilter(event.target.value)}
+            <span className="text-sm font-medium text-slate-700">Departure start</span>
+            <input
+              type="date"
+              value={departureStart}
+              onChange={(event) => setDepartureStart(event.target.value)}
               className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-            >
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="denied">Denied</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="completed">Completed</option>
-              <option value="all">All statuses</option>
-            </select>
+            />
           </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">Departure end</span>
+            <input
+              type="date"
+              value={departureEnd}
+              onChange={(event) => setDepartureEnd(event.target.value)}
+              className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+            />
+          </label>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border bg-white p-5 shadow-sm" id="pass-requests-print">
+        <div className="hidden print:block">
+          <h1 className="text-xl font-semibold text-slate-950">Pass Requests</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            View: {passView === "approved_history" ? "Approved / Completed Passes" : passView === "pending" ? "Pending Review" : "All Requests"}
+          </p>
         </div>
 
         {loading ? (
-          <div className="mt-5 rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
+          <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
             <div className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading pass requests...
             </div>
           </div>
         ) : filteredPassRequests.length === 0 ? (
-          <div className="mt-5 rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
+          <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
             No pass requests match the selected filters.
           </div>
         ) : (
-          <div className="mt-5 grid gap-3">
+          <div className="grid gap-3">
             {filteredPassRequests.map((request) => (
-              <div key={request.id} className="rounded-2xl border bg-slate-50 p-4">
+              <div key={request.id} className="rounded-2xl border bg-slate-50 p-4 break-inside-avoid">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-semibold text-slate-950">{getResidentName(request.resident_id)}</h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold text-slate-950">{getResidentName(request.resident_id)}</h3>
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${getStatusClass(request.status)}`}>
+                        {formatLabel(request.status)}
+                      </span>
+                    </div>
+
                     <p className="mt-1 text-sm text-slate-500">
-                      {getHouseName(request.house_id)} • Submitted {formatDateTime(request.created_at)}
+                      {getRequestHouseName(request)} • Submitted {formatDateTime(request.created_at)}
                     </p>
 
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -436,20 +722,18 @@ export default function PassRequestsPage() {
                           {request.provider_notes ? (
                             <p className="mt-1 whitespace-pre-wrap text-slate-600">Follow-up notes: {request.provider_notes}</p>
                           ) : null}
+                          {request.reviewed_at ? (
+                            <p className="mt-1 text-xs text-slate-500">Reviewed {formatDateTime(request.reviewed_at)}</p>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-2 md:items-end">
-                    <div className="flex flex-wrap gap-2 md:justify-end">
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                        {formatLabel(request.status)}
-                      </span>
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500">
-                        Signed {formatDateTime(request.resident_signed_at)}
-                      </span>
-                    </div>
+                  <div className="flex flex-col gap-2 md:items-end print:hidden">
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500">
+                      Signed {formatDateTime(request.resident_signed_at)}
+                    </span>
 
                     <div className="flex flex-wrap gap-2 md:justify-end">
                       {request.status === "pending" ? (
@@ -504,7 +788,7 @@ export default function PassRequestsPage() {
       </section>
 
       {selectedPassRequest ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6 print:hidden">
           <div className="w-full max-w-2xl rounded-2xl border bg-white p-5 shadow-xl">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
@@ -517,7 +801,7 @@ export default function PassRequestsPage() {
                 </p>
               </div>
 
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${getStatusClass(selectedPassRequest.status)}`}>
                 {formatLabel(selectedPassRequest.status)}
               </span>
             </div>
