@@ -182,28 +182,6 @@ const reportFields: Record<Exclude<ReportType, "monthly_self_safety_assessment" 
     { key: "notes_to_provider", label: "Notes to the provider", placeholder: "Provider-level notes or follow-up needed." },
     { key: "safety_monitor_signature", label: "Safety monitor signature", placeholder: "Typed name/signature of safety monitor." },
   ],
-  weekly_house_meeting_minutes: [
-    {
-      key: "meeting_minutes",
-      label: "Meeting minutes / notes",
-      placeholder: "Document attendance notes, topics discussed, sponsorship or home group updates, recovery plan progress, maintenance requests, resident concerns or successes, staff observations, action items, and follow-up needs.",
-    },
-  ],
-  monthly_staff_meeting_minutes: [
-    { key: "facilitator", label: "Facilitator", placeholder: "Name of meeting facilitator." },
-    { key: "recorder", label: "Recorder", placeholder: "Name of person recording minutes." },
-    { key: "staff_present", label: "Staff present", placeholder: "List staff present." },
-    { key: "residents_participating", label: "Residents participating, if applicable", placeholder: "List residents participating or note not applicable." },
-    { key: "prior_month_action_items", label: "Review of prior month's action items", placeholder: "Action item, responsible party, status, and notes." },
-    { key: "program_developments", label: "Program developments", placeholder: "Document program updates or operational changes." },
-    { key: "staff_updates", label: "Staff updates", placeholder: "Document staffing updates, training, role changes, or concerns." },
-    { key: "incident_report_review", label: "Review of incident reports", placeholder: "Summarize incidents without resident names, discussion points, and corrective actions." },
-    { key: "discharges_resident_feedback", label: "Discharges and resident feedback", placeholder: "Number of discharges, types, resident feedback, surveys, exit interviews, and improvement opportunities." },
-    { key: "property_maintenance_issues", label: "Property and maintenance issues", placeholder: "Maintenance concerns identified, actions taken or needed, and status." },
-    { key: "resident_progress_review", label: "Resident progress review", placeholder: "General trends, successes, barriers, areas of concern, or positive growth." },
-    { key: "financial_admin_review", label: "Financial and administrative review", placeholder: "Notable financial trends, charges, refunds, third-party payers, or discrepancies." },
-    { key: "house_meeting_feedback", label: "Resident feedback from house meetings", placeholder: "Resident suggestions or themes from house meetings." },
-  ],
 };
 
 const selfSafetySections = [
@@ -376,7 +354,6 @@ function getNextDueDate(reportType: ReportType, lastReportDate: string | null) {
   if (!lastReportDate || reportType === "incident_reporting") return null;
   const lastDate = toDate(lastReportDate);
   if (reportType === "annual_fire_drill") return addYears(lastDate, 1);
-  if (reportType === "weekly_house_meeting_minutes") return addDays(lastDate, 7);
   return addMonths(lastDate, 1);
 }
 
@@ -946,7 +923,6 @@ export default function ReportsPage() {
 
       setForm({ ...initialForm, report_date: new Date().toISOString().slice(0, 10) });
       setSelectedHouseIds([]);
-      setResidentAttendance({});
       setSavedReportsTab(selectedReportType);
       setMessage(`${getReportLabel(selectedReportType)} saved successfully.`);
       await loadReports(providerId);
@@ -1293,18 +1269,6 @@ export default function ReportsPage() {
           <h3 className="text-sm font-semibold text-slate-950">Monthly Staff/QI Meeting Notes</h3>
 
           <div className="mt-4 grid gap-4">
-            {reportFields.monthly_staff_meeting_minutes
-              .filter((field) => field.key !== "facilitator" && field.key !== "recorder")
-              .map((field) => (
-                <div key={field.key} className="rounded-2xl bg-white p-4">
-                  <TextAreaField
-                    label={field.label}
-                    value={getTextValue(field.key)}
-                    onChange={(value) => updateReportDataField(field.key, value)}
-                    placeholder={field.placeholder}
-                  />
-                </div>
-              ))}
           </div>
         </div>
       </div>
@@ -1320,10 +1284,6 @@ export default function ReportsPage() {
       return renderFireDrillFields();
     }
 
-    if (selectedReportType === "monthly_staff_meeting_minutes") {
-      return renderMonthlyStaffMeetingFields();
-    }
-
     return (
       <div className="mt-6 rounded-2xl border bg-slate-50 p-4">
         <h3 className="text-sm font-semibold text-slate-950">House Meeting Notes</h3>
@@ -1332,7 +1292,7 @@ export default function ReportsPage() {
         </p>
 
         <div className="mt-4 grid gap-4">
-          {reportFields[selectedReportType].map((field) => (
+          {reportFields.annual_fire_drill.map((field) => (
             <div key={field.key} className="rounded-2xl bg-white p-4">
               <TextAreaField
                 label={field.label}
@@ -1513,6 +1473,34 @@ export default function ReportsPage() {
 
   function renderReportDataSummary() {
     return null;
+  }
+
+  function renderSubmittedReportFields(report: ProviderHouseReport) {
+    const data = report.report_data ?? {};
+    const entries = Object.entries(data).filter(([, value]) => {
+      if (value === null || value === undefined) return false;
+      if (typeof value === "string" && value.trim() === "") return false;
+      if (Array.isArray(value) && value.length === 0) return false;
+      return true;
+    });
+
+    if (entries.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="mt-6 rounded-2xl border bg-slate-50 p-4">
+        <h3 className="text-sm font-semibold text-slate-950">Submitted Report Details</h3>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {entries.map(([key, value]) => (
+            <div key={key} className="rounded-xl bg-white p-3 text-sm">
+              <p className="font-medium text-slate-700">{getReportFieldLabel(report.report_type, key)}</p>
+              <p className="mt-1 whitespace-pre-wrap text-slate-600">{formatReportValue(value)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   function getReportFieldLabel(reportType: ReportType, fieldKey: string) {
@@ -1933,10 +1921,10 @@ export default function ReportsPage() {
 
     if (nextStatus === "approved" || nextStatus === "denied") {
       const attachmentSelection = await openAttachmentChecklistPrompt({
-        courtOrder: request.requires_court_order,
-        clinicalClearance: request.requires_clinical_clearance,
-        emergencyTravelDocs: request.requires_emergency_travel_docs,
-        otherAttachment: request.requires_other_attachment,
+        courtOrder: Boolean(request.requires_court_order),
+        clinicalClearance: Boolean(request.requires_clinical_clearance),
+        emergencyTravelDocs: Boolean(request.requires_emergency_travel_docs),
+        otherAttachment: Boolean(request.requires_other_attachment),
         otherAttachmentNote: request.other_attachment_note,
       });
 
@@ -2617,8 +2605,7 @@ export default function ReportsPage() {
                 setShowMaintenanceLog(false);
                 setShowPassRequests(false);
                 setSelectedHouseIds([]);
-                setResidentAttendance({});
-                setShowReportForm(false);
+                          setShowReportForm(false);
                 setForm({ ...initialForm, report_date: new Date().toISOString().slice(0, 10) });
                 setMessage("");
                 setError("");
@@ -2899,7 +2886,7 @@ export default function ReportsPage() {
               </p>
             </div>
 
-            {renderReportDataSummary(selectedViewReport)}
+            {renderReportDataSummary()}
 
             {renderSubmittedReportFields(selectedViewReport)}
 

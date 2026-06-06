@@ -44,7 +44,7 @@ type ResidentForm = {
   file_status: string;
   medication_status: string;
   rci_status: string;
-  sponsor_info_updated_at: string | null;
+  sponsor_info_updated_at?: string | null;
   latest_rci_completed_at?: string | null;
   high_alert: boolean;
   high_alert_detail: string;
