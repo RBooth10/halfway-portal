@@ -34,6 +34,12 @@ type ProviderPhaseRow = {
 };
 
 type ResidentDetail = {
+  sobriety_date: string | null;
+  gender: string | null;
+  ethnicity: string | null;
+  drug_of_choice: string | null;
+  referral_resource: string | null;
+  prior_address: string | null;
   id: string;
   provider_id: string;
   house_id: string | null;
@@ -2985,10 +2991,10 @@ Resident Signature Collected Electronically`;
                       </div>
                     ) : null}
 
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       <div className="rounded-2xl bg-slate-50 p-4">
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Status</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-950">{resident.resident_status}</p>
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">LOT in Program</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-950">{daysWithProviderLabel}</p>
                       </div>
 
                       <div className="rounded-2xl bg-slate-50 p-4">
@@ -2997,13 +3003,10 @@ Resident Signature Collected Electronically`;
                       </div>
 
                       <div className="rounded-2xl bg-slate-50 p-4">
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Phase</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-950">{resident.current_phase || "Not selected"}</p>
-                      </div>
-
-                      <div className="rounded-2xl bg-slate-50 p-4">
-                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">RCI</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-950">{latestCompletedRci ? rciCompletedLabel : resident.rci_status}</p>
+                        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Sobriety Date</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-950">
+                          {resident.sobriety_date ? formatDate(resident.sobriety_date) : "Not entered"}
+                        </p>
                       </div>
 
                       <div className={currentBalanceCardClass}>
@@ -3172,12 +3175,16 @@ Resident Signature Collected Electronically`;
               <div className={activeTab === "snapshot" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
                 <h2 className="text-lg font-semibold">Profile Overview</h2>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <DetailBlock title="Email" value={resident.email} />
-                  <DetailBlock title="Phone" value={resident.phone} />
-                  <DetailBlock title="Date of Birth" value={formatDate(resident.date_of_birth)} />
-                  <DetailBlock title="Admission Date" value={formatDate(resident.admission_date)} />
-                  <DetailBlock title="RCI Status" value={resident.rci_status} />
-                  <DetailBlock title="Days with Provider" value={daysWithProviderLabel} />
+                  <DetailBlock title="Email" value={resident.email || "Not entered"} />
+                  <DetailBlock title="Phone" value={resident.phone || "Not entered"} />
+                  <DetailBlock title="Date of Birth" value={resident.date_of_birth ? formatDate(resident.date_of_birth) : "Not entered"} />
+                  <DetailBlock title="Admission Date" value={resident.admission_date ? formatDate(resident.admission_date) : "Not entered"} />
+                  <DetailBlock title="Sobriety Date" value={resident.sobriety_date ? formatDate(resident.sobriety_date) : "Not entered"} />
+                  <DetailBlock title="Gender" value={resident.gender || "Not entered"} />
+                  <DetailBlock title="Ethnicity" value={resident.ethnicity || "Not entered"} />
+                  <DetailBlock title="Drug of Choice" value={resident.drug_of_choice || "Not entered"} />
+                  <DetailBlock title="Referral Resource" value={resident.referral_resource || "Not entered"} />
+                  <DetailBlock title="Prior Address" value={resident.prior_address || "Not entered"} />
                 </div>
               </div>
 
