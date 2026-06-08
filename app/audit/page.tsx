@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import PageShell from "@/components/PageShell";
 import { getSupabaseClient } from "@/lib/supabase";
+import { resolveActiveProviderId } from "@/lib/providerAccess";
 
 type AuditLogRow = {
   id: string;
@@ -93,25 +94,12 @@ export default function AuditLogPage() {
     async function loadAuditLogs() {
       try {
         const supabase = getSupabaseClient() as any;
-
-        let activeProviderId = localStorage.getItem("current_provider_id");
-
-        if (!activeProviderId) {
-          const latestProviderResult = await supabase
-            .from("providers")
-            .select("id")
-            .order("created_at", { ascending: false })
-            .limit(1);
-
-          activeProviderId = latestProviderResult.data?.[0]?.id ?? null;
-        }
+        const { providerId: activeProviderId } = await resolveActiveProviderId(supabase);
 
         if (!activeProviderId) {
           setError("No provider selected yet.");
           return;
         }
-
-        localStorage.setItem("current_provider_id", activeProviderId);
 
         const providerResult = await supabase
           .from("providers")

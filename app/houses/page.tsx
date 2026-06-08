@@ -18,6 +18,7 @@ import {
 import Link from "next/link";
 import PageShell from "@/components/PageShell";
 import { getSupabaseClient } from "@/lib/supabase";
+import { resolveActiveProviderId } from "@/lib/providerAccess";
 import { createAuditLog } from "@/lib/audit";
 
 type HouseForm = {
@@ -194,7 +195,8 @@ export default function HousesPage() {
   useEffect(() => {
     async function initialize() {
       try {
-        const activeProviderId = localStorage.getItem("current_provider_id");
+        const supabase = getSupabaseClient() as any;
+        const { providerId: activeProviderId } = await resolveActiveProviderId(supabase);
 
         if (!activeProviderId) {
           setError("No provider selected yet. Go to Provider Onboarding first and save a provider profile.");
