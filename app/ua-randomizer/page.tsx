@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import PageShell from "@/components/PageShell";
 import { getSupabaseClient } from "@/lib/supabase";
+import { resolveActiveProviderId } from "@/lib/providerAccess";
 
 type ResidentRow = {
   id: string;
@@ -217,13 +218,12 @@ export default function UaRandomizerPage() {
 
     Promise.resolve()
       .then(async () => {
-        const activeProviderId = localStorage.getItem("current_provider_id");
+        const supabase = getSupabaseClient() as any;
+        const { providerId: activeProviderId } = await resolveActiveProviderId(supabase);
 
         if (!activeProviderId) {
           throw new Error("No provider selected. Save or select a provider first.");
         }
-
-        const supabase = getSupabaseClient() as any;
 
         const residentsResult = await supabase
           .from("residents")
