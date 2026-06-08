@@ -20,6 +20,7 @@ import {
 import Link from "next/link";
 import PageShell from "@/components/PageShell";
 import { getSupabaseClient } from "@/lib/supabase";
+import { resolveActiveProviderId } from "@/lib/providerAccess";
 import { createAuditLog } from "@/lib/audit";
 
 function getResidentsSupabase() {
@@ -399,33 +400,13 @@ export default function ResidentsPage() {
     async function initialize() {
       try {
         const supabase = getSupabaseClient() as any;
-
-        const latestHouseResult = await supabase
-          .from("houses")
-          .select("provider_id")
-          .order("created_at", { ascending: false })
-          .limit(1);
-
-        const latestHouseProviderId = latestHouseResult.data?.[0]?.provider_id as string | undefined;
-
-        let activeProviderId = latestHouseProviderId || localStorage.getItem("current_provider_id");
-
-        if (!activeProviderId) {
-          const latestProviderResult = await supabase
-            .from("providers")
-            .select("id")
-            .order("created_at", { ascending: false })
-            .limit(1);
-
-          activeProviderId = latestProviderResult.data?.[0]?.id ?? null;
-        }
+        const { providerId: activeProviderId } = await resolveActiveProviderId(supabase);
 
         if (!activeProviderId) {
           setError("No provider selected yet. Go to Provider Onboarding first and save a provider profile.");
           return;
         }
 
-        localStorage.setItem("current_provider_id", activeProviderId);
         setProviderId(activeProviderId);
         await loadData(activeProviderId);
       } catch (err) {
