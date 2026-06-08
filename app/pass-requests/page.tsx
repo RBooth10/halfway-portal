@@ -66,7 +66,7 @@ type PassRequestRow = {
   updated_at: string;
 };
 
-type PassView = "all" | "pending" | "approved_history";
+type PassView = "all" | "pending" | "approved";
 
 function formatLabel(value: string | null | undefined) {
   if (!value) return "Not set";
@@ -218,7 +218,7 @@ export default function PassRequestsPage() {
         const status = String(request.status ?? "").toLowerCase();
 
         if (passView === "pending") return status === "pending";
-        if (passView === "approved_history") return status === "approved" || status === "completed";
+        if (passView === "approved") return status === "approved";
 
         return passStatusFilter === "all" || status === passStatusFilter;
       })
@@ -557,8 +557,8 @@ export default function PassRequestsPage() {
         <div className="grid gap-4 xl:grid-cols-3">
           {[
             ["pending", "Pending Review", "Only requests waiting for staff action."],
-            ["approved_history", "Approved / Completed Passes", "Isolated view of approved and completed passes."],
-            ["all", "All Requests", "Review all statuses with optional status filter."],
+            ["approved", "Approved Passes", "Only passes currently approved and not yet completed."],
+            ["all", "All Requests", "Review all statuses, including completed passes, with optional status filter."],
           ].map(([view, label, description]) => (
             <button
               key={view}
@@ -639,7 +639,7 @@ export default function PassRequestsPage() {
         <div className="hidden print:block">
           <h1 className="text-xl font-semibold text-slate-950">Pass Requests</h1>
           <p className="mt-1 text-sm text-slate-500">
-            View: {passView === "approved_history" ? "Approved / Completed Passes" : passView === "pending" ? "Pending Review" : "All Requests"}
+            View: {passView === "approved" ? "Approved Passes" : passView === "pending" ? "Pending Review" : "All Requests"}
           </p>
         </div>
 

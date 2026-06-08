@@ -170,6 +170,7 @@ export default function MaintenancePage() {
 
       const statusMatches =
         maintenanceStatusFilter === "all" ||
+        (maintenanceStatusFilter === "open" && ["open", "in_progress"].includes(request.status)) ||
         request.status === maintenanceStatusFilter;
 
       const priorityMatches =
@@ -181,7 +182,7 @@ export default function MaintenancePage() {
   }, [maintenanceRequests, maintenanceHouseFilter, maintenanceStatusFilter, maintenancePriorityFilter]);
 
   const openMaintenanceCount = useMemo(
-    () => maintenanceRequests.filter((request) => request.status === "open").length,
+    () => maintenanceRequests.filter((request) => ["open", "in_progress"].includes(request.status)).length,
     [maintenanceRequests]
   );
 
@@ -485,7 +486,7 @@ export default function MaintenancePage() {
           </div>
 
           <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            Open requests: <span className="font-semibold text-slate-950">{openMaintenanceCount}</span>
+            Open / in-progress requests: <span className="font-semibold text-slate-950">{openMaintenanceCount}</span>
           </div>
         </div>
       </section>
@@ -712,8 +713,7 @@ export default function MaintenancePage() {
               onChange={(event) => setMaintenanceStatusFilter(event.target.value)}
               className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
             >
-              <option value="open">Open</option>
-              <option value="in_progress">In progress</option>
+              <option value="open">Open / In progress</option>
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
               <option value="all">All statuses</option>
