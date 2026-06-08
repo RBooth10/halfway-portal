@@ -34,6 +34,7 @@ as $$
     from public.staff_profiles sp
     where sp.provider_id = target_provider_id
       and sp.auth_user_id = auth.uid()
+      and sp.status = 'active'
   );
 $$;
 
@@ -55,6 +56,7 @@ as $$
     from public.staff_profiles sp
     where sp.provider_id = target_provider_id
       and sp.auth_user_id = auth.uid()
+      and sp.status = 'active'
       and sp.role in ('owner_admin', 'compliance_manager')
   );
 $$;
@@ -77,6 +79,7 @@ as $$
     from public.staff_profiles sp
     where sp.provider_id = target_provider_id
       and sp.auth_user_id = auth.uid()
+      and sp.status = 'active'
       and sp.role in ('owner_admin', 'compliance_manager', 'house_manager')
   );
 $$;
