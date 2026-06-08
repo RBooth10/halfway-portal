@@ -22,6 +22,7 @@ import {
 import Link from "next/link";
 import PageShell from "@/components/PageShell";
 import { getSupabaseClient } from "@/lib/supabase";
+import { resolveActiveProviderId } from "@/lib/providerAccess";
 
 type DashboardCounts = {
   providerName: string;
@@ -156,29 +157,12 @@ export default function DashboardPage() {
         setError("");
 
         const supabase = getDashboardSupabase();
-        let activeProviderId =
-          localStorage.getItem("current_provider_id") ||
-          localStorage.getItem("activeProviderId");
-
-        if (!activeProviderId) {
-          const latestProviderResult = await supabase
-            .from("providers")
-            .select("id")
-            .order("created_at", { ascending: false })
-            .limit(1);
-
-          if (latestProviderResult.error) throw latestProviderResult.error;
-
-          activeProviderId = latestProviderResult.data?.[0]?.id ?? null;
-        }
+        const { providerId: activeProviderId } = await resolveActiveProviderId(supabase);
 
         if (!activeProviderId) {
           setCounts(initialCounts);
           return;
         }
-
-        localStorage.setItem("current_provider_id", activeProviderId);
-        localStorage.setItem("activeProviderId", activeProviderId);
 
         const providerResult = await supabase
           .from("providers")
