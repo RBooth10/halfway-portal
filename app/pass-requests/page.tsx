@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import PageShell from "@/components/PageShell";
 import { getSupabaseClient } from "@/lib/supabase";
+import { resolveActiveProviderId } from "@/lib/providerAccess";
 
 type ProviderRow = {
   id: string;
@@ -301,30 +302,7 @@ export default function PassRequestsPage() {
         setMessage("");
 
         const supabase = getSupabaseClient() as any;
-        const storedProviderId =
-          typeof window !== "undefined"
-            ? window.localStorage.getItem("activeProviderId") || window.localStorage.getItem("current_provider_id")
-            : null;
-
-        let activeProviderId = storedProviderId || "";
-
-        if (!activeProviderId) {
-          const providerResult = await supabase
-            .from("providers")
-            .select("*")
-            .order("created_at", { ascending: true })
-            .limit(1)
-            .maybeSingle();
-
-          if (providerResult.error) throw providerResult.error;
-
-          activeProviderId = providerResult.data?.id ?? "";
-
-          if (activeProviderId && typeof window !== "undefined") {
-            window.localStorage.setItem("activeProviderId", activeProviderId);
-            window.localStorage.setItem("current_provider_id", activeProviderId);
-          }
-        }
+        const { providerId: activeProviderId } = await resolveActiveProviderId(supabase);
 
         if (!activeProviderId) {
           setError("No provider profile found. Create a provider before using pass requests.");
