@@ -203,6 +203,11 @@ type ResidentRow = {
   current_phase: string | null;
   rci_status: string | null;
   medication_status: string | null;
+  high_alert: boolean | null;
+  high_alert_detail: string | null;
+  active_probation_officer: boolean | null;
+  active_mental_health_court: boolean | null;
+  active_drug_court: boolean | null;
 };
 
 type ReportHouseTarget = {
@@ -462,7 +467,7 @@ export default function HouseDetailPage() {
 
         const { data: residentData, error: residentError } = await supabase
           .from("residents")
-          .select("id, first_name, last_name, admission_date, current_phase, rci_status, medication_status")
+          .select("id, first_name, last_name, admission_date, current_phase, rci_status, medication_status, high_alert, high_alert_detail, active_probation_officer, active_mental_health_court, active_drug_court")
           .eq("house_id", houseId)
           .eq("resident_status", "active")
           .order("last_name", { ascending: true })
@@ -504,6 +509,70 @@ export default function HouseDetailPage() {
   const occupiedBeds = residents.length;
   const totalBeds = Number(house?.total_beds || 0);
   const availableBeds = Math.max(totalBeds - occupiedBeds, 0);
+
+  function getResidentAlertBadges(resident: ResidentRow) {
+    const badges: { label: string; title?: string; className: string }[] = [];
+    const medicationStatus = String(resident.medication_status ?? "").trim().toLowerCase();
+    const negativeMedicationStatuses = new Set([
+      "none",
+      "no",
+      "inactive",
+      "not_applicable",
+      "not applicable",
+      "not on medication",
+      "not_on_medication",
+      "not on mat",
+      "not_on_mat",
+      "not on mar",
+      "not_on_mar",
+    ]);
+
+    if (resident.high_alert) {
+      badges.push({
+        label: resident.high_alert_detail?.trim() || "High Alert",
+        className: "bg-rose-50 text-rose-700 ring-rose-600/20",
+      });
+    }
+
+    if (resident.active_probation_officer) {
+      badges.push({
+        label: "Active PO",
+        className: "bg-amber-50 text-amber-700 ring-amber-600/20",
+      });
+    }
+
+    if (resident.active_mental_health_court) {
+      badges.push({
+        label: "Mental Health Court",
+        className: "bg-violet-50 text-violet-700 ring-violet-600/20",
+      });
+    }
+
+    if (resident.active_drug_court) {
+      badges.push({
+        label: "Drug Court",
+        className: "bg-blue-50 text-blue-700 ring-blue-600/20",
+      });
+    }
+
+    if (
+      medicationStatus &&
+      !negativeMedicationStatuses.has(medicationStatus) &&
+      (
+        medicationStatus.includes("mat") ||
+        medicationStatus.includes("mar") ||
+        medicationStatus.includes("medication") ||
+        medicationStatus.includes("active")
+      )
+    ) {
+      badges.push({
+        label: "MAT / MAR",
+        className: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+      });
+    }
+
+    return badges;
+  }
 
   const houseReports = useMemo(
     () => reports.filter((report) => reportAppliesToHouse(report, houseId)),
@@ -990,6 +1059,23 @@ export default function HouseDetailPage() {
                         <BedDouble className="h-5 w-5 text-slate-500" />
                       </div>
                     </div>
+
+                    {getResidentAlertBadges(resident).length > 0 ? (
+                      <div className="mt-4 space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          {getResidentAlertBadges(resident).map((badge) => (
+                            <span
+                              key={badge.label}
+                              title={badge.title}
+                              className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${badge.className}`}
+                            >
+                              {badge.label}
+                            </span>
+                          ))}
+                        </div>
+
+                      </div>
+                    ) : null}
 
                     <div className="mt-4 grid gap-2">
                       <div className="rounded-2xl bg-slate-50 p-3">

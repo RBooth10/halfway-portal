@@ -225,6 +225,9 @@ export default function DashboardPage() {
         if (passRequestsResult.error) throw passRequestsResult.error;
 
         const houses = housesResult.data ?? [];
+        const activeHouses = houses.filter(
+          (house) => String(house.status ?? "active").toLowerCase() !== "inactive"
+        );
         const residents = residentsResult.data ?? [];
         const staff = staffResult.data ?? [];
         const documents = documentsResult.data ?? [];
@@ -233,9 +236,9 @@ export default function DashboardPage() {
 
         setCounts({
           providerName: providerResult.data?.legal_name ?? "Current Provider",
-          houses: houses.length,
-          activeHouses: houses.filter((house) => house.status !== "inactive").length,
-          totalBeds: houses.reduce((sum, house) => sum + Number(house.total_beds || 0), 0),
+          houses: activeHouses.length,
+          activeHouses: activeHouses.length,
+          totalBeds: activeHouses.reduce((sum, house) => sum + Number(house.total_beds || 0), 0),
           residents: residents.length,
           activeResidents: residents.filter((resident) => resident.resident_status === "active").length,
           dischargedResidents: residents.filter((resident) => resident.resident_status === "discharged").length,

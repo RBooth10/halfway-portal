@@ -127,7 +127,6 @@ export default function ClientRciPage() {
   const [questions, setQuestions] = useState<RciQuestion[]>([]);
   const [rciVersion, setRciVersion] = useState("");
   const [clientName, setClientName] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
   const [responses, setResponses] = useState<Record<string, number>>({});
   const [goalForms, setGoalForms] = useState<GoalForm[]>(initialGoalForms);
   const [showResults, setShowResults] = useState(false);
@@ -293,7 +292,7 @@ export default function ClientRciPage() {
       const { data, error } = await supabase.rpc("submit_client_rci_assessment", {
         p_access_token: token,
         p_client_name: clientName,
-        p_client_email: clientEmail,
+        p_client_email: "",
         p_responses: responsePayload,
       });
 
@@ -390,23 +389,13 @@ export default function ClientRciPage() {
           <>
             <section className="rounded-2xl border bg-white p-6 shadow-sm">
               <h2 className="text-lg font-semibold">Your Information</h2>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="mt-4 max-w-md">
                 <label className="block">
                   <span className="text-sm font-medium text-slate-700">Name</span>
                   <input
                     type="text"
                     value={clientName}
                     onChange={(event) => setClientName(event.target.value)}
-                    className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="text-sm font-medium text-slate-700">Email</span>
-                  <input
-                    type="email"
-                    value={clientEmail}
-                    onChange={(event) => setClientEmail(event.target.value)}
                     className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                   />
                 </label>

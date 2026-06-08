@@ -452,7 +452,10 @@ export default function HousesPage() {
     }
   }
 
-  const totalBeds = houses.reduce((sum, house) => sum + Number(house.total_beds || 0), 0);
+  const activeHouses = houses.filter(
+    (house) => String(house.status ?? "active").toLowerCase() !== "inactive"
+  );
+  const totalBeds = activeHouses.reduce((sum, house) => sum + Number(house.total_beds || 0), 0);
 
   const visibleHouses = houses.filter(
     (house) => String(house.status ?? "active").toLowerCase() !== "inactive"
@@ -481,7 +484,7 @@ export default function HousesPage() {
 
               <div className="mt-3 flex flex-wrap gap-2">
                 <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                  Houses: {houses.length}
+                  Houses: {activeHouses.length}
                 </span>
                 <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
                   Beds: {totalBeds}
