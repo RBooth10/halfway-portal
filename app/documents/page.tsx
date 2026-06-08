@@ -20,6 +20,7 @@ import {
 import Link from "next/link";
 import PageShell from "@/components/PageShell";
 import { getSupabaseClient } from "@/lib/supabase";
+import { resolveActiveProviderId } from "@/lib/providerAccess";
 
 type DocumentForm = {
   document_name: string;
@@ -440,25 +441,13 @@ export default function DocumentsPage() {
     async function initialize() {
       try {
         const supabase = getDocumentSupabase();
-
-        let activeProviderId = localStorage.getItem("current_provider_id");
-
-        if (!activeProviderId) {
-          const latestProviderResult = await supabase
-            .from("providers")
-            .select("id")
-            .order("created_at", { ascending: false })
-            .limit(1);
-
-          activeProviderId = latestProviderResult.data?.[0]?.id ?? null;
-        }
+        const { providerId: activeProviderId } = await resolveActiveProviderId(supabase);
 
         if (!activeProviderId) {
           setError("No provider selected yet. Go to Provider Onboarding first and save a provider profile.");
           return;
         }
 
-        localStorage.setItem("current_provider_id", activeProviderId);
         setProviderId(activeProviderId);
         await loadDocuments(activeProviderId);
       } catch (err) {
