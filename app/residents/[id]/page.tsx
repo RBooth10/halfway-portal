@@ -431,15 +431,15 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={
+      className={`flex min-h-16 flex-col justify-center rounded-xl border px-4 py-3 text-left transition ${
         active
-          ? "border-b-2 border-slate-950 bg-white px-5 py-3 text-left text-sm font-semibold text-slate-950"
-          : "border-b-2 border-transparent bg-white px-5 py-3 text-left text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-      }
+          ? "border-slate-950 bg-slate-950 text-white shadow-sm"
+          : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white hover:shadow-sm"
+      }`}
     >
-      <span className="block">{label}</span>
+      <span className="text-sm font-semibold leading-5">{label}</span>
       {status ? (
-        <span className="mt-0.5 block text-xs font-normal text-slate-500">
+        <span className={`mt-1 text-xs leading-4 ${active ? "text-slate-200" : "text-slate-500"}`}>
           {status}
         </span>
       ) : null}
@@ -2793,10 +2793,15 @@ Resident Signature Collected Electronically`;
             <div className="space-y-6">
               {/* Resident Profile Tabs */}
 
-              <div className="rounded-2xl border bg-white p-3 shadow-sm">
-                <p className="px-2 pb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Resident sections
-                </p>
+              <div className="rounded-2xl border bg-white p-2 shadow-sm">
+                <div className="mb-2 flex items-center justify-between gap-3 px-2 pt-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Resident Sections
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    Select a profile area
+                  </p>
+                </div>
 
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   <TabButton active={activeTab === "snapshot"} label="Profile" status="Snapshot & phase" onClick={() => setActiveTab("snapshot")} />
