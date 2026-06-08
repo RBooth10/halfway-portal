@@ -369,6 +369,47 @@ export default function DataAnalyticsPage() {
     };
   }, [activeResidents, dischargedResidents]);
 
+  const houseCensusRows = useMemo(() => {
+    return activeHouses
+      .map((house) => {
+        const activeCount = residents.filter(
+          (resident) =>
+            resident.house_id === house.id &&
+            String(resident.resident_status ?? "active").toLowerCase() === "active"
+        ).length;
+
+        const totalBeds = Number(house.total_beds || 0);
+        const openBeds = Math.max(totalBeds - activeCount, 0);
+        const occupancyRate = totalBeds > 0 ? Math.round((activeCount / totalBeds) * 100) : 0;
+
+        return {
+          id: house.id,
+          name: house.name,
+          totalBeds,
+          activeCount,
+          openBeds,
+          occupancyRate,
+        };
+      })
+      .sort((first, second) => first.name.localeCompare(second.name));
+  }, [activeHouses, residents]);
+
+  const totalActiveResidents = useMemo(
+    () =>
+      residents.filter(
+        (resident) => String(resident.resident_status ?? "active").toLowerCase() === "active"
+      ).length,
+    [residents]
+  );
+
+  const totalBeds = useMemo(
+    () => activeHouses.reduce((sum, house) => sum + Number(house.total_beds || 0), 0),
+    [activeHouses]
+  );
+
+  const openBeds = Math.max(totalBeds - totalActiveResidents, 0);
+  const occupancyRate = totalBeds > 0 ? Math.round((totalActiveResidents / totalBeds) * 100) : 0;
+
   async function loadData(activeProviderId: string) {
     const supabase = getSupabaseClient() as any;
 
@@ -512,7 +553,7 @@ export default function DataAnalyticsPage() {
                 Operational Data Dashboard
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                Review resident demographics, discharge trends, length of stay, approved passes, and maintenance status in one place.
+                Review resident census, demographics, discharge trends, length of stay, recovery-related indicators, and program outcomes in one place.
               </p>
               {provider ? (
                 <p className="mt-2 text-xs font-medium text-slate-500">
@@ -623,9 +664,9 @@ export default function DataAnalyticsPage() {
           icon={Users}
         />
         <StatCard
-          title="Total Beds"
-          value={String(houses.reduce((sum, house) => sum + Number(house.total_beds || 0), 0))}
-          subtitle={`${activeHouses.length} active houses`}
+          title="Occupancy"
+          value={`${occupancyRate}%`}
+          subtitle={`${totalActiveResidents} active residents • ${openBeds} open beds`}
           icon={ShieldCheck}
         />
         <StatCard
@@ -640,6 +681,50 @@ export default function DataAnalyticsPage() {
           subtitle="Discharged residents in selected view"
           icon={BarChart3}
         />
+      </section>
+
+      <section className="rounded-2xl border bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-slate-950">House Census / Occupancy</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Active resident count and bed utilization by house.
+            </p>
+          </div>
+        </div>
+
+        {houseCensusRows.length === 0 ? (
+          <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+            No active houses available.
+          </p>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full divide-y text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-3 py-3 font-semibold">House</th>
+                  <th className="px-3 py-3 text-right font-semibold">Active Residents</th>
+                  <th className="px-3 py-3 text-right font-semibold">Total Beds</th>
+                  <th className="px-3 py-3 text-right font-semibold">Open Beds</th>
+                  <th className="px-3 py-3 text-right font-semibold">Occupancy</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {houseCensusRows.map((row) => (
+                  <tr key={row.id} className="bg-white">
+                    <td className="px-3 py-3 font-medium text-slate-950">{row.name}</td>
+                    <td className="px-3 py-3 text-right text-slate-700">{row.activeCount}</td>
+                    <td className="px-3 py-3 text-right text-slate-700">{row.totalBeds}</td>
+                    <td className="px-3 py-3 text-right text-slate-700">{row.openBeds}</td>
+                    <td className="px-3 py-3 text-right font-semibold text-slate-950">
+                      {row.occupancyRate}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
