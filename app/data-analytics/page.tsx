@@ -93,6 +93,15 @@ function formatDate(value: string | null | undefined) {
   });
 }
 
+function truncateText(value: string | null | undefined, maxLength = 120) {
+  const cleanValue = value?.trim();
+
+  if (!cleanValue) return "No notes entered";
+  if (cleanValue.length <= maxLength) return cleanValue;
+
+  return `${cleanValue.slice(0, maxLength).trim()}...`;
+}
+
 function getDateOnly(value: string | null | undefined) {
   return value ? value.slice(0, 10) : "";
 }
@@ -369,46 +378,50 @@ export default function DataAnalyticsPage() {
     };
   }, [activeResidents, dischargedResidents]);
 
-  const houseCensusRows = useMemo(() => {
-    return activeHouses
-      .map((house) => {
-        const activeCount = residents.filter(
-          (resident) =>
-            resident.house_id === house.id &&
-            String(resident.resident_status ?? "active").toLowerCase() === "active"
-        ).length;
 
-        const totalBeds = Number(house.total_beds || 0);
-        const openBeds = Math.max(totalBeds - activeCount, 0);
-        const occupancyRate = totalBeds > 0 ? Math.round((activeCount / totalBeds) * 100) : 0;
+  const dischargeSatisfactionStats = useMemo(() => {
+    const eligibleResidents = dischargedResidents;
+    const completedResidents = eligibleResidents.filter(
+      (resident) => resident.discharge_satisfaction_survey_completed
+    );
 
-        return {
-          id: house.id,
-          name: house.name,
-          totalBeds,
-          activeCount,
-          openBeds,
-          occupancyRate,
-        };
-      })
-      .sort((first, second) => first.name.localeCompare(second.name));
-  }, [activeHouses, residents]);
+    const ratings = completedResidents
+      .map((resident) => Number(resident.discharge_satisfaction_survey_rating))
+      .filter((rating) => Number.isFinite(rating) && rating > 0);
 
-  const totalActiveResidents = useMemo(
-    () =>
-      residents.filter(
-        (resident) => String(resident.resident_status ?? "active").toLowerCase() === "active"
-      ).length,
-    [residents]
-  );
+    const averageRating =
+      ratings.length > 0
+        ? Math.round((ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length) * 10) / 10
+        : 0;
 
-  const totalBeds = useMemo(
-    () => activeHouses.reduce((sum, house) => sum + Number(house.total_beds || 0), 0),
-    [activeHouses]
-  );
+    const completionRate =
+      eligibleResidents.length > 0
+        ? Math.round((completedResidents.length / eligibleResidents.length) * 100)
+        : 0;
 
-  const openBeds = Math.max(totalBeds - totalActiveResidents, 0);
-  const occupancyRate = totalBeds > 0 ? Math.round((totalActiveResidents / totalBeds) * 100) : 0;
+    const recentResponses = completedResidents
+      .filter(
+        (resident) =>
+          resident.discharge_satisfaction_survey_rating ||
+          resident.discharge_satisfaction_survey_notes ||
+          resident.discharge_satisfaction_survey_completed_at
+      )
+      .sort((first, second) =>
+        String(second.discharge_satisfaction_survey_completed_at ?? second.updated_at ?? "").localeCompare(
+          String(first.discharge_satisfaction_survey_completed_at ?? first.updated_at ?? "")
+        )
+      )
+      .slice(0, 8);
+
+    return {
+      eligibleCount: eligibleResidents.length,
+      completedCount: completedResidents.length,
+      completionRate,
+      averageRating,
+      ratedCount: ratings.length,
+      recentResponses,
+    };
+  }, [dischargedResidents]);
 
   async function loadData(activeProviderId: string) {
     const supabase = getSupabaseClient() as any;
@@ -499,6 +512,10 @@ export default function DataAnalyticsPage() {
       "Discharge Date",
       "Discharge Reason",
       "Length of Stay Days",
+      "Survey Completed",
+      "Survey Rating",
+      "Survey Completed At",
+      "Survey Notes",
       "Drug of Choice",
       "Referral Resource",
       "Probation Officer",
@@ -517,6 +534,10 @@ export default function DataAnalyticsPage() {
       formatDate(resident.discharge_date),
       formatLabel(resident.discharge_reason),
       daysBetween(resident.admission_date, resident.discharge_date),
+      resident.discharge_satisfaction_survey_completed ? "Yes" : "No",
+      resident.discharge_satisfaction_survey_rating ?? "",
+      formatDate(resident.discharge_satisfaction_survey_completed_at),
+      resident.discharge_satisfaction_survey_notes ?? "",
       formatLabel(resident.drug_of_choice),
       formatLabel(resident.referral_resource),
       resident.active_probation_officer ? "Yes" : "No",
@@ -664,9 +685,9 @@ export default function DataAnalyticsPage() {
           icon={Users}
         />
         <StatCard
-          title="Occupancy"
-          value={`${occupancyRate}%`}
-          subtitle={`${totalActiveResidents} active residents • ${openBeds} open beds`}
+          title="Total Beds"
+          value={String(houses.reduce((sum, house) => sum + Number(house.total_beds || 0), 0))}
+          subtitle={`${activeHouses.length} active houses`}
           icon={ShieldCheck}
         />
         <StatCard
@@ -681,50 +702,6 @@ export default function DataAnalyticsPage() {
           subtitle="Discharged residents in selected view"
           icon={BarChart3}
         />
-      </section>
-
-      <section className="rounded-2xl border bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-base font-semibold text-slate-950">House Census / Occupancy</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              Active resident count and bed utilization by house.
-            </p>
-          </div>
-        </div>
-
-        {houseCensusRows.length === 0 ? (
-          <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-            No active houses available.
-          </p>
-        ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full divide-y text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-3 py-3 font-semibold">House</th>
-                  <th className="px-3 py-3 text-right font-semibold">Active Residents</th>
-                  <th className="px-3 py-3 text-right font-semibold">Total Beds</th>
-                  <th className="px-3 py-3 text-right font-semibold">Open Beds</th>
-                  <th className="px-3 py-3 text-right font-semibold">Occupancy</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {houseCensusRows.map((row) => (
-                  <tr key={row.id} className="bg-white">
-                    <td className="px-3 py-3 font-medium text-slate-950">{row.name}</td>
-                    <td className="px-3 py-3 text-right text-slate-700">{row.activeCount}</td>
-                    <td className="px-3 py-3 text-right text-slate-700">{row.totalBeds}</td>
-                    <td className="px-3 py-3 text-right text-slate-700">{row.openBeds}</td>
-                    <td className="px-3 py-3 text-right font-semibold text-slate-950">
-                      {row.occupancyRate}%
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
