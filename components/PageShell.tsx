@@ -1,6 +1,7 @@
 import type React from "react";
 import SetupNav from "@/components/SetupNav";
 import AppHeader from "@/components/AppHeader";
+import ProviderSwitcher from "@/components/ProviderSwitcher";
 
 export default function PageShell({
   children,
@@ -16,6 +17,7 @@ export default function PageShell({
 
         <div className="min-w-0 flex-1 space-y-4">
           <AppHeader />
+          <ProviderSwitcher />
 
           <div className={`mx-auto w-full ${maxWidth} space-y-4`}>
             {children}
