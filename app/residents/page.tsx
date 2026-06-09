@@ -653,9 +653,13 @@ export default function ResidentsPage() {
         throw episodeResult.error;
       }
 
-      await supabase.rpc("ensure_current_resident_fees", {
+      const ensureFeesResult = await supabase.rpc("ensure_current_resident_fees", {
         p_resident_id: data.id,
       });
+
+      if (ensureFeesResult.error) {
+        console.warn("Could not generate initial resident fees:", ensureFeesResult.error.message);
+      }
 
       const assignedIntakeCount = await assignIntakeDocumentsToResident(providerId, data.id, data.house_id ?? null);
 

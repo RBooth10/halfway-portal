@@ -1116,7 +1116,7 @@ export default function ResidentProfilePage() {
       });
 
       if (ensureFeesResult.error) {
-        throw ensureFeesResult.error;
+        console.warn("Could not refresh resident fees:", ensureFeesResult.error.message);
       }
 
       const feeChargesResult = await supabase
@@ -2645,9 +2645,13 @@ Resident Signature Collected Electronically`;
         return;
       }
 
-      await supabase.rpc("ensure_current_resident_fees", {
+      const ensureFeesResult = await supabase.rpc("ensure_current_resident_fees", {
         p_resident_id: resident.id,
       });
+
+      if (ensureFeesResult.error) {
+        console.warn("Could not refresh readmitted resident fees:", ensureFeesResult.error.message);
+      }
 
       setResident({
         ...resident,
