@@ -157,3 +157,13 @@ on public.resident_fee_charges (resident_id, due_date desc, created_at desc);
 drop index if exists public.resident_fee_charges_provider_due_created_idx;
 
 analyze public.resident_fee_charges;
+
+-- 5. Internal trigger functions should not be directly executable through /rest/v1/rpc.
+revoke all privileges on function public.set_new_resident_phase_one() from public;
+revoke all privileges on function public.sync_resident_rolling_ua_schedule() from public;
+
+revoke execute on function public.set_new_resident_phase_one() from anon;
+revoke execute on function public.sync_resident_rolling_ua_schedule() from anon;
+
+revoke execute on function public.set_new_resident_phase_one() from authenticated;
+revoke execute on function public.sync_resident_rolling_ua_schedule() from authenticated;
