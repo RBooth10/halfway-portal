@@ -167,3 +167,22 @@ revoke execute on function public.sync_resident_rolling_ua_schedule() from anon;
 
 revoke execute on function public.set_new_resident_phase_one() from authenticated;
 revoke execute on function public.sync_resident_rolling_ua_schedule() from authenticated;
+
+-- 6. Legacy resident pass request RPC is no longer used by the app.
+-- The app uses submit_client_portal_pass_request_v2(jsonb), which remains executable for token-based resident portal links.
+do $$
+declare
+  fn record;
+begin
+  for fn in
+    select p.oid::regprocedure as function_signature
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname = 'submit_client_portal_pass_request'
+  loop
+    execute format('revoke all privileges on function %s from public', fn.function_signature);
+    execute format('revoke execute on function %s from anon', fn.function_signature);
+    execute format('revoke execute on function %s from authenticated', fn.function_signature);
+  end loop;
+end $$;
