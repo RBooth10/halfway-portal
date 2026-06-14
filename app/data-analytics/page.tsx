@@ -94,15 +94,6 @@ function formatDate(value: string | null | undefined) {
   });
 }
 
-function truncateText(value: string | null | undefined, maxLength = 120) {
-  const cleanValue = value?.trim();
-
-  if (!cleanValue) return "No notes entered";
-  if (cleanValue.length <= maxLength) return cleanValue;
-
-  return `${cleanValue.slice(0, maxLength).trim()}...`;
-}
-
 function getDateOnly(value: string | null | undefined) {
   return value ? value.slice(0, 10) : "";
 }
@@ -380,51 +371,7 @@ export default function DataAnalyticsPage() {
   }, [activeResidents, dischargedResidents]);
 
 
-  const dischargeSatisfactionStats = useMemo(() => {
-    const eligibleResidents = dischargedResidents;
-    const completedResidents = eligibleResidents.filter(
-      (resident) => resident.discharge_satisfaction_survey_completed
-    );
-
-    const ratings = completedResidents
-      .map((resident) => Number(resident.discharge_satisfaction_survey_rating))
-      .filter((rating) => Number.isFinite(rating) && rating > 0);
-
-    const averageRating =
-      ratings.length > 0
-        ? Math.round((ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length) * 10) / 10
-        : 0;
-
-    const completionRate =
-      eligibleResidents.length > 0
-        ? Math.round((completedResidents.length / eligibleResidents.length) * 100)
-        : 0;
-
-    const recentResponses = completedResidents
-      .filter(
-        (resident) =>
-          resident.discharge_satisfaction_survey_rating ||
-          resident.discharge_satisfaction_survey_notes ||
-          resident.discharge_satisfaction_survey_completed_at
-      )
-      .sort((first, second) =>
-        String(second.discharge_satisfaction_survey_completed_at ?? second.updated_at ?? "").localeCompare(
-          String(first.discharge_satisfaction_survey_completed_at ?? first.updated_at ?? "")
-        )
-      )
-      .slice(0, 8);
-
-    return {
-      eligibleCount: eligibleResidents.length,
-      completedCount: completedResidents.length,
-      completionRate,
-      averageRating,
-      ratedCount: ratings.length,
-      recentResponses,
-    };
-  }, [dischargedResidents]);
-
-  async function loadData(activeProviderId: string) {
+async function loadData(activeProviderId: string) {
     const supabase = getSupabaseClient() as any;
 
     const providerResult = await supabase

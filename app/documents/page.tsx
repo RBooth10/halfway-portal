@@ -4,7 +4,6 @@ import type React from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import {
-  ArrowRight,
   Building2,
   ClipboardCheck,
   FileSignature,
@@ -166,116 +165,6 @@ function getAreaDefaults(category: string): Pick<DocumentForm, "category" | "com
   };
 
   return areaDefaults[category] ?? areaDefaults.Provider;
-}
-
-function MetricCard({
-  title,
-  value,
-  subtitle,
-  icon: Icon,
-}: {
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: IconComponent;
-}) {
-  return (
-    <div className="rounded-2xl border bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-slate-500">{title}</p>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
-          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-        </div>
-        <div className="rounded-2xl bg-slate-100 p-3">
-          <Icon className="h-6 w-6 text-slate-700" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DocumentAreaCard({
-  title,
-  description,
-  examples,
-  count,
-  uploadedCount,
-  emptyCta,
-  icon: Icon,
-  active,
-  onClick,
-}: {
-  title: string;
-  description: string;
-  examples: string[];
-  count: number;
-  uploadedCount: number;
-  emptyCta: string;
-  icon: IconComponent;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group flex h-full flex-col rounded-2xl border p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md ${
-        active ? "border-slate-950 bg-slate-50" : "bg-white"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="rounded-2xl bg-slate-100 p-3 transition group-hover:bg-slate-200">
-          <Icon className="h-6 w-6 text-slate-700" />
-        </div>
-        <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-1 group-hover:text-slate-700" />
-      </div>
-
-      <div className="mt-5 flex-1">
-        <h3 className="font-semibold text-slate-950">{title}</h3>
-        <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {examples.slice(0, 3).map((example) => (
-            <span key={example} className="rounded-full bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
-              {example}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-5 border-t pt-4">
-        <p className="text-2xl font-semibold tracking-tight text-slate-950">{count}</p>
-        <p className="mt-1 text-sm text-slate-500">{count ? `${uploadedCount} uploaded` : "No records yet"}</p>
-        <p className="mt-3 text-sm font-semibold text-slate-950">{count ? "View area" : emptyCta}</p>
-      </div>
-    </button>
-  );
-}
-
-function StatusBadge({ value }: { value: string }) {
-  const label =
-    value === "uploaded"
-      ? "Uploaded"
-      : value === "needs_review"
-      ? "Needs Review"
-      : value === "archived"
-      ? "Archived"
-      : "Not Uploaded";
-
-  const style =
-    value === "uploaded"
-      ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20"
-      : value === "needs_review"
-      ? "bg-amber-50 text-amber-700 ring-amber-600/20"
-      : value === "archived"
-      ? "bg-slate-50 text-slate-600 ring-slate-600/20"
-      : "bg-rose-50 text-rose-700 ring-rose-600/20";
-
-  return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${style}`}>
-      {label}
-    </span>
-  );
 }
 
 function Field({

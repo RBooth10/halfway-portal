@@ -576,7 +576,6 @@ export default function ResidentProfilePage() {
   const [clientRciLink, setClientRciLink] = useState("");
   const [generatingRciLink, setGeneratingRciLink] = useState(false);
   const [clientIntakeLink, setClientIntakeLink] = useState("");
-  const [generatingIntakeLink, setGeneratingIntakeLink] = useState(false);
   const [clientPortalLink, setClientPortalLink] = useState("");
   const [generatingPortalLink, setGeneratingPortalLink] = useState(false);
   const [showRciActionModal, setShowRciActionModal] = useState(false);
@@ -1740,68 +1739,7 @@ export default function ResidentProfilePage() {
     }
   }
 
-  async function generateClientIntakeLink() {
-    setGeneratingIntakeLink(true);
-    setMessage("");
-    setError("");
-
-    if (!resident) {
-      setGeneratingIntakeLink(false);
-      setError("Resident profile is not loaded yet.");
-      return;
-    }
-
-    try {
-      const supabase = getResidentSupabase();
-      const { data: userData } = await supabase.auth.getUser();
-
-      if (!userData.user) {
-        throw new Error("You must be signed in before generating an intake signing link.");
-      }
-
-      const token = crypto.randomUUID();
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 14);
-
-      const { data, error } = await supabase
-        .from("resident_intake_signing_links")
-        .insert({
-          provider_id: resident.provider_id,
-          resident_id: resident.id,
-          created_by_auth_user_id: userData.user.id,
-          access_token: token,
-          expires_at: expiresAt.toISOString(),
-        })
-        .select("*")
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      const link = `${window.location.origin}/client/intake/${token}`;
-
-      setClientIntakeLink(link);
-      setMessage("Client intake signing link generated successfully.");
-
-      await createAuditLog({
-        providerId: resident.provider_id,
-        action: "client_intake_signing_link_generated",
-        tableName: "resident_intake_signing_links",
-        recordId: data.id,
-        oldValues: null,
-        newValues: data as Record<string, unknown>,
-        reason: "Client intake document signing link generated from resident profile.",
-      });
-    } catch (err) {
-      const intakeLinkError = err as { message?: unknown };
-      setError(intakeLinkError?.message ? String(intakeLinkError.message) : "Could not generate intake signing link.");
-    } finally {
-      setGeneratingIntakeLink(false);
-    }
-  }
-
-  const totalCharges = feeCharges.reduce((sum, charge) => sum + Number(charge.amount || 0), 0);
+const totalCharges = feeCharges.reduce((sum, charge) => sum + Number(charge.amount || 0), 0);
   const totalPayments = residentPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
   const currentBalance = totalCharges - totalPayments;
   const currentBalanceDisplay = currentBalance < 0 ? `-$${Math.abs(currentBalance).toFixed(2)}` : `$${currentBalance.toFixed(2)}`;
@@ -2680,54 +2618,7 @@ Resident Signature Collected Electronically`;
     }
   }
 
-  async function updateResidentSnapshotField(
-    fieldName:
-      | "current_phase"
-      | "has_sponsor"
-      | "sponsor_name"
-      | "sponsor_phone"
-      | "current_step"
-      | "has_home_group"
-      | "attending_required_meetings"
-      | "recovery_plan_started"
-      | "program_fees_current"
-      | "medication_status_reviewed",
-    value: string | boolean | null
-  ) {
-    if (!resident) {
-      setError("Resident profile is not loaded yet.");
-      return;
-    }
-
-    setSavingSnapshotStatus(true);
-    setError("");
-    setMessage("");
-
-    try {
-      const supabase = getSupabaseClient() as any;
-
-      const { data, error } = await supabase
-        .from("residents")
-        .update({ [fieldName]: value })
-        .eq("id", resident.id)
-        .select("*")
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      setResident(data as ResidentDetail);
-      setMessage("Resident snapshot updated.");
-    } catch (err) {
-      const updateError = err as { message?: unknown };
-      setError(updateError?.message ? String(updateError.message) : "Could not update resident snapshot.");
-    } finally {
-      setSavingSnapshotStatus(false);
-    }
-  }
-
-  async function updateResidentPhase(phaseId: string) {
+async function updateResidentPhase(phaseId: string) {
     if (!resident) {
       setError("Resident profile is not loaded yet.");
       return;

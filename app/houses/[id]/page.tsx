@@ -272,10 +272,6 @@ function getReportLabel(reportType: string) {
   return reportTypes.find((type) => type.value === reportType)?.label ?? reportType.replaceAll("_", " ");
 }
 
-function getReportFrequency(reportType: string) {
-  return reportTypes.find((type) => type.value === reportType)?.frequency ?? "Report";
-}
-
 function getNextDueDate(reportType: ReportType, lastReportDate: string | null) {
   if (!lastReportDate || reportType === "incident_reporting") return null;
 
@@ -404,33 +400,6 @@ function DetailBlock({ title, value }: { title: string; value: string | number |
     <div className="rounded-2xl bg-slate-50 p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{title}</p>
       <p className="mt-1 text-sm font-semibold text-slate-950">{value || "Not entered"}</p>
-    </div>
-  );
-}
-
-function MetricCard({
-  title,
-  value,
-  subtitle,
-  icon: Icon,
-}: {
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: React.ComponentType<{ className?: string }>;
-}) {
-  return (
-    <div className="rounded-2xl border bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-slate-500">{title}</p>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
-          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-        </div>
-        <div className="rounded-2xl bg-slate-100 p-3">
-          <Icon className="h-6 w-6 text-slate-700" />
-        </div>
-      </div>
     </div>
   );
 }

@@ -694,8 +694,7 @@ export default function ResidentsPage() {
 
   const activeResidents = residents.filter((resident) => resident.resident_status === "active").length;
   const dischargedResidents = residents.filter((resident) => resident.resident_status === "discharged").length;
-  const residentsWithHouse = residents.filter((resident) => resident.house_id).length;
-  const normalizedResidentSearch = residentSearch.trim().toLowerCase();
+const normalizedResidentSearch = residentSearch.trim().toLowerCase();
 
   const displayedResidents = residents.filter((resident) => {
     const residentName = `${resident.first_name} ${resident.last_name}`.toLowerCase();
