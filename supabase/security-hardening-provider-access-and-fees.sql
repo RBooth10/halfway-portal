@@ -205,3 +205,80 @@ begin
     execute format('revoke execute on function %s from authenticated', fn.function_signature);
   end loop;
 end $$;
+
+-- 7. Client RCI recovery goals must respect the RCI client link expiration.
+create or replace function public.submit_client_recovery_goals(
+  p_access_token text,
+  p_goals jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  assessment_record public.rci_assessments%rowtype;
+  goal_record record;
+  inserted_count integer := 0;
+begin
+  select *
+  into assessment_record
+  from public.rci_assessments
+  where client_access_token = p_access_token
+    and client_access_token is not null
+    and status = 'completed'
+    and (client_link_expires_at is null or client_link_expires_at > now())
+  limit 1;
+
+  if not found then
+    return jsonb_build_object(
+      'ok', false,
+      'message', 'Recovery goals can only be submitted after a completed assessment with an active link.'
+    );
+  end if;
+
+  for goal_record in
+    select *
+    from jsonb_to_recordset(p_goals)
+      as x(goal_area text, goal_text text, action_steps text, supports_needed text, priority text)
+  loop
+    if nullif(trim(goal_record.goal_text), '') is not null then
+      insert into public.recovery_goals (
+        provider_id,
+        resident_id,
+        rci_assessment_id,
+        created_by_source,
+        goal_area,
+        goal_text,
+        action_steps,
+        supports_needed,
+        priority,
+        status
+      )
+      values (
+        assessment_record.provider_id,
+        assessment_record.resident_id,
+        assessment_record.id,
+        'resident_client',
+        coalesce(nullif(trim(goal_record.goal_area), ''), 'personal_capital'),
+        trim(goal_record.goal_text),
+        nullif(trim(coalesce(goal_record.action_steps, '')), ''),
+        nullif(trim(coalesce(goal_record.supports_needed, '')), ''),
+        coalesce(nullif(trim(goal_record.priority), ''), 'medium'),
+        'active'
+      );
+
+      inserted_count := inserted_count + 1;
+    end if;
+  end loop;
+
+  return jsonb_build_object(
+    'ok', true,
+    'inserted_count', inserted_count,
+    'message', 'Recovery goals submitted successfully.'
+  );
+end;
+$function$;
+
+revoke all privileges on function public.submit_client_recovery_goals(text, jsonb) from public;
+grant execute on function public.submit_client_recovery_goals(text, jsonb) to anon, authenticated;
