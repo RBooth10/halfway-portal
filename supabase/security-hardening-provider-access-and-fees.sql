@@ -282,3 +282,229 @@ $function$;
 
 revoke all privileges on function public.submit_client_recovery_goals(text, jsonb) from public;
 grant execute on function public.submit_client_recovery_goals(text, jsonb) to anon, authenticated;
+
+-- 8. Staff maintenance RPCs must reject cross-provider house/resident IDs.
+create or replace function public.create_staff_maintenance_request(p_payload jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  provider_uuid uuid := nullif(p_payload ->> 'provider_id', '')::uuid;
+  house_uuid uuid := nullif(p_payload ->> 'house_id', '')::uuid;
+  resident_uuid uuid := nullif(p_payload ->> 'resident_id', '')::uuid;
+  resident_record public.residents%rowtype;
+  house_record public.houses%rowtype;
+  clean_title text := trim(coalesce(p_payload ->> 'request_title', ''));
+  clean_description text := trim(coalesce(p_payload ->> 'request_description', ''));
+  clean_location text := nullif(trim(coalesce(p_payload ->> 'location_area', '')), '');
+  clean_priority text := lower(trim(coalesce(p_payload ->> 'priority', 'normal')));
+  clean_notes text := nullif(trim(coalesce(p_payload ->> 'provider_notes', '')), '');
+  request_id uuid;
+begin
+  if provider_uuid is null then
+    return jsonb_build_object('ok', false, 'message', 'Provider is required.');
+  end if;
+
+  if not public.current_user_can_manage_house_records(provider_uuid) then
+    return jsonb_build_object('ok', false, 'message', 'Not authorized to create maintenance requests.');
+  end if;
+
+  if length(clean_title) < 3 then
+    return jsonb_build_object('ok', false, 'message', 'Request title is required.');
+  end if;
+
+  if length(clean_description) < 10 then
+    return jsonb_build_object('ok', false, 'message', 'Please describe the maintenance issue.');
+  end if;
+
+  if clean_priority not in ('low', 'normal', 'urgent') then
+    clean_priority := 'normal';
+  end if;
+
+  if house_uuid is not null then
+    select *
+    into house_record
+    from public.houses
+    where id = house_uuid
+      and provider_id = provider_uuid
+    limit 1;
+
+    if not found then
+      return jsonb_build_object('ok', false, 'message', 'House was not found for this provider.');
+    end if;
+  end if;
+
+  if resident_uuid is not null then
+    select *
+    into resident_record
+    from public.residents
+    where id = resident_uuid
+      and provider_id = provider_uuid
+    limit 1;
+
+    if not found then
+      return jsonb_build_object('ok', false, 'message', 'Resident was not found for this provider.');
+    end if;
+  end if;
+
+  insert into public.resident_maintenance_requests (
+    provider_id,
+    house_id,
+    resident_id,
+    submitted_by_name,
+    request_title,
+    request_description,
+    location_area,
+    priority,
+    status,
+    provider_notes
+  )
+  values (
+    provider_uuid,
+    coalesce(house_uuid, resident_record.house_id),
+    resident_uuid,
+    case
+      when resident_uuid is not null
+        then concat_ws(' ', resident_record.first_name, resident_record.last_name)
+      else 'Staff entry'
+    end,
+    clean_title,
+    clean_description,
+    clean_location,
+    clean_priority,
+    'open',
+    clean_notes
+  )
+  returning id into request_id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'message', 'Maintenance request created.',
+    'request_id', request_id
+  );
+exception
+  when others then
+    return jsonb_build_object(
+      'ok', false,
+      'message', SQLERRM
+    );
+end;
+$function$;
+
+
+create or replace function public.create_staff_maintenance_request(
+  p_provider_id uuid,
+  p_house_id uuid,
+  p_resident_id uuid,
+  p_request_title text,
+  p_request_description text,
+  p_location_area text,
+  p_priority text,
+  p_provider_notes text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  resident_record public.residents%rowtype;
+  house_record public.houses%rowtype;
+  clean_title text := trim(coalesce(p_request_title, ''));
+  clean_description text := trim(coalesce(p_request_description, ''));
+  clean_location text := nullif(trim(coalesce(p_location_area, '')), '');
+  clean_priority text := lower(trim(coalesce(p_priority, 'normal')));
+  clean_notes text := nullif(trim(coalesce(p_provider_notes, '')), '');
+  request_id uuid;
+begin
+  if p_provider_id is null then
+    return jsonb_build_object('ok', false, 'message', 'Provider is required.');
+  end if;
+
+  if not public.current_user_can_manage_house_records(p_provider_id) then
+    return jsonb_build_object('ok', false, 'message', 'Not authorized to create maintenance requests.');
+  end if;
+
+  if length(clean_title) < 3 then
+    return jsonb_build_object('ok', false, 'message', 'Request title is required.');
+  end if;
+
+  if length(clean_description) < 10 then
+    return jsonb_build_object('ok', false, 'message', 'Please describe the maintenance issue.');
+  end if;
+
+  if clean_priority not in ('low', 'normal', 'urgent') then
+    clean_priority := 'normal';
+  end if;
+
+  if p_house_id is not null then
+    select *
+    into house_record
+    from public.houses
+    where id = p_house_id
+      and provider_id = p_provider_id
+    limit 1;
+
+    if not found then
+      return jsonb_build_object('ok', false, 'message', 'House was not found for this provider.');
+    end if;
+  end if;
+
+  if p_resident_id is not null then
+    select *
+    into resident_record
+    from public.residents
+    where id = p_resident_id
+      and provider_id = p_provider_id
+    limit 1;
+
+    if not found then
+      return jsonb_build_object('ok', false, 'message', 'Resident was not found for this provider.');
+    end if;
+  end if;
+
+  insert into public.resident_maintenance_requests (
+    provider_id,
+    house_id,
+    resident_id,
+    submitted_by_name,
+    request_title,
+    request_description,
+    location_area,
+    priority,
+    status,
+    provider_notes
+  )
+  values (
+    p_provider_id,
+    coalesce(p_house_id, resident_record.house_id),
+    p_resident_id,
+    case
+      when p_resident_id is not null
+        then concat_ws(' ', resident_record.first_name, resident_record.last_name)
+      else 'Staff entry'
+    end,
+    clean_title,
+    clean_description,
+    clean_location,
+    clean_priority,
+    'open',
+    clean_notes
+  )
+  returning id into request_id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'message', 'Maintenance request created.',
+    'request_id', request_id
+  );
+end;
+$function$;
+
+revoke all privileges on function public.create_staff_maintenance_request(jsonb) from public;
+revoke all privileges on function public.create_staff_maintenance_request(uuid, uuid, uuid, text, text, text, text, text) from public;
+
+grant execute on function public.create_staff_maintenance_request(jsonb) to authenticated;
+grant execute on function public.create_staff_maintenance_request(uuid, uuid, uuid, text, text, text, text, text) to authenticated;
