@@ -2,7 +2,7 @@
 
 import type React from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowRight,
   Building2,

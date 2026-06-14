@@ -4,7 +4,6 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import {
   Archive,
-  ArrowLeft,
   BedDouble,
   CheckCircle2,
   Download,
