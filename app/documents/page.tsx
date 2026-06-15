@@ -1,5 +1,6 @@
 "use client";
 
+import { openFilePreview } from "@/lib/filePreview";
 import type React from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
@@ -370,7 +371,7 @@ export default function DocumentsPage() {
         throw new Error("Could not create a signed file link.");
       }
 
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      await openFilePreview(data.signedUrl, "Document", filePath);
     } catch (err) {
       const storageError = err as { message?: unknown };
       setError(storageError?.message ? String(storageError.message) : "Could not open file.");

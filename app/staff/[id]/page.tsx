@@ -1,5 +1,6 @@
 "use client";
 
+import { openFilePreview } from "@/lib/filePreview";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -154,7 +155,7 @@ export default function StaffProfilePage() {
       }
 
       if (data?.signedUrl) {
-        window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+        await openFilePreview(data.signedUrl, "Document", filePath);
       }
     } catch (err) {
       const fileError = err as { message?: unknown };

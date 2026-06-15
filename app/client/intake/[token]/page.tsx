@@ -1,5 +1,6 @@
 "use client";
 
+import { openFilePreview } from "@/lib/filePreview";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import {
@@ -124,7 +125,7 @@ export default function ClientIntakeSigningPage() {
         throw new Error("Could not create a secure document link.");
       }
 
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      await openFilePreview(data.signedUrl, document.document_name || "Document", document.file_url);
     } catch (err) {
       const fileError = err as { message?: unknown };
       setError(fileError?.message ? String(fileError.message) : "Could not open document file.");
