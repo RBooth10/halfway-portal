@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Download,
   Loader2,
@@ -165,30 +165,45 @@ export default function FeesPage() {
       });
   }, [residents, residentStatusFilter]);
 
-  function getResident(residentId: string | null) {
-    if (!residentId) return null;
-    return residents.find((resident) => resident.id === residentId) ?? null;
-  }
+  const getResident = useCallback(
+    (residentId: string | null) => {
+      if (!residentId) return null;
+      return residents.find((resident) => resident.id === residentId) ?? null;
+    },
+    [residents]
+  );
 
-  function getResidentName(residentId: string | null) {
-    const resident = getResident(residentId);
-    return resident ? `${resident.first_name} ${resident.last_name}` : "Unknown resident";
-  }
+  const getResidentName = useCallback(
+    (residentId: string | null) => {
+      const resident = getResident(residentId);
+      return resident ? `${resident.first_name} ${resident.last_name}` : "Unknown resident";
+    },
+    [getResident]
+  );
 
-  function getHouseName(houseId: string | null | undefined) {
-    if (!houseId) return "Not assigned";
-    return houses.find((house) => house.id === houseId)?.name ?? "Unknown house";
-  }
+  const getHouseName = useCallback(
+    (houseId: string | null | undefined) => {
+      if (!houseId) return "Not assigned";
+      return houses.find((house) => house.id === houseId)?.name ?? "Unknown house";
+    },
+    [houses]
+  );
 
-  function getResidentHouseName(residentId: string | null) {
-    const resident = getResident(residentId);
-    return getHouseName(resident?.house_id);
-  }
+  const getResidentHouseName = useCallback(
+    (residentId: string | null) => {
+      const resident = getResident(residentId);
+      return getHouseName(resident?.house_id);
+    },
+    [getHouseName, getResident]
+  );
 
-  function getChargeHouseName(charge: ResidentFeeChargeRow) {
-    const resident = getResident(charge.resident_id);
-    return getHouseName(charge.house_id || resident?.house_id);
-  }
+  const getChargeHouseName = useCallback(
+    (charge: ResidentFeeChargeRow) => {
+      const resident = getResident(charge.resident_id);
+      return getHouseName(charge.house_id || resident?.house_id);
+    },
+    [getHouseName, getResident]
+  );
 
   function formatFeePeriod(charge: ResidentFeeChargeRow) {
     if (charge.period_start && charge.period_end) {
@@ -280,14 +295,17 @@ export default function FeesPage() {
   }, [
     feeCharges,
     payments,
-    residents,
-    houses,
     houseFilter,
     residentFilter,
     residentStatusFilter,
     transactionTypeFilter,
     dateStart,
     dateEnd,
+    getChargeHouseName,
+    getHouseName,
+    getResident,
+    getResidentHouseName,
+    getResidentName,
   ]);
 
   const ledgerTotals = useMemo(
