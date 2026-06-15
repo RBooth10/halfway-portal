@@ -104,6 +104,7 @@ export default function UaRandomizerPage() {
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [deletingScheduleId, setDeletingScheduleId] = useState<string | null>(null);
 
   const activeResidents = residents.filter(
     (resident) =>
@@ -209,6 +210,52 @@ export default function UaRandomizerPage() {
     }
 
     setScheduleRows((scheduleResult.data ?? []) as ScheduleRow[]);
+  }
+
+  async function deleteScheduledUaItem(row: ScheduleRow) {
+    if (!providerId) {
+      setError("No provider selected.");
+      return;
+    }
+
+    if (row.status !== "scheduled") {
+      setError("Only pending scheduled UA items can be deleted.");
+      return;
+    }
+
+    const resident = getResident(row.resident_id);
+    const confirmed = window.confirm(
+      `Delete the scheduled UA for ${residentName(resident)} on ${formatDate(row.scheduled_date)}? Completed UA/BA records will not be changed.`
+    );
+
+    if (!confirmed) return;
+
+    setDeletingScheduleId(row.id);
+    setMessage("");
+    setError("");
+
+    try {
+      const supabase = getSupabaseClient() as any;
+
+      const { error: deleteError } = await supabase
+        .from("ua_randomizer_schedule")
+        .update({ status: "cancelled" })
+        .eq("id", row.id)
+        .eq("provider_id", providerId)
+        .eq("status", "scheduled");
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      setScheduleRows((current) => current.filter((item) => item.id !== row.id));
+      setMessage("Scheduled UA item was deleted from the active schedule. Completed UA/BA records were not changed.");
+    } catch (err) {
+      const deleteError = err as { message?: unknown };
+      setError(deleteError?.message ? String(deleteError.message) : "Could not delete the scheduled UA item.");
+    } finally {
+      setDeletingScheduleId(null);
+    }
   }
 
   useEffect(() => {
@@ -703,10 +750,21 @@ export default function UaRandomizerPage() {
                         ) : null}
                       </div>
 
-                      <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">
-                        <CalendarDays className="h-3.5 w-3.5" />
-                        {formatDate(row.scheduled_date)}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                          <CalendarDays className="h-3.5 w-3.5" />
+                          {formatDate(row.scheduled_date)}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => void deleteScheduledUaItem(row)}
+                          disabled={deletingScheduleId === row.id}
+                          className="rounded-full border border-rose-200 bg-white px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {deletingScheduleId === row.id ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );

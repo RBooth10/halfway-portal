@@ -3257,6 +3257,44 @@ async function updateResidentPhase(phaseId: string) {
               </div>
 
 <div className={activeTab === "notes" ? "rounded-2xl border bg-white p-6 shadow-sm" : "hidden"}>
+                <div className="mb-6 rounded-2xl border bg-slate-50 p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <h2 className="text-lg font-semibold">Sponsor / Step Information</h2>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Latest sponsor and step update submitted from the resident portal.
+                      </p>
+                    </div>
+
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                      {resident?.sponsor_info_updated_at ? `Updated ${formatDateTime(resident.sponsor_info_updated_at)}` : "Needs update"}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-xl bg-white p-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Sponsor name</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-950">
+                        {resident?.sponsor_name || "Not provided"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-white p-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Sponsor phone</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-950">
+                        {resident?.sponsor_phone || "Not provided"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-white p-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Current step</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-950">
+                        {resident?.current_step || "Not provided"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold">Progress Notes</h2>
