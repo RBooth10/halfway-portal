@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { type ComponentType, useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   CheckCircle2,
@@ -172,29 +172,41 @@ export default function PassRequestsPage() {
     [houses]
   );
 
-  function getResident(residentId: string | null) {
-    if (!residentId) return null;
+  const getResident = useCallback(
+    (residentId: string | null) => {
+      if (!residentId) return null;
 
-    return residents.find((item) => item.id === residentId) ?? null;
-  }
+      return residents.find((item) => item.id === residentId) ?? null;
+    },
+    [residents]
+  );
 
-  function getHouseName(houseId: string | null) {
-    if (!houseId) return "No house assigned";
+  const getHouseName = useCallback(
+    (houseId: string | null) => {
+      if (!houseId) return "No house assigned";
 
-    return houses.find((house) => house.id === houseId)?.name ?? "Unknown house";
-  }
+      return houses.find((house) => house.id === houseId)?.name ?? "Unknown house";
+    },
+    [houses]
+  );
 
-  function getRequestHouseName(request: PassRequestRow) {
-    const resident = getResident(request.resident_id);
+  const getRequestHouseName = useCallback(
+    (request: PassRequestRow) => {
+      const resident = getResident(request.resident_id);
 
-    return getHouseName(request.house_id || resident?.house_id || null);
-  }
+      return getHouseName(request.house_id || resident?.house_id || null);
+    },
+    [getHouseName, getResident]
+  );
 
-  function getResidentName(residentId: string | null) {
-    const resident = getResident(residentId);
+  const getResidentName = useCallback(
+    (residentId: string | null) => {
+      const resident = getResident(residentId);
 
-    return resident ? `${resident.first_name} ${resident.last_name}` : "Unknown resident";
-  }
+      return resident ? `${resident.first_name} ${resident.last_name}` : "Unknown resident";
+    },
+    [getResident]
+  );
 
   const requestsWithinHouseAndDate = useMemo(() => {
     return passRequests.filter((request) => {
@@ -211,7 +223,7 @@ export default function PassRequestsPage() {
 
       return matchesHouse && matchesStart && matchesEnd;
     });
-  }, [passRequests, residents, passHouseFilter, departureStart, departureEnd]);
+  }, [passRequests, passHouseFilter, departureStart, departureEnd, getResident]);
 
   const filteredPassRequests = useMemo(() => {
     return requestsWithinHouseAndDate
