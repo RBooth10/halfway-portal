@@ -1905,6 +1905,13 @@ const totalCharges = feeCharges.reduce((sum, charge) => sum + Number(charge.amou
     null;
 
   const sponsorRoiAuthorization = sponsorContact ? getSignedRoiForContact(sponsorContact.id) : null;
+  const sponsorRevokedRoiAuthorization = sponsorContact ? getRevokedRoiForContact(sponsorContact.id) : null;
+
+  const dischargeCallableContacts = emergencyContacts.filter((contact) =>
+    contact.status === "active" &&
+    Boolean(getSignedRoiForContact(contact.id)) &&
+    !getRevokedRoiForContact(contact.id)
+  );
 
   function buildRoiAuthorizationText(approvedContacts: ResidentEmergencyContactRow[]) {
     const contactLines = approvedContacts
@@ -2475,6 +2482,13 @@ Resident Signature Collected Electronically`;
 
 
   function toggleDischargeContact(contactId: string) {
+    const contact = dischargeCallableContacts.find((item) => item.id === contactId);
+
+    if (!contact) {
+      setError("Only active contacts with a signed, non-revoked ROI can be selected for discharge calls.");
+      return;
+    }
+
     setSelectedDischargeContactIds((current) =>
       current.includes(contactId)
         ? current.filter((id) => id !== contactId)
@@ -2510,7 +2524,9 @@ Resident Signature Collected Electronically`;
         p_discharge_date: dischargeDate || new Date().toISOString().slice(0, 10),
         p_discharge_reason: dischargeReason,
         p_discharge_notes: dischargeNotes,
-        p_emergency_contact_ids: selectedDischargeContactIds,
+        p_emergency_contact_ids: selectedDischargeContactIds.filter((contactId) =>
+          dischargeCallableContacts.some((contact) => contact.id === contactId)
+        ),
       });
 
       if (error) {
@@ -2764,8 +2780,22 @@ async function updateResidentPhase(phaseId: string) {
                       </p>
                     </div>
 
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
-                      {sponsorRoiAuthorization ? "Signed ROI on file" : resident?.sponsor_name ? "ROI not signed" : "Needs sponsor update"}
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        sponsorRoiAuthorization
+                          ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                          : sponsorRevokedRoiAuthorization
+                            ? "bg-rose-100 text-rose-800 ring-1 ring-rose-300"
+                            : "bg-white text-slate-600"
+                      }`}
+                    >
+                      {sponsorRoiAuthorization
+                        ? "Signed ROI on file"
+                        : sponsorRevokedRoiAuthorization
+                          ? "Sponsor ROI revoked"
+                          : resident?.sponsor_name
+                            ? "ROI not signed"
+                            : "Needs sponsor update"}
                     </span>
                   </div>
 
@@ -2807,6 +2837,14 @@ async function updateResidentPhase(phaseId: string) {
                       >
                         View Signed Sponsor ROI
                       </button>
+                    ) : sponsorRevokedRoiAuthorization ? (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRoiAuthorization(sponsorRevokedRoiAuthorization)}
+                        className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-800 hover:bg-rose-200"
+                      >
+                        View Revoked Sponsor ROI
+                      </button>
                     ) : null}
                   </div>
                 </div>
@@ -2828,7 +2866,14 @@ async function updateResidentPhase(phaseId: string) {
                     </p>
                   ) : (
                     sortedEmergencyContacts.map((contact) => (
-                      <div key={contact.id} className="rounded-2xl bg-slate-50 p-4">
+                      <div
+                        key={contact.id}
+                        className={`rounded-2xl p-4 ${
+                          getRevokedRoiForContact(contact.id)
+                            ? "border border-rose-300 bg-rose-50 ring-1 ring-rose-200"
+                            : "bg-slate-50"
+                        }`}
+                      >
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <p className="text-sm font-semibold text-slate-950">
@@ -2840,11 +2885,19 @@ async function updateResidentPhase(phaseId: string) {
                             </p>
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                contactHasSignedRoi(contact.id)
+                                  ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                                  : getRevokedRoiForContact(contact.id)
+                                    ? "bg-rose-100 text-rose-800 ring-1 ring-rose-300"
+                                    : "bg-white text-slate-600"
+                              }`}
+                            >
                               {contactHasSignedRoi(contact.id)
                                 ? "Signed ROI on file"
                                 : getRevokedRoiForContact(contact.id)
-                                  ? "ROI revoked"
+                                  ? "ROI REVOKED"
                                   : "ROI not signed"}
                             </span>
 
@@ -2878,13 +2931,35 @@ async function updateResidentPhase(phaseId: string) {
                                   setRoiSignatureAgreement(false);
                                   setShowRoiSignatureModal(true);
                                 }}
-                                className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                  getRevokedRoiForContact(contact.id)
+                                    ? "bg-rose-100 text-rose-800 hover:bg-rose-200"
+                                    : "bg-white text-slate-600 hover:bg-slate-100"
+                                }`}
                               >
-                                Sign ROI
+                                {getRevokedRoiForContact(contact.id) ? "Re-sign ROI" : "Sign ROI"}
                               </button>
                             )}
                           </div>
                         </div>
+
+                        {getRevokedRoiForContact(contact.id) ? (
+                          <div className="mt-3 rounded-xl border border-rose-200 bg-white p-3">
+                            <p className="text-sm font-semibold text-rose-800">
+                              ROI revoked. Staff should not communicate with this contact unless a new ROI is signed.
+                            </p>
+                            {getRevokedRoiForContact(contact.id)?.revoked_at ? (
+                              <p className="mt-1 text-xs text-rose-700">
+                                Revoked {formatDateTime(getRevokedRoiForContact(contact.id)?.revoked_at ?? "")}
+                              </p>
+                            ) : null}
+                            {getRevokedRoiForContact(contact.id)?.revocation_notes ? (
+                              <p className="mt-1 text-xs text-rose-700">
+                                Reason: {getRevokedRoiForContact(contact.id)?.revocation_notes}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
 
                         {contact.notes ? (
                           <p className="mt-2 text-sm text-slate-600">Notes: {contact.notes}</p>
@@ -4712,14 +4787,12 @@ async function updateResidentPhase(phaseId: string) {
                   </span>
 
                   <div className="mt-2 grid gap-3 rounded-2xl border bg-white p-4 md:grid-cols-2">
-                    {emergencyContacts.filter((contact) => contact.status === "active").length === 0 ? (
+                    {dischargeCallableContacts.length === 0 ? (
                       <p className="text-sm text-slate-500">
-                        No active emergency contacts saved. You can still discharge this resident without selecting a contact.
+                        No active contacts with a signed, non-revoked ROI are available for discharge calls. You can still discharge this resident without selecting a contact.
                       </p>
                     ) : (
-                      emergencyContacts
-                        .filter((contact) => contact.status === "active")
-                        .map((contact) => (
+                      dischargeCallableContacts.map((contact) => (
                           <label key={contact.id} className="flex items-start gap-3 rounded-xl bg-slate-50 p-3">
                             <input
                               type="checkbox"
