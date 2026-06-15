@@ -378,6 +378,24 @@ export default function DocumentsPage() {
     }
   }
 
+  async function openTextDocumentPreview(documentName: string, documentBody: string | null) {
+    if (!documentBody?.trim()) {
+      setError("This text document does not have content to preview.");
+      return;
+    }
+
+    setError("");
+
+    const blob = new Blob([documentBody], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    try {
+      await openFilePreview(url, documentName || "Text Document", `${documentName || "text-document"}.txt`);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
   async function restoreDocument(document: DocumentRow) {
     const restoredStatus =
       document.document_source === "text" || document.file_url ? "uploaded" : "not_uploaded";
@@ -887,15 +905,20 @@ export default function DocumentsPage() {
                       Edit
                     </button>
 
-                    {doc.file_url ? (
+                    {doc.file_url || doc.document_body ? (
                       <button
                         type="button"
                         onClick={() => {
-                          if (doc.file_url) void openStoredFile(doc.file_url);
+                          if (doc.file_url) {
+                            void openStoredFile(doc.file_url);
+                            return;
+                          }
+
+                          void openTextDocumentPreview(doc.document_name, doc.document_body);
                         }}
                         className="rounded-xl border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
                       >
-                        View File
+                        {doc.file_url ? "View File" : "View Text"}
                       </button>
                     ) : null}
 
@@ -1178,19 +1201,26 @@ export default function DocumentsPage() {
                         {editingDocument?.file_url ? "Attached file" : "Attach file"}
                       </span>
 
-                      {editingDocument?.file_url ? (
+                      {editingDocument?.file_url || editingDocument?.document_body ? (
                         <div className="mt-2 rounded-2xl border bg-slate-50 p-3">
                           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                            <p className="text-sm font-medium text-slate-700">File attached</p>
+                            <p className="text-sm font-medium text-slate-700">
+                              {editingDocument?.file_url ? "File attached" : "Text document available"}
+                            </p>
 
                             <button
                               type="button"
                               onClick={() => {
-                                if (editingDocument?.file_url) void openStoredFile(editingDocument.file_url);
+                                if (editingDocument?.file_url) {
+                                  void openStoredFile(editingDocument.file_url);
+                                  return;
+                                }
+
+                                void openTextDocumentPreview(editingDocument?.document_name ?? "Text Document", editingDocument?.document_body ?? null);
                               }}
                               className="inline-flex items-center justify-center rounded-xl border bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
                             >
-                              View file
+                              {editingDocument?.file_url ? "View file" : "View text"}
                             </button>
                           </div>
 
