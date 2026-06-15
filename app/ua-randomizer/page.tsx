@@ -318,7 +318,7 @@ export default function UaRandomizerPage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [maxTests, minTests, windowDays]);
 
   async function saveDefaultRollingRule(activeProviderId: string) {
     const supabase = getSupabaseClient() as any;
