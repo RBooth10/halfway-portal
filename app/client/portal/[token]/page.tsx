@@ -268,6 +268,8 @@ export default function ClientPortalPage() {
   const [currentStep, setCurrentStep] = useState("");
   const [sponsorInfoUpdatedAt, setSponsorInfoUpdatedAt] = useState<string | null>(null);
   const [savingSponsorInfo, setSavingSponsorInfo] = useState(false);
+  const [sponsorRoiAgreement, setSponsorRoiAgreement] = useState(false);
+  const [sponsorRoiSignatureName, setSponsorRoiSignatureName] = useState("");
   const [requestTitle, setRequestTitle] = useState("");
   const [requestDescription, setRequestDescription] = useState("");
   const [locationArea, setLocationArea] = useState("");
@@ -710,6 +712,18 @@ export default function ClientPortalPage() {
       setMessage("");
       setError("");
 
+      const hasSponsorContact = sponsorName.trim().length > 0 || sponsorPhone.trim().length > 0;
+
+      if (hasSponsorContact && !sponsorRoiAgreement) {
+        setError("Please confirm the sponsor ROI authorization before saving sponsor information.");
+        return;
+      }
+
+      if (hasSponsorContact && sponsorRoiSignatureName.trim().length < 2) {
+        setError("Please type your full name as the electronic signature for the sponsor ROI.");
+        return;
+      }
+
       const supabase = getSupabaseClient() as any;
 
       const { data, error } = await supabase.rpc("update_client_portal_sponsor_info", {
@@ -717,6 +731,8 @@ export default function ClientPortalPage() {
         p_sponsor_name: sponsorName,
         p_sponsor_phone: sponsorPhone,
         p_current_step: currentStep,
+        p_roi_agreed: sponsorRoiAgreement,
+        p_roi_signature_name: sponsorRoiSignatureName,
       });
 
       if (error) {
@@ -729,7 +745,9 @@ export default function ClientPortalPage() {
       }
 
       setSponsorInfoUpdatedAt(new Date().toISOString());
-      setMessage("Sponsor and step information updated successfully.");
+      setSponsorRoiAgreement(false);
+      setSponsorRoiSignatureName("");
+      setMessage(data?.message ?? "Sponsor, step, and ROI information updated successfully.");
     } catch (err) {
       const sponsorError = err as { message?: unknown };
       setError(sponsorError?.message ? String(sponsorError.message) : "Could not update sponsor and step information.");
@@ -1341,6 +1359,36 @@ async function submitMaintenanceRequest() {
                       value={currentStep}
                       onChange={(event) => setCurrentStep(event.target.value)}
                       placeholder="Example: Step 4"
+                      className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-5 rounded-2xl border bg-slate-50 p-4">
+                  <h3 className="text-sm font-semibold text-slate-950">Sponsor Release of Information</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    By signing below, you authorize staff to communicate with your listed sponsor as part of your approved contacts and Release of Information. This consent applies to the sponsor listed above and is valid for twelve months unless revoked earlier in writing.
+                  </p>
+
+                  <label className="mt-4 flex items-start gap-3 rounded-xl bg-white p-3">
+                    <input
+                      type="checkbox"
+                      checked={sponsorRoiAgreement}
+                      onChange={(event) => setSponsorRoiAgreement(event.target.checked)}
+                      className="mt-1 h-4 w-4"
+                    />
+                    <span className="text-sm font-medium text-slate-700">
+                      I authorize staff to communicate with my sponsor about recovery-related status updates, progress, discharge planning, recovery plans, and financial status as allowed by this ROI.
+                    </span>
+                  </label>
+
+                  <label className="mt-4 block">
+                    <span className="text-sm font-medium text-slate-700">Resident electronic signature</span>
+                    <input
+                      type="text"
+                      value={sponsorRoiSignatureName}
+                      onChange={(event) => setSponsorRoiSignatureName(event.target.value)}
+                      placeholder="Type your full legal name"
                       className="mt-2 h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none ring-slate-900/10 focus:ring-4"
                     />
                   </label>

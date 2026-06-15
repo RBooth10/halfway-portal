@@ -1891,6 +1891,21 @@ const totalCharges = feeCharges.reduce((sum, charge) => sum + Number(charge.amou
     return firstContact.contact_name.localeCompare(secondContact.contact_name);
   });
 
+  const sponsorContact =
+    sortedEmergencyContacts.find((contact) =>
+      contact.status === "active" &&
+      contact.contact_role === "Chosen Sponsor" &&
+      resident?.sponsor_name &&
+      contact.contact_name.trim().toLowerCase() === resident.sponsor_name.trim().toLowerCase()
+    ) ??
+    sortedEmergencyContacts.find((contact) =>
+      contact.status === "active" &&
+      contact.contact_role === "Chosen Sponsor"
+    ) ??
+    null;
+
+  const sponsorRoiAuthorization = sponsorContact ? getSignedRoiForContact(sponsorContact.id) : null;
+
   function buildRoiAuthorizationText(approvedContacts: ResidentEmergencyContactRow[]) {
     const contactLines = approvedContacts
       .map((contact) => `${contact.contact_name} — ${contact.contact_role}${contact.relationship ? ` (${contact.relationship})` : ""}`)
@@ -2739,6 +2754,62 @@ async function updateResidentPhase(phaseId: string) {
                 <p className="mt-1 text-sm text-slate-500">
                   Manage the approved contacts list and collect the resident&apos;s signed Release of Information.
                 </p>
+
+                <div className="mt-6 rounded-2xl border bg-slate-50 p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-950">Sponsor / Step Information</h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Sponsor details submitted from the resident portal and linked to sponsor ROI when signed.
+                      </p>
+                    </div>
+
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                      {sponsorRoiAuthorization ? "Signed ROI on file" : resident?.sponsor_name ? "ROI not signed" : "Needs sponsor update"}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-xl bg-white p-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Sponsor name</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-950">
+                        {resident?.sponsor_name || sponsorContact?.contact_name || "Not provided"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-white p-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Sponsor phone</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-950">
+                        {resident?.sponsor_phone || sponsorContact?.phone || "Not provided"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-white p-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Current step</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-950">
+                        {resident?.current_step || "Not provided"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    {resident?.sponsor_info_updated_at ? (
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                        Updated {formatDateTime(resident.sponsor_info_updated_at)}
+                      </span>
+                    ) : null}
+
+                    {sponsorRoiAuthorization ? (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRoiAuthorization(sponsorRoiAuthorization)}
+                        className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                      >
+                        View Signed Sponsor ROI
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
 
                 <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
                   <div>
